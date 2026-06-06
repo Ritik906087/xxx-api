@@ -18,6 +18,7 @@ export async function POST(request: Request) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
     // MeraOTP Integration
+    // In production, use process.env.MERA_OTP_API_KEY
     const apiKey = "4ef8fe7a7412390737d7a6e591";
     const url = "https://meraotp.in/api/sendSMS";
 
@@ -42,11 +43,11 @@ export async function POST(request: Request) {
       return jsonResponse({
         success: true,
         message: "OTP sent successfully",
-        // Only return otp in dev/testing mode
+        // Only return otp in dev/testing mode for visibility
         ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
       });
     } else {
-      return errorResponse(result.message || "Failed to send SMS", 502);
+      return errorResponse(result.message || "Failed to send SMS via gateway", 502);
     }
 
   } catch (error: any) {

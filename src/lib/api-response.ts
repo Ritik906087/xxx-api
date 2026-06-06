@@ -7,6 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+/**
+ * Returns a standard JSON response with CORS headers
+ */
 export function jsonResponse(data: any, status = 200) {
   return NextResponse.json(data, {
     status,
@@ -14,6 +17,9 @@ export function jsonResponse(data: any, status = 200) {
   });
 }
 
+/**
+ * Returns a standard error response with CORS headers
+ */
 export function errorResponse(message: string, status = 500, details?: any) {
   return NextResponse.json(
     {
@@ -28,6 +34,9 @@ export function errorResponse(message: string, status = 500, details?: any) {
   );
 }
 
+/**
+ * Handles CORS preflight requests
+ */
 export function handleOptions() {
   return new NextResponse(null, {
     status: 204,
