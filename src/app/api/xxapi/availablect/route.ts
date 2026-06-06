@@ -12,13 +12,19 @@ export async function OPTIONS() {
  */
 export async function GET(request: Request) {
   try {
-    const url = new URL(request.url);
-    const response = await fetch(`${OLD_SERVER_BASE}/availablect${url.search}`, {
+    const { search } = new URL(request.url);
+    const response = await fetch(`${OLD_SERVER_BASE}/availablect${search}`, {
       method: 'GET',
       headers: {
         'Authorization': request.headers.get('Authorization') || '',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return errorResponse(`Target Server Error: ${response.status}`, response.status, errorText);
+    }
 
     const data = await response.json();
     return jsonResponse(data, response.status);
