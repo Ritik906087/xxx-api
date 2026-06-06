@@ -1,13 +1,13 @@
-
 import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 
-export async function OPTIONS() {
-  return handleOptions();
-}
-
+/**
+ * Standard SMS sending route using MeraOTP.
+ */
 export async function POST(request: Request) {
   try {
-    const { mobileNo, token } = await request.json();
+    const body = await request.json();
+    const { mobileNo } = body;
+
     if (!mobileNo) return errorResponse("mobileNo required", 400);
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -27,12 +27,18 @@ export async function POST(request: Request) {
     });
 
     const result = await response.json();
+    
     return jsonResponse({
-      success: result.status === "success",
-      message: "SMS Request Processed",
+      status: "ok",
+      success: result.status === "success" || result.statusCode === 200,
+      message: "SMS Request Dispatched",
       ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
     });
   } catch (e: any) {
-    return errorResponse(e.message, 500);
+    return errorResponse("Internal SMS Error", 500, e.message);
   }
+}
+
+export async function OPTIONS() {
+  return handleOptions();
 }
