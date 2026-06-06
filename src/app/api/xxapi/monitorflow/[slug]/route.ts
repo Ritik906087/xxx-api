@@ -1,4 +1,3 @@
-
 import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 
 const OLD_SERVER_BASE = "https://apitez.xyz/xxapi";
@@ -12,6 +11,8 @@ const STEALTH_HEADERS = {
   'Accept': 'application/json, text/plain, */*',
   'Accept-Language': 'en-US,en;q=0.9',
   'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
   'Origin': 'https://apitez.xyz',
   'Referer': 'https://apitez.xyz/',
   'Sec-Ch-Ua': '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
@@ -20,8 +21,8 @@ const STEALTH_HEADERS = {
   'Sec-Fetch-Dest': 'empty',
   'Sec-Fetch-Mode': 'cors',
   'Sec-Fetch-Site': 'same-origin',
-  'X-Requested-With': 'XMLHttpRequest',
   'Connection': 'keep-alive',
+  'X-Requested-With': 'XMLHttpRequest',
 };
 
 export async function POST(
