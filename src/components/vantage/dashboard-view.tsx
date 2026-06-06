@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -7,8 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VantageTerminal } from './terminal';
 import { MOCK_WALLETS, MOCK_TRANSACTIONS, type Transaction, type User } from '@/lib/vantage-store';
-import { processTransaction, requestOTP } from '@/app/actions/vantage-actions';
-import { Wallet, ArrowUpRight, ArrowDownLeft, ShieldAlert, History, Globe, Settings, User as UserIcon, Copy, Check, Terminal, ExternalLink, Play, Search, Code, Cpu } from 'lucide-react';
+import { processTransaction } from '@/app/actions/vantage-actions';
+import { Wallet, ArrowUpRight, ArrowDownLeft, History, Globe, User as UserIcon, Copy, Check, ExternalLink, Play, Search, Code, Cpu } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
@@ -33,7 +34,6 @@ export function DashboardView({ user }: { user: User }) {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
-  // Initial System Logs
   useEffect(() => {
     addApiLog('GET', '/api/xxapi/config', 'success', { brand: 'Vantage', version: '2.4.0' }, 200);
     addApiLog('GET', '/api/xxapi/userinfo', 'success', { id: user.id, mobile: user.mobileNo }, 200);
@@ -62,24 +62,38 @@ export function DashboardView({ user }: { user: User }) {
 
   const runProxyTest = async () => {
     setIsProcessing(true);
+    setActiveTab('logs');
+    
     const endpoints = [
+      { method: 'GET', path: '/api/app/version' },
       { method: 'POST', path: '/api/xxapi/monitorflow/check', body: { action: 'ping' } },
       { method: 'GET', path: '/api/xxapi/availablect?payment_method=1' }
     ];
 
     for (const ep of endpoints) {
       try {
-        const fetchOptions: any = { method: ep.method };
+        const fetchOptions: any = { 
+          method: ep.method,
+          headers: { 'Content-Type': 'application/json' }
+        };
         if (ep.body) fetchOptions.body = JSON.stringify(ep.body);
 
         const res = await fetch(ep.path, fetchOptions);
-        const data = await res.json();
+        
+        // Handle potential non-JSON responses to avoid parsing errors
+        const contentType = res.headers.get("content-type");
+        let data;
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          data = await res.json();
+        } else {
+          data = { error: "Non-JSON response received", raw: await res.text() };
+        }
+        
         addApiLog(ep.method as any, ep.path, res.ok ? 'success' : 'failed', data, res.status, ep.body);
       } catch (e: any) {
         addApiLog(ep.method as any, ep.path, 'failed', { error: e.message }, 500);
       }
     }
-    setActiveTab('logs');
     setIsProcessing(false);
   };
 
@@ -111,7 +125,6 @@ export function DashboardView({ user }: { user: User }) {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-white text-slate-900 font-code">
-      {/* Enterprise Header */}
       <header className="h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-50 shadow-sm">
         <div className="flex items-center gap-6">
           <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center font-headline font-black text-2xl text-white shadow-lg shadow-blue-600/20">V</div>
@@ -142,7 +155,6 @@ export function DashboardView({ user }: { user: User }) {
       </header>
 
       <main className="flex-1 overflow-hidden p-8 gap-8 grid grid-cols-12 max-w-[1800px] mx-auto w-full">
-        {/* Statistics Panel */}
         <div className="col-span-12 lg:col-span-3 space-y-6">
           <Card className="bg-white border-slate-200 overflow-hidden border-l-4 border-l-blue-600 shadow-sm transition-hover hover:shadow-md">
             <CardHeader className="pb-2">
@@ -197,7 +209,6 @@ export function DashboardView({ user }: { user: User }) {
           </Card>
         </div>
 
-        {/* Data Inspector Panel */}
         <div className="col-span-12 lg:col-span-6 flex flex-col overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col overflow-hidden">
             <div className="flex items-center justify-between mb-8">
@@ -301,13 +312,11 @@ export function DashboardView({ user }: { user: User }) {
           </Tabs>
         </div>
 
-        {/* Console Terminal Column */}
         <div className="col-span-12 lg:col-span-3 flex flex-col h-full overflow-hidden">
           <VantageTerminal />
         </div>
       </main>
 
-      {/* API Packet Viewer */}
       <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
         <DialogContent className="max-w-4xl bg-white border-slate-200 text-slate-900 rounded-[2rem] shadow-2xl p-0 overflow-hidden">
           <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
