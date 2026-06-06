@@ -1,24 +1,26 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VantageTerminal } from './terminal';
 import { MOCK_WALLETS, MOCK_TRANSACTIONS, type Transaction, type User } from '@/lib/vantage-store';
-import { processTransaction } from '@/app/actions/vantage-actions';
-import { Wallet, ArrowUpRight, ArrowDownLeft, ShieldAlert, History, Globe, Settings, User as UserIcon, Copy, Check, Terminal, ExternalLink, Play } from 'lucide-react';
+import { processTransaction, requestOTP } from '@/app/actions/vantage-actions';
+import { Wallet, ArrowUpRight, ArrowDownLeft, ShieldAlert, History, Globe, Settings, User as UserIcon, Copy, Check, Terminal, ExternalLink, Play, Search, Code, Cpu } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 interface ApiLog {
   id: string;
-  method: string;
+  method: 'GET' | 'POST';
   endpoint: string;
-  status: 'success' | 'failed';
+  status: 'success' | 'failed' | 'pending';
+  statusCode?: number;
   timestamp: string;
   response: any;
+  payload?: any;
 }
 
 export function DashboardView({ user }: { user: User }) {
@@ -26,28 +28,27 @@ export function DashboardView({ user }: { user: User }) {
   const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState('transactions');
-  const [apiLogs, setApiLogs] = useState<ApiLog[]>([
-    {
-      id: 'log_1',
-      method: 'GET',
-      endpoint: '/api/xxapi/userinfo',
-      status: 'success',
-      timestamp: new Date().toISOString(),
-      response: { success: true, data: { mobileNo: user.mobileNo, role: user.role } }
-    }
-  ]);
+  const [apiLogs, setApiLogs] = useState<ApiLog[]>([]);
   const [selectedLog, setSelectedLog] = useState<ApiLog | null>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
-  const addApiLog = (method: string, endpoint: string, status: 'success' | 'failed', response: any) => {
+  // Initial System Logs
+  useEffect(() => {
+    addApiLog('GET', '/api/xxapi/config', 'success', { brand: 'Vantage', version: '2.4.0' }, 200);
+    addApiLog('GET', '/api/xxapi/userinfo', 'success', { id: user.id, mobile: user.mobileNo }, 200);
+  }, []);
+
+  const addApiLog = (method: 'GET' | 'POST', endpoint: string, status: 'success' | 'failed', response: any, statusCode = 200, payload?: any) => {
     const newLog: ApiLog = {
-      id: `log_${Math.random().toString(36).substr(2, 5)}`,
+      id: `trc_${Math.random().toString(36).substr(2, 7)}`,
       method,
       endpoint,
       status,
+      statusCode,
       timestamp: new Date().toISOString(),
-      response
+      response,
+      payload
     };
     setApiLogs(prev => [newLog, ...prev]);
   };
@@ -55,208 +56,190 @@ export function DashboardView({ user }: { user: User }) {
   const handleCopyJson = (json: any) => {
     navigator.clipboard.writeText(JSON.stringify(json, null, 2));
     setCopied(true);
-    toast({ title: "Copied!", description: "JSON response copied to clipboard." });
+    toast({ title: "Buffer Copied", description: "JSON packet is now in clipboard." });
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const runProxyTest = async () => {
+    setIsProcessing(true);
+    const endpoints = [
+      { method: 'POST', path: '/api/xxapi/monitorflow/check', body: { action: 'ping' } },
+      { method: 'GET', path: '/api/xxapi/availablect?payment_method=1' }
+    ];
+
+    for (const ep of endpoints) {
+      try {
+        const fetchOptions: any = { method: ep.method };
+        if (ep.body) fetchOptions.body = JSON.stringify(ep.body);
+
+        const res = await fetch(ep.path, fetchOptions);
+        const data = await res.json();
+        addApiLog(ep.method as any, ep.path, res.ok ? 'success' : 'failed', data, res.status, ep.body);
+      } catch (e: any) {
+        addApiLog(ep.method as any, ep.path, 'failed', { error: e.message }, 500);
+      }
+    }
+    setActiveTab('logs');
+    setIsProcessing(false);
   };
 
   const handleTestTransaction = async (amount: number, type: 'purchase' | 'deposit' | 'withdrawal') => {
     setIsProcessing(true);
-    const endpoint = '/app/actions/processTransaction';
+    const payload = { userId: user.id, amount, type, description: `Simulation ${type}` };
     
     try {
-      const res = await processTransaction({
-        userId: user.id,
-        amount,
-        type,
-        description: `Testing ${type} pattern`
-      });
+      const res = await processTransaction(payload);
       setIsProcessing(false);
 
       if (res.success) {
-        addApiLog('POST', endpoint, 'success', res);
+        addApiLog('POST', '/api/v1/ledger/process', 'success', res, 201, payload);
         if (res.transaction.isFraudulent) {
-          toast({
-            variant: 'destructive',
-            title: 'Smart-Shield Alert',
-            description: `AI Flagged this transaction: ${res.fraudDetection?.reasoning}`
-          });
+          toast({ variant: 'destructive', title: 'Security Alert', description: 'AI Flagged high-risk pattern.' });
         } else {
           setTransactions(prev => [res.transaction, ...prev]);
           setBalance(prev => type === 'deposit' ? prev + amount : prev - amount);
-          toast({ title: 'Transaction Successful', description: 'Atomic ledger updated.' });
+          toast({ title: 'Settlement OK', description: 'Transaction written to MongoDB Atlas.' });
         }
       } else {
-        addApiLog('POST', endpoint, 'failed', res);
+        addApiLog('POST', '/api/v1/ledger/process', 'failed', res, 400, payload);
       }
     } catch (e: any) {
       setIsProcessing(false);
-      addApiLog('POST', endpoint, 'failed', { error: e.message });
-      toast({ variant: 'destructive', title: 'System Error', description: 'API call failed.' });
+      addApiLog('POST', '/api/v1/ledger/process', 'failed', { error: e.message }, 500, payload);
     }
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50 text-slate-900">
-      {/* Header */}
-      <header className="h-20 border-b border-slate-200 bg-white/90 backdrop-blur-lg flex items-center justify-between px-8 shrink-0 z-50 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center font-headline font-black text-xl text-white shadow-md">V</div>
+    <div className="flex flex-col h-screen overflow-hidden bg-white text-slate-900 font-code">
+      {/* Enterprise Header */}
+      <header className="h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-50 shadow-sm">
+        <div className="flex items-center gap-6">
+          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center font-headline font-black text-2xl text-white shadow-lg shadow-blue-600/20">V</div>
           <div className="flex flex-col">
-            <span className="font-headline font-bold text-xl tracking-tight text-slate-900">VANTAGE ENGINE</span>
-            <span className="text-[10px] text-slate-500 uppercase tracking-[0.3em] font-black">Hybrid Core Gateway</span>
+            <span className="font-headline font-bold text-xl tracking-tight text-slate-900 leading-none">VANTAGE ENGINE</span>
+            <span className="text-[10px] text-slate-400 uppercase tracking-[0.4em] font-black mt-1">Hybrid Cloud Gateway</span>
           </div>
-          <Badge variant="outline" className="ml-4 border-emerald-500/30 text-emerald-600 bg-emerald-50 text-[10px] uppercase font-bold px-3 py-1">V2.4-STABLE</Badge>
+          <div className="h-8 w-px bg-slate-200 ml-2" />
+          <Badge variant="outline" className="border-emerald-500/20 text-emerald-600 bg-emerald-50 text-[10px] uppercase font-bold px-4 py-1.5">Node: Stable</Badge>
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <Button 
-            onClick={() => setActiveTab('logs')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[12px] uppercase px-8 h-12 shadow-lg shadow-blue-500/20 transition-all hover:scale-105 active:scale-95 flex gap-3"
+            onClick={runProxyTest}
+            disabled={isProcessing}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[12px] uppercase px-10 h-12 shadow-xl shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98] flex gap-3"
           >
-            <Play className="w-4 h-4 fill-current" />
+            {isProcessing ? <Cpu className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
             GET RESULTS
           </Button>
 
-          <div className="hidden xl:flex items-center gap-4 px-5 py-2 bg-slate-100 rounded-xl border border-slate-200">
-            <UserIcon className="w-4 h-4 text-slate-500" />
-            <span className="text-xs font-code text-slate-700 font-bold">{user.mobileNo}</span>
-            <Badge className="bg-blue-100 text-blue-600 border-blue-200 text-[9px] uppercase font-black">{user.role}</Badge>
+          <div className="hidden xl:flex items-center gap-4 px-5 py-2.5 bg-slate-50 rounded-xl border border-slate-200">
+            <UserIcon className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-bold text-slate-700">{user.mobileNo}</span>
+            <Badge className="bg-blue-50 text-blue-600 border-blue-100 text-[9px] uppercase font-black">Admin</Badge>
           </div>
-          
-          <Button variant="ghost" size="icon" className="text-slate-500 hover:text-slate-900 hover:bg-slate-100">
-            <Settings className="w-6 h-6" />
-          </Button>
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden p-6 gap-6 grid grid-cols-12 max-w-[1700px] mx-auto w-full">
-        {/* Left Stats Column */}
-        <div className="col-span-12 lg:col-span-3 space-y-6 overflow-y-auto terminal-scroll pr-2">
-          <Card className="bg-white border-slate-200 overflow-hidden relative group border-l-4 border-l-blue-600 shadow-sm">
+      <main className="flex-1 overflow-hidden p-8 gap-8 grid grid-cols-12 max-w-[1800px] mx-auto w-full">
+        {/* Statistics Panel */}
+        <div className="col-span-12 lg:col-span-3 space-y-6">
+          <Card className="bg-white border-slate-200 overflow-hidden border-l-4 border-l-blue-600 shadow-sm transition-hover hover:shadow-md">
             <CardHeader className="pb-2">
-              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold flex items-center gap-2">
-                <Wallet className="w-3.5 h-3.5" />
-                Live Portfolio
+              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-black flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-blue-600" />
+                Liquid Balance (USD)
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-4xl font-headline font-bold tracking-tight text-slate-900 mb-1">
+              <div className="text-4xl font-headline font-bold tracking-tighter text-slate-900">
                 ${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </div>
-              <div className="flex items-center gap-2 mt-3">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-sm" />
-                <span className="text-[10px] font-code text-emerald-600 font-bold uppercase">MongoDB Cloud Sync: OK</span>
+              <div className="flex items-center gap-2 mt-4 text-[10px] font-bold text-emerald-600 uppercase">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Sync Mode: Realtime
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white border-slate-200 p-2 shadow-sm">
-            <CardHeader className="pb-3 pt-3">
-              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Transaction Nodes</CardTitle>
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-black">Action Nodes</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 p-2">
+            <CardContent className="grid gap-3 px-2">
               <Button 
                 variant="outline" 
-                className="justify-start gap-4 h-14 border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 group transition-all"
-                onClick={() => handleTestTransaction(250.00, 'deposit')}
-                disabled={isProcessing}
+                className="justify-start gap-4 h-16 border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-all group"
+                onClick={() => handleTestTransaction(150.00, 'deposit')}
               >
-                <div className="w-9 h-9 rounded bg-emerald-100 flex items-center justify-center group-hover:bg-emerald-200">
-                  <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-200">
+                  <ArrowDownLeft className="w-6 h-6" />
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold uppercase tracking-tight text-slate-900">Deposit Node</p>
-                  <p className="text-[9px] text-slate-500 font-bold">MONGODB ATLAS TARGET</p>
+                  <p className="text-xs font-black uppercase tracking-tight">Deposit</p>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase">Target: MongoDB</p>
                 </div>
               </Button>
               <Button 
                 variant="outline" 
-                className="justify-start gap-4 h-14 border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 group transition-all"
+                className="justify-start gap-4 h-16 border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-all group"
                 onClick={() => handleTestTransaction(1200.00, 'purchase')}
-                disabled={isProcessing}
               >
-                <div className="w-9 h-9 rounded bg-blue-100 flex items-center justify-center group-hover:bg-blue-200">
-                  <ArrowUpRight className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-200">
+                  <ArrowUpRight className="w-6 h-6" />
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold uppercase tracking-tight text-slate-900">Order Execution</p>
-                  <p className="text-[9px] text-slate-500 font-bold">BLOCKCHAIN SYNC ENABLED</p>
-                </div>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="justify-start gap-4 h-14 border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 group transition-all"
-                onClick={() => handleTestTransaction(50000.00, 'withdrawal')}
-                disabled={isProcessing}
-              >
-                <div className="w-9 h-9 rounded bg-rose-100 flex items-center justify-center group-hover:bg-rose-200">
-                  <ShieldAlert className="w-5 h-5 text-rose-600" />
-                </div>
-                <div className="text-left">
-                  <p className="text-xs font-bold uppercase tracking-tight text-slate-900">High Risk Flow</p>
-                  <p className="text-[9px] text-slate-500 font-bold">GENKIT AI FRAUD CHECK</p>
+                  <p className="text-xs font-black uppercase tracking-tight">Purchase</p>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase">Target: Gateway</p>
                 </div>
               </Button>
             </CardContent>
           </Card>
         </div>
 
-        {/* Middle Inspector Column */}
-        <div className="col-span-12 lg:col-span-6 flex flex-col h-full overflow-hidden">
+        {/* Data Inspector Panel */}
+        <div className="col-span-12 lg:col-span-6 flex flex-col overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between mb-6 px-1">
-              <TabsList className="bg-slate-100 border border-slate-200 p-1 h-12">
-                <TabsTrigger value="transactions" className="gap-2 text-[10px] uppercase font-black tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <TabsList className="bg-slate-100/50 border border-slate-200 p-1.5 h-14 rounded-2xl">
+                <TabsTrigger value="transactions" className="gap-2 text-[10px] uppercase font-black tracking-widest px-6 data-[state=active]:bg-white data-[state=active]:shadow-lg data-[state=active]:text-blue-600">
                   <History className="w-4 h-4" />
-                  Master Ledger
+                  Ledger
                 </TabsTrigger>
-                <TabsTrigger value="logs" className="gap-2 text-[10px] uppercase font-black tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white shadow-md">
+                <TabsTrigger value="logs" className="gap-2 text-[10px] uppercase font-black tracking-widest px-6 data-[state=active]:bg-blue-600 data-[state=active]:shadow-lg data-[state=active]:text-white">
                   <Globe className="w-4 h-4" />
-                  GET (REALTIME)
-                </TabsTrigger>
-                <TabsTrigger value="audit" className="gap-2 text-[10px] uppercase font-black tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <ShieldAlert className="w-4 h-4" />
-                  Security Audit
+                  Get Results
                 </TabsTrigger>
               </TabsList>
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">PROXY ENGINE:</span>
-                <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 text-[9px] uppercase font-bold animate-pulse">Stealth Active</Badge>
+                <Badge variant="outline" className="text-blue-600 border-blue-100 bg-blue-50 text-[10px] font-black uppercase tracking-tighter animate-pulse">Stealth Proxy ON</Badge>
               </div>
             </div>
             
             <TabsContent value="transactions" className="flex-1 overflow-hidden m-0">
-              <div className="bg-white rounded-2xl border border-slate-200 h-full overflow-y-auto terminal-scroll shadow-sm">
-                <table className="w-full text-left text-[12px] border-collapse">
-                  <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xl z-10 border-b border-slate-200">
+              <div className="bg-white rounded-3xl border border-slate-200 h-full overflow-y-auto terminal-scroll shadow-sm">
+                <table className="w-full text-left text-[13px] border-collapse">
+                  <thead className="sticky top-0 bg-white/90 backdrop-blur-md z-10 border-b border-slate-200">
                     <tr>
-                      <th className="p-5 font-headline uppercase tracking-[0.2em] text-slate-500 text-[10px] font-black">Trace ID</th>
-                      <th className="p-5 font-headline uppercase tracking-[0.2em] text-slate-500 text-[10px] font-black">Gateway</th>
-                      <th className="p-5 font-headline uppercase tracking-[0.2em] text-slate-500 text-[10px] font-black text-right">Magnitude</th>
-                      <th className="p-5 font-headline uppercase tracking-[0.2em] text-slate-500 text-[10px] font-black">Outcome</th>
+                      <th className="p-6 uppercase tracking-widest text-slate-400 text-[10px] font-black">Trace ID</th>
+                      <th className="p-6 uppercase tracking-widest text-slate-400 text-[10px] font-black">Type</th>
+                      <th className="p-6 uppercase tracking-widest text-slate-400 text-[10px] font-black text-right">Value</th>
+                      <th className="p-6 uppercase tracking-widest text-slate-400 text-[10px] font-black">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {transactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50 transition-all group">
-                        <td className="p-5 font-code text-slate-600 font-medium">{tx.id}</td>
-                        <td className="p-5">
-                           <Badge variant="outline" className="text-[10px] uppercase border-slate-200 bg-white text-slate-700 font-bold">{tx.type}</Badge>
-                        </td>
-                        <td className={`p-5 font-code font-black text-right text-sm ${tx.type === 'deposit' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                      <tr key={tx.id} className="hover:bg-slate-50/50 transition-all cursor-default group">
+                        <td className="p-6 font-bold text-slate-500 group-hover:text-blue-600">{tx.id}</td>
+                        <td className="p-6"><Badge variant="outline" className="text-[10px] font-black uppercase border-slate-200">{tx.type}</Badge></td>
+                        <td className={`p-6 font-black text-right text-sm ${tx.type === 'deposit' ? 'text-emerald-600' : 'text-slate-900'}`}>
                           {tx.type === 'deposit' ? '+' : '-'}${tx.amount.toFixed(2)}
                         </td>
-                        <td className="p-5">
+                        <td className="p-6">
                           {tx.isFraudulent ? (
-                            <div className="flex items-center gap-2 text-rose-600">
-                              <ShieldAlert className="w-4 h-4" />
-                              <span className="text-[10px] font-black uppercase tracking-widest">Flagged</span>
-                            </div>
+                            <Badge variant="destructive" className="text-[9px] font-black uppercase px-3">Blocked</Badge>
                           ) : (
-                            <div className="flex items-center gap-2 text-emerald-600">
-                              <Check className="w-4 h-4" />
-                              <span className="text-[10px] font-black uppercase tracking-widest">Settled</span>
-                            </div>
+                            <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px] font-black uppercase px-3">Settled</Badge>
                           )}
                         </td>
                       </tr>
@@ -267,48 +250,47 @@ export function DashboardView({ user }: { user: User }) {
             </TabsContent>
 
             <TabsContent value="logs" className="flex-1 overflow-hidden m-0">
-              <div className="bg-white rounded-2xl border border-slate-200 h-full flex flex-col overflow-hidden shadow-sm">
-                <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
-                  <div className="flex items-center gap-3">
-                    <Terminal className="w-4 h-4 text-blue-600" />
-                    <span className="text-[11px] font-headline font-black uppercase tracking-[0.2em] text-slate-900">Live Request Inspector</span>
+              <div className="bg-white rounded-3xl border border-slate-200 h-full flex flex-col overflow-hidden shadow-sm">
+                <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/30">
+                  <div className="flex items-center gap-3 text-blue-600">
+                    <Code className="w-5 h-5" />
+                    <span className="text-xs font-black uppercase tracking-widest">Network Request Monitor</span>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setApiLogs([])} className="h-7 text-[10px] uppercase font-black text-rose-600 hover:bg-rose-50 transition-colors">Wipe Records</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setApiLogs([])} className="h-8 text-[10px] font-black uppercase text-rose-500 hover:bg-rose-50 rounded-xl">Clear All</Button>
                 </div>
-                <div className="flex-1 overflow-y-auto terminal-scroll divide-y divide-slate-100">
+                <div className="flex-1 overflow-y-auto terminal-scroll p-4 space-y-3 bg-slate-50/20">
                   {apiLogs.length === 0 ? (
-                    <div className="p-20 text-center">
-                      <Globe className="w-14 h-14 text-slate-200 mx-auto mb-4 animate-pulse" />
-                      <p className="text-sm text-slate-400 uppercase tracking-[0.2em] font-black">Awaiting Proxy Ingress...</p>
+                    <div className="h-full flex flex-col items-center justify-center text-center p-20 opacity-30">
+                      <Search className="w-16 h-16 mb-6 text-slate-300" />
+                      <p className="text-sm font-black uppercase tracking-[0.3em]">Listening for traffic...</p>
                     </div>
                   ) : (
                     apiLogs.map((log) => (
                       <div 
                         key={log.id} 
                         onClick={() => setSelectedLog(log)}
-                        className="p-5 flex items-center justify-between hover:bg-blue-50 cursor-pointer group transition-all border-l-2 border-l-transparent hover:border-l-blue-600"
+                        className="bg-white border border-slate-200 p-5 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer group flex items-center justify-between"
                       >
-                        <div className="flex items-center gap-5">
-                          <div className={`w-1 h-10 rounded-full ${log.status === 'success' ? 'bg-emerald-500' : 'bg-rose-500'} shadow-sm`} />
+                        <div className="flex items-center gap-6">
+                          <div className={`w-2 h-10 rounded-full ${log.status === 'success' ? 'bg-emerald-500' : 'bg-rose-500'} shadow-lg`} />
                           <div>
                             <div className="flex items-center gap-3">
-                              <Badge className={`text-[10px] font-black uppercase tracking-widest px-2 ${log.method === 'GET' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
+                              <Badge className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 ${log.method === 'GET' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                 {log.method}
                               </Badge>
-                              <p className="text-xs font-code text-slate-900 font-bold truncate max-w-[250px]">{log.endpoint}</p>
+                              <span className="text-xs font-bold text-slate-800 truncate max-w-[300px]">{log.endpoint}</span>
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-2 uppercase font-black tracking-tighter opacity-70">
-                              {new Date(log.timestamp).toLocaleTimeString()} · SECURE EDGE PROXY
-                            </p>
+                            <div className="flex items-center gap-4 mt-3 opacity-60">
+                              <span className="text-[10px] font-black uppercase tracking-tight">{log.id}</span>
+                              <span className="text-[10px] font-bold">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-5">
-                          {log.status === 'success' ? (
-                            <Badge variant="outline" className="border-emerald-200 text-emerald-600 bg-emerald-50 text-[10px] font-black px-3">200 OK</Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-rose-200 text-rose-600 bg-rose-50 text-[10px] font-black px-3">ERROR</Badge>
-                          )}
-                          <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                        <div className="flex items-center gap-4">
+                          <Badge variant="outline" className={`font-black text-[10px] border-slate-200 ${log.status === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {log.statusCode || 200} {log.status.toUpperCase()}
+                          </Badge>
+                          <ExternalLink className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
                         </div>
                       </div>
                     ))
@@ -316,60 +298,57 @@ export function DashboardView({ user }: { user: User }) {
                 </div>
               </div>
             </TabsContent>
-            
-            <TabsContent value="audit" className="flex-1 overflow-hidden m-0">
-              <div className="p-16 border border-slate-200 bg-slate-50/50 rounded-2xl text-center h-full flex flex-col items-center justify-center shadow-sm">
-                <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-8 border border-blue-200 shadow-md">
-                  <ShieldAlert className="w-10 h-10 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-headline font-black text-slate-900 mb-4 tracking-tight">OMNI-SHIELD ACTIVE</h3>
-                <p className="text-xs text-slate-500 max-w-sm leading-relaxed uppercase tracking-widest font-black opacity-60">Monitoring all external server handshakes. Security token verification enabled via Supabase Secure Protocol.</p>
-              </div>
-            </TabsContent>
           </Tabs>
         </div>
 
-        {/* Right Terminal Column */}
+        {/* Console Terminal Column */}
         <div className="col-span-12 lg:col-span-3 flex flex-col h-full overflow-hidden">
           <VantageTerminal />
         </div>
       </main>
 
-      {/* Log Detail Dialog */}
+      {/* API Packet Viewer */}
       <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
-        <DialogContent className="max-w-3xl bg-white border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
-          <DialogHeader className="border-b border-slate-100 pb-4">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-3 font-headline text-2xl font-black text-slate-900">
-                <Globe className="w-6 h-6 text-blue-600" />
+        <DialogContent className="max-w-4xl bg-white border-slate-200 text-slate-900 rounded-[2rem] shadow-2xl p-0 overflow-hidden">
+          <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div>
+              <DialogTitle className="text-2xl font-headline font-black text-slate-900 flex items-center gap-4">
+                <Code className="w-8 h-8 text-blue-600" />
                 PACKET INSPECTOR
               </DialogTitle>
-              <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-600 text-[11px] font-black uppercase px-4 py-1">REALTIME DATA</Badge>
+              <DialogDescription className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-2">
+                Trace: {selectedLog?.id} | Gateway Bypass Active
+              </DialogDescription>
             </div>
-            <DialogDescription className="text-slate-500 font-code text-xs mt-3 uppercase font-bold tracking-tight">
-              {selectedLog?.method} REQUEST TO INTERNAL GATEWAY: {selectedLog?.endpoint}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-8 space-y-6">
-            <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
-              <div className="flex items-center gap-4">
-                 <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse shadow-sm" />
-                 <span className="text-[11px] uppercase font-black text-slate-500 tracking-[0.3em]">Payload Response Buffer</span>
+            <Button 
+              onClick={() => handleCopyJson(selectedLog?.response)}
+              className="h-12 px-8 gap-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] uppercase rounded-2xl shadow-xl shadow-blue-600/20 transition-all"
+            >
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? "Buffer Copied" : "Copy Raw JSON"}
+            </Button>
+          </div>
+          <div className="p-8 space-y-8">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <p className="text-[9px] font-black uppercase text-slate-400 mb-2">Endpoint Target</p>
+                <p className="text-xs font-bold text-slate-800 truncate">{selectedLog?.endpoint}</p>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => handleCopyJson(selectedLog?.response)}
-                className="h-9 gap-3 bg-white border-slate-200 hover:bg-blue-600 hover:text-white text-[10px] font-black uppercase px-6 transition-all"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                {copied ? "BUFFER COPIED" : "COPY RAW JSON"}
-              </Button>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <p className="text-[9px] font-black uppercase text-slate-400 mb-2">Status Integrity</p>
+                <p className={`text-xs font-black uppercase ${selectedLog?.status === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {selectedLog?.statusCode} - Verified Secure
+                </p>
+              </div>
             </div>
-            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-inner overflow-hidden">
-              <pre className="text-[13px] font-code terminal-scroll max-h-[500px] overflow-auto text-blue-400 leading-relaxed">
-                {JSON.stringify(selectedLog?.response, null, 2)}
-              </pre>
+            
+            <div className="relative group">
+               <div className="absolute -top-3 left-4 px-3 bg-slate-900 text-blue-400 text-[9px] font-black uppercase rounded-full z-10 border border-slate-800">Response_Body_v2.4</div>
+               <div className="bg-slate-950 p-8 rounded-[2rem] border border-slate-800 shadow-2xl overflow-hidden min-h-[400px]">
+                <pre className="text-[14px] font-code terminal-scroll max-h-[500px] overflow-auto text-blue-400 leading-relaxed selection:bg-blue-600/30">
+                  {JSON.stringify(selectedLog?.response, null, 2)}
+                </pre>
+              </div>
             </div>
           </div>
         </DialogContent>

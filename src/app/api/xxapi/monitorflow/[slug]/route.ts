@@ -12,7 +12,7 @@ export async function OPTIONS() {
 const STEALTH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
   'Accept-Encoding': 'gzip, deflate, br',
   'Cache-Control': 'no-cache',
   'Pragma': 'no-cache',
@@ -49,18 +49,17 @@ export async function POST(
 
     if (!response.ok) {
         const errorData = await response.text();
-        console.error(`[MonitorFlow POST Error ${response.status}]:`, errorData);
         try {
             return jsonResponse(JSON.parse(errorData), response.status);
         } catch (e) {
-            return errorResponse("Upstream MonitorFlow Error", response.status, errorData);
+            return errorResponse("Upstream MonitorFlow Error", response.status, { raw: errorData });
         }
     }
 
     const data = await response.json();
     return jsonResponse(data, response.status);
   } catch (error: any) {
-    return errorResponse("MonitorFlow Proxy Connection Failed", 502, error.message);
+    return errorResponse("MonitorFlow Proxy Connection Failed", 502, { message: error.message });
   }
 }
 
@@ -81,17 +80,16 @@ export async function GET(
 
     if (!response.ok) {
         const errorData = await response.text();
-        console.error(`[MonitorFlow GET Error ${response.status}]:`, errorData);
         try {
             return jsonResponse(JSON.parse(errorData), response.status);
         } catch (e) {
-            return errorResponse("Upstream MonitorFlow Error", response.status, errorData);
+            return errorResponse("Upstream MonitorFlow Error", response.status, { raw: errorData });
         }
     }
 
     const data = await response.json();
     return jsonResponse(data, response.status);
   } catch (error: any) {
-    return errorResponse("MonitorFlow GET Proxy Failed", 502, error.message);
+    return errorResponse("MonitorFlow GET Proxy Failed", 502, { message: error.message });
   }
 }

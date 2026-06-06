@@ -8,11 +8,12 @@ export async function OPTIONS() {
 
 /**
  * Ultimate Stealth Headers to bypass bot detection on the old server
+ * Mimics a real Windows 10 Chrome 133 browser request exactly.
  */
 const STEALTH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
   'Accept-Encoding': 'gzip, deflate, br',
   'Cache-Control': 'no-cache',
   'Pragma': 'no-cache',
@@ -41,17 +42,17 @@ export async function GET(request: Request) {
 
     if (!response.ok) {
         const errorData = await response.text();
-        console.error(`[AvailableCT Error ${response.status}]:`, errorData);
+        console.error(`[AvailableCT Proxy Error ${response.status}]:`, errorData);
         try {
             return jsonResponse(JSON.parse(errorData), response.status);
         } catch (e) {
-            return errorResponse("Upstream Server Error", response.status, errorData);
+            return errorResponse("Upstream Server Error", response.status, { raw: errorData });
         }
     }
 
     const data = await response.json();
     return jsonResponse(data, response.status);
   } catch (error: any) {
-    return errorResponse("AvailableCT Proxy Connection Failed", 502, error.message);
+    return errorResponse("AvailableCT Proxy Connection Failed", 502, { message: error.message });
   }
 }
