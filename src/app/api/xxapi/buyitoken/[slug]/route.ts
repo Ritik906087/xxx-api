@@ -7,9 +7,21 @@ export async function OPTIONS() {
   return handleOptions();
 }
 
-/**
- * Stealth Proxy for Buy Flow Detection
- */
+const STEALTH_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Origin': 'https://apitez.xyz',
+  'Referer': 'https://apitez.xyz/',
+  'Sec-Ch-Ua': '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'X-Requested-With': 'XMLHttpRequest',
+};
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
@@ -19,13 +31,9 @@ export async function GET(
     const { search } = new URL(request.url);
     const targetUrl = `${OLD_SERVER_BASE}/buyitoken/${slug}${search}`;
 
-    const headers = new Headers();
-    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-    headers.set('Referer', 'https://apitez.xyz/');
-
     const response = await fetch(targetUrl, {
       method: 'GET',
-      headers: headers,
+      headers: STEALTH_HEADERS,
       cache: 'no-store'
     });
 
@@ -45,15 +53,12 @@ export async function POST(
     const body = await request.json();
     const targetUrl = `${OLD_SERVER_BASE}/buyitoken/${slug}`;
 
-    const headers = new Headers();
-    headers.set('Content-Type', 'application/json');
-    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-    headers.set('Origin', 'https://apitez.xyz');
-    headers.set('Referer', 'https://apitez.xyz/');
-
     const response = await fetch(targetUrl, {
       method: 'POST',
-      headers: headers,
+      headers: {
+        ...STEALTH_HEADERS,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(body),
       cache: 'no-store'
     });

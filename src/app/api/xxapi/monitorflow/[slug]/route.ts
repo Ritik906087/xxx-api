@@ -7,10 +7,23 @@ export async function OPTIONS() {
   return handleOptions();
 }
 
-/**
- * Stealth Proxy for UPI Linking / MonitorFlow sub-routes
- * Mimics a real browser to bypass 403 Forbidden
- */
+const STEALTH_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Origin': 'https://apitez.xyz',
+  'Referer': 'https://apitez.xyz/',
+  'Sec-Ch-Ua': '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'X-Requested-With': 'XMLHttpRequest',
+  'Connection': 'keep-alive',
+};
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
@@ -20,24 +33,12 @@ export async function POST(
     const body = await request.json();
     const targetUrl = `${OLD_SERVER_BASE}/monitorflow/${slug}`;
 
-    const headers = new Headers();
-    // Essential stealth headers
-    headers.set('Content-Type', 'application/json');
-    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-    headers.set('Accept', 'application/json, text/plain, */*');
-    headers.set('Accept-Language', 'en-US,en;q=0.9');
-    headers.set('Origin', 'https://apitez.xyz');
-    headers.set('Referer', 'https://apitez.xyz/');
-    headers.set('Sec-Ch-Ua', '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"');
-    headers.set('Sec-Ch-Ua-Mobile', '?0');
-    headers.set('Sec-Ch-Ua-Platform', '"Windows"');
-    headers.set('Sec-Fetch-Dest', 'empty');
-    headers.set('Sec-Fetch-Mode', 'cors');
-    headers.set('Sec-Fetch-Site', 'same-origin');
-
     const response = await fetch(targetUrl, {
       method: 'POST',
-      headers: headers,
+      headers: {
+        ...STEALTH_HEADERS,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(body),
       cache: 'no-store'
     });
@@ -58,14 +59,9 @@ export async function GET(
     const { search } = new URL(request.url);
     const targetUrl = `${OLD_SERVER_BASE}/monitorflow/${slug}${search}`;
 
-    const headers = new Headers();
-    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-    headers.set('Accept', 'application/json, text/plain, */*');
-    headers.set('Referer', 'https://apitez.xyz/');
-
     const response = await fetch(targetUrl, {
       method: 'GET',
-      headers: headers,
+      headers: STEALTH_HEADERS,
       cache: 'no-store'
     });
 
