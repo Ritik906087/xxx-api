@@ -8,37 +8,89 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VantageTerminal } from './terminal';
 import { MOCK_WALLETS, MOCK_TRANSACTIONS, type Transaction, type User } from '@/lib/vantage-store';
 import { processTransaction } from '@/app/actions/vantage-actions';
-import { Wallet, ArrowUpRight, ArrowDownLeft, ShieldAlert, History, LayoutDashboard, Settings, User as UserIcon } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, ShieldAlert, History, Globe, Settings, User as UserIcon, Copy, Check, Terminal, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+
+interface ApiLog {
+  id: string;
+  method: string;
+  endpoint: string;
+  status: 'success' | 'failed';
+  timestamp: string;
+  response: any;
+}
 
 export function DashboardView({ user }: { user: User }) {
   const [balance, setBalance] = useState(MOCK_WALLETS.find(w => w.userId === user.id)?.balance ?? 0);
   const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [apiLogs, setApiLogs] = useState<ApiLog[]>([
+    {
+      id: 'log_1',
+      method: 'GET',
+      endpoint: '/api/xxapi/userinfo',
+      status: 'success',
+      timestamp: new Date().toISOString(),
+      response: { success: true, data: { mobileNo: user.mobileNo, role: user.role } }
+    }
+  ]);
+  const [selectedLog, setSelectedLog] = useState<ApiLog | null>(null);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+
+  const addApiLog = (method: string, endpoint: string, status: 'success' | 'failed', response: any) => {
+    const newLog: ApiLog = {
+      id: `log_${Math.random().toString(36).substr(2, 5)}`,
+      method,
+      endpoint,
+      status,
+      timestamp: new Date().toISOString(),
+      response
+    };
+    setApiLogs(prev => [newLog, ...prev]);
+  };
+
+  const handleCopyJson = (json: any) => {
+    navigator.clipboard.writeText(JSON.stringify(json, null, 2));
+    setCopied(true);
+    toast({ title: "Copied!", description: "JSON response copied to clipboard." });
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleTestTransaction = async (amount: number, type: 'purchase' | 'deposit' | 'withdrawal') => {
     setIsProcessing(true);
-    const res = await processTransaction({
-      userId: user.id,
-      amount,
-      type,
-      description: `Testing ${type} pattern`
-    });
-    setIsProcessing(false);
+    const endpoint = '/app/actions/processTransaction';
+    
+    try {
+      const res = await processTransaction({
+        userId: user.id,
+        amount,
+        type,
+        description: `Testing ${type} pattern`
+      });
+      setIsProcessing(false);
 
-    if (res.success) {
-      if (res.transaction.isFraudulent) {
-        toast({
-          variant: 'destructive',
-          title: 'Smart-Shield Alert',
-          description: `AI Flagged this transaction: ${res.fraudDetection?.reasoning}`
-        });
+      if (res.success) {
+        addApiLog('POST', endpoint, 'success', res);
+        if (res.transaction.isFraudulent) {
+          toast({
+            variant: 'destructive',
+            title: 'Smart-Shield Alert',
+            description: `AI Flagged this transaction: ${res.fraudDetection?.reasoning}`
+          });
+        } else {
+          setTransactions(prev => [res.transaction, ...prev]);
+          setBalance(prev => type === 'deposit' ? prev + amount : prev - amount);
+          toast({ title: 'Transaction Successful', description: 'Atomic ledger updated.' });
+        }
       } else {
-        setTransactions(prev => [res.transaction, ...prev]);
-        setBalance(prev => type === 'deposit' ? prev + amount : prev - amount);
-        toast({ title: 'Transaction Successful', description: 'Atomic ledger updated.' });
+        addApiLog('POST', endpoint, 'failed', res);
       }
+    } catch (e: any) {
+      setIsProcessing(false);
+      addApiLog('POST', endpoint, 'failed', { error: e.message });
+      toast({ variant: 'destructive', title: 'System Error', description: 'API call failed.' });
     }
   };
 
@@ -120,16 +172,20 @@ export function DashboardView({ user }: { user: User }) {
         </div>
 
         {/* Middle Main Content */}
-        <div className="col-span-12 lg:col-span-6 flex flex-col gap-6">
-          <Tabs defaultValue="transactions" className="w-full flex-1 flex flex-col">
+        <div className="col-span-12 lg:col-span-6 flex flex-col gap-6 overflow-hidden">
+          <Tabs defaultValue="transactions" className="w-full flex-1 flex flex-col overflow-hidden">
             <TabsList className="bg-card/50 border border-white/5 w-fit">
               <TabsTrigger value="transactions" className="gap-2">
                 <History className="w-4 h-4" />
-                Transaction Stream
+                History
+              </TabsTrigger>
+              <TabsTrigger value="logs" className="gap-2">
+                <Globe className="w-4 h-4" />
+                Get
               </TabsTrigger>
               <TabsTrigger value="audit" className="gap-2">
                 <ShieldAlert className="w-4 h-4" />
-                Security Audit
+                Audit
               </TabsTrigger>
             </TabsList>
             
@@ -165,6 +221,49 @@ export function DashboardView({ user }: { user: User }) {
                 </table>
               </div>
             </TabsContent>
+
+            <TabsContent value="logs" className="flex-1 mt-4 overflow-hidden">
+              <div className="bg-card/30 rounded-lg border border-white/5 h-full flex flex-col overflow-hidden">
+                <div className="p-4 border-b border-white/5 flex items-center justify-between bg-secondary/30">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-accent" />
+                    <span className="text-xs font-headline font-bold uppercase tracking-widest text-muted-foreground">API Inspector</span>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setApiLogs([])} className="text-[10px] uppercase font-bold text-rose-400 hover:bg-rose-500/10">Clear Logs</Button>
+                </div>
+                <div className="flex-1 overflow-y-auto terminal-scroll divide-y divide-white/5">
+                  {apiLogs.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground text-sm italic">No network activity recorded.</div>
+                  ) : (
+                    apiLogs.map((log) => (
+                      <div 
+                        key={log.id} 
+                        onClick={() => setSelectedLog(log)}
+                        className="p-4 flex items-center justify-between hover:bg-white/[0.02] cursor-pointer group transition-all"
+                      >
+                        <div className="flex items-center gap-4">
+                          <Badge variant="outline" className={`font-code text-[10px] ${log.method === 'GET' ? 'text-blue-400 border-blue-400/20' : 'text-emerald-400 border-emerald-400/20'}`}>
+                            {log.method}
+                          </Badge>
+                          <div>
+                            <p className="text-xs font-code truncate max-w-[200px] text-foreground/80">{log.endpoint}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(log.timestamp).toLocaleTimeString()}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {log.status === 'success' ? (
+                            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px]">200 OK</Badge>
+                          ) : (
+                            <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20 text-[9px]">ERROR</Badge>
+                          )}
+                          <ExternalLink className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </TabsContent>
             
             <TabsContent value="audit" className="mt-4">
               <div className="p-8 border border-white/5 bg-card/30 rounded-lg text-center">
@@ -181,6 +280,40 @@ export function DashboardView({ user }: { user: User }) {
           <VantageTerminal />
         </div>
       </main>
+
+      {/* Log Detail Dialog */}
+      <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
+        <DialogContent className="max-w-2xl bg-[#0f172a] border-slate-800 text-slate-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-headline">
+              <Globe className="w-5 h-5 text-primary" />
+              API Request Details
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 font-code text-xs">
+              {selectedLog?.method} {selectedLog?.endpoint}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">JSON Response</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleCopyJson(selectedLog?.response)}
+                className="h-8 gap-2 bg-slate-900 border-slate-800 text-[10px] uppercase font-bold"
+              >
+                {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                {copied ? "Copied" : "Copy JSON"}
+              </Button>
+            </div>
+            <div className="bg-[#020617] p-4 rounded-lg border border-slate-800 overflow-hidden">
+              <pre className="text-[12px] font-code terminal-scroll max-h-[400px] overflow-auto text-emerald-400/90 leading-relaxed">
+                {JSON.stringify(selectedLog?.response, null, 2)}
+              </pre>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
