@@ -13,12 +13,21 @@ export async function OPTIONS() {
 export async function GET(request: Request) {
   try {
     const { search } = new URL(request.url);
+    
+    const forwardHeaders = new Headers();
+    request.headers.forEach((value, key) => {
+      if (key.toLowerCase() !== 'host') {
+        forwardHeaders.set(key, value);
+      }
+    });
+
+    if (!forwardHeaders.has('user-agent')) {
+      forwardHeaders.set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    }
+
     const response = await fetch(`${OLD_SERVER_BASE}/availablect${search}`, {
       method: 'GET',
-      headers: {
-        'Authorization': request.headers.get('Authorization') || '',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
+      headers: forwardHeaders,
     });
 
     if (!response.ok) {

@@ -9,7 +9,7 @@ export async function OPTIONS() {
 
 /**
  * Proxy for UPI Linking / MonitorFlow sub-routes
- * Matches /api/xxapi/monitorflow/[slug]
+ * Handles 403 errors by mimicking a real browser and forwarding headers
  */
 export async function POST(
   request: Request,
@@ -19,13 +19,22 @@ export async function POST(
     const { slug } = await params;
     const body = await request.json();
 
+    const forwardHeaders = new Headers();
+    request.headers.forEach((value, key) => {
+      // Exclude host to let fetch set the correct target host
+      if (key.toLowerCase() !== 'host') {
+        forwardHeaders.set(key, value);
+      }
+    });
+
+    // Ensure a realistic User-Agent if not provided
+    if (!forwardHeaders.has('user-agent')) {
+      forwardHeaders.set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    }
+
     const response = await fetch(`${OLD_SERVER_BASE}/monitorflow/${slug}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': request.headers.get('Authorization') || '',
-        'User-Agent': request.headers.get('User-Agent') || 'Mozilla/5.0',
-      },
+      headers: forwardHeaders,
       body: JSON.stringify(body),
     });
 

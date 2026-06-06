@@ -9,7 +9,7 @@ export async function OPTIONS() {
 
 /**
  * Proxy for Buy Flow Detection sub-routes
- * Matches /api/xxapi/buyitoken/[slug]
+ * Fixed 403 Forbidden by improving header handling
  */
 export async function GET(
   request: Request,
@@ -19,12 +19,20 @@ export async function GET(
     const { slug } = await params;
     const { search } = new URL(request.url);
 
+    const forwardHeaders = new Headers();
+    request.headers.forEach((value, key) => {
+      if (key.toLowerCase() !== 'host') {
+        forwardHeaders.set(key, value);
+      }
+    });
+
+    if (!forwardHeaders.has('user-agent')) {
+      forwardHeaders.set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    }
+
     const response = await fetch(`${OLD_SERVER_BASE}/buyitoken/${slug}${search}`, {
       method: 'GET',
-      headers: {
-        'Authorization': request.headers.get('Authorization') || '',
-        'User-Agent': 'Mozilla/5.0',
-      },
+      headers: forwardHeaders,
     });
 
     const data = await response.json();
@@ -42,13 +50,20 @@ export async function POST(
     const { slug } = await params;
     const body = await request.json();
 
+    const forwardHeaders = new Headers();
+    request.headers.forEach((value, key) => {
+      if (key.toLowerCase() !== 'host') {
+        forwardHeaders.set(key, value);
+      }
+    });
+
+    if (!forwardHeaders.has('user-agent')) {
+      forwardHeaders.set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    }
+
     const response = await fetch(`${OLD_SERVER_BASE}/buyitoken/${slug}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': request.headers.get('Authorization') || '',
-        'User-Agent': 'Mozilla/5.0',
-      },
+      headers: forwardHeaders,
       body: JSON.stringify(body),
     });
 
