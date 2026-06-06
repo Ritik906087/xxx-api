@@ -98,104 +98,104 @@ export function DashboardView({ user }: { user: User }) {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#020617] text-slate-200">
       {/* Header */}
-      <header className="h-16 border-b border-slate-800 bg-[#020617]/80 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-[#f59e0b] rounded flex items-center justify-center font-headline font-bold text-lg text-black">V</div>
+      <header className="h-20 border-b border-slate-800 bg-[#020617]/90 backdrop-blur-lg flex items-center justify-between px-8 shrink-0 z-50 shadow-2xl">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center font-headline font-black text-xl text-black shadow-lg shadow-amber-500/20">V</div>
           <div className="flex flex-col">
-            <span className="font-headline font-bold text-lg tracking-tight">VANTAGE ENGINE</span>
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Hybrid Logic Core</span>
+            <span className="font-headline font-bold text-xl tracking-tight text-white">VANTAGE ENGINE</span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-[0.3em] font-black">Hybrid Core Gateway</span>
           </div>
-          <Badge variant="outline" className="ml-2 border-primary/20 text-primary bg-primary/5 text-[9px] uppercase font-bold animate-pulse">V2.4.0-LIVE</Badge>
+          <Badge variant="outline" className="ml-4 border-emerald-500/30 text-emerald-400 bg-emerald-500/5 text-[10px] uppercase font-bold px-3 py-1">V2.4-STABLE</Badge>
         </div>
         
-        <div className="flex items-center gap-4">
-          {/* Prominent BLUE GET Button */}
+        <div className="flex items-center gap-6">
+          {/* THE PROMINENT BLUE GET BUTTON */}
           <Button 
             onClick={() => setActiveTab('logs')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase px-6 h-10 shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all animate-in zoom-in-95 duration-300 gap-2"
+            className="bg-blue-600 hover:bg-blue-500 text-white font-black text-[12px] uppercase px-8 h-12 shadow-[0_0_25px_rgba(37,99,235,0.5)] transition-all hover:scale-105 active:scale-95 flex gap-3 border border-blue-400/50"
           >
-            <Play className="w-3 h-3 fill-current" />
+            <Play className="w-4 h-4 fill-current" />
             GET RESULTS
           </Button>
 
-          <div className="hidden md:flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-full border border-slate-800">
-            <UserIcon className="w-3.5 h-3.5 text-slate-500" />
-            <span className="text-xs font-code text-slate-300">{user.mobileNo}</span>
-            <Badge className="bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-[9px] uppercase">{user.role}</Badge>
+          <div className="hidden xl:flex items-center gap-4 px-5 py-2 bg-slate-900/80 rounded-xl border border-slate-800">
+            <UserIcon className="w-4 h-4 text-slate-500" />
+            <span className="text-xs font-code text-slate-300 font-bold">{user.mobileNo}</span>
+            <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[9px] uppercase font-black">{user.role}</Badge>
           </div>
-          <Button variant="ghost" size="icon" className="text-slate-500 hover:text-white">
-            <Settings className="w-5 h-5" />
+          
+          <Button variant="ghost" size="icon" className="text-slate-500 hover:text-white hover:bg-slate-800">
+            <Settings className="w-6 h-6" />
           </Button>
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden p-6 gap-6 grid grid-cols-12 max-w-[1600px] mx-auto w-full">
+      <main className="flex-1 overflow-hidden p-6 gap-6 grid grid-cols-12 max-w-[1700px] mx-auto w-full">
         {/* Left Stats Column */}
         <div className="col-span-12 lg:col-span-3 space-y-6 overflow-y-auto terminal-scroll pr-2">
-          <Card className="bg-slate-900/50 border-slate-800 overflow-hidden relative group">
-            <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+          <Card className="bg-slate-900/40 border-slate-800 overflow-hidden relative group border-l-4 border-l-blue-500">
             <CardHeader className="pb-2">
               <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold flex items-center gap-2">
                 <Wallet className="w-3.5 h-3.5" />
-                Live Wallet Balance
+                Live Portfolio
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-headline font-bold tracking-tight text-white mb-1">
                 ${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </div>
-              <div className="flex items-center gap-2 mt-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-code text-emerald-400/80 uppercase">MongoDB Atlas Sync OK</span>
+              <div className="flex items-center gap-2 mt-3">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                <span className="text-[10px] font-code text-emerald-400 font-bold uppercase">MongoDB Cloud Sync: OK</span>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/50 border-slate-800 p-2">
+          <Card className="bg-slate-900/40 border-slate-800 p-2">
             <CardHeader className="pb-3 pt-3">
-              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Action Gateways</CardTitle>
+              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Transaction Nodes</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-2 p-2">
+            <CardContent className="grid grid-cols-1 gap-3 p-2">
               <Button 
                 variant="outline" 
-                className="justify-start gap-3 h-12 border-slate-800 bg-slate-900 hover:bg-emerald-500/10 hover:border-emerald-500/30 group transition-all"
+                className="justify-start gap-4 h-14 border-slate-800 bg-slate-900/60 hover:bg-emerald-500/10 hover:border-emerald-500/30 group transition-all"
                 onClick={() => handleTestTransaction(250.00, 'deposit')}
                 disabled={isProcessing}
               >
-                <div className="w-8 h-8 rounded bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20">
-                  <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
+                <div className="w-9 h-9 rounded bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20">
+                  <ArrowDownLeft className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold uppercase tracking-tight">Deposit Ingress</p>
-                  <p className="text-[9px] text-slate-500">Atomic Local Update</p>
+                  <p className="text-xs font-bold uppercase tracking-tight text-white">Deposit Node</p>
+                  <p className="text-[9px] text-slate-500 font-bold">MONGODB ATLAS TARGET</p>
                 </div>
               </Button>
               <Button 
                 variant="outline" 
-                className="justify-start gap-3 h-12 border-slate-800 bg-slate-900 hover:bg-primary/10 hover:border-primary/30 group transition-all"
+                className="justify-start gap-4 h-14 border-slate-800 bg-slate-900/60 hover:bg-blue-500/10 hover:border-blue-500/30 group transition-all"
                 onClick={() => handleTestTransaction(1200.00, 'purchase')}
                 disabled={isProcessing}
               >
-                <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center group-hover:bg-primary/20">
-                  <ArrowUpRight className="w-4 h-4 text-primary" />
+                <div className="w-9 h-9 rounded bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20">
+                  <ArrowUpRight className="w-5 h-5 text-blue-400" />
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold uppercase tracking-tight">Execute Order</p>
-                  <p className="text-[9px] text-slate-500">Blockchain Sync Logic</p>
+                  <p className="text-xs font-bold uppercase tracking-tight text-white">Order Execution</p>
+                  <p className="text-[9px] text-slate-500 font-bold">BLOCKCHAIN SYNC ENABLED</p>
                 </div>
               </Button>
               <Button 
                 variant="outline" 
-                className="justify-start gap-3 h-12 border-slate-800 bg-slate-900 hover:bg-rose-500/10 hover:border-rose-500/30 group transition-all"
+                className="justify-start gap-4 h-14 border-slate-800 bg-slate-900/60 hover:bg-rose-500/10 hover:border-rose-500/30 group transition-all"
                 onClick={() => handleTestTransaction(50000.00, 'withdrawal')}
                 disabled={isProcessing}
               >
-                <div className="w-8 h-8 rounded bg-rose-500/10 flex items-center justify-center group-hover:bg-rose-500/20">
-                  <ShieldAlert className="w-4 h-4 text-rose-400" />
+                <div className="w-9 h-9 rounded bg-rose-500/10 flex items-center justify-center group-hover:bg-rose-500/20">
+                  <ShieldAlert className="w-5 h-5 text-rose-400" />
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold uppercase tracking-tight">High Risk Withdrawal</p>
-                  <p className="text-[9px] text-slate-500">Triggers AI Fraud Check</p>
+                  <p className="text-xs font-bold uppercase tracking-tight text-white">High Risk Flow</p>
+                  <p className="text-[9px] text-slate-500 font-bold">GENKIT AI FRAUD CHECK</p>
                 </div>
               </Button>
             </CardContent>
@@ -205,58 +205,58 @@ export function DashboardView({ user }: { user: User }) {
         {/* Middle Inspector Column */}
         <div className="col-span-12 lg:col-span-6 flex flex-col h-full overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between mb-4 px-1">
-              <TabsList className="bg-slate-900 border border-slate-800 p-1 h-10">
-                <TabsTrigger value="transactions" className="gap-2 text-[10px] uppercase font-bold tracking-widest data-[state=active]:bg-slate-800">
-                  <History className="w-3.5 h-3.5" />
-                  Ledger
+            <div className="flex items-center justify-between mb-6 px-1">
+              <TabsList className="bg-slate-900 border border-slate-800 p-1.5 h-12">
+                <TabsTrigger value="transactions" className="gap-2 text-[10px] uppercase font-black tracking-widest data-[state=active]:bg-slate-800">
+                  <History className="w-4 h-4" />
+                  Master Ledger
                 </TabsTrigger>
-                <TabsTrigger value="logs" className="gap-2 text-[10px] uppercase font-bold tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                  <Globe className="w-3.5 h-3.5" />
-                  GET (RECORDS)
+                <TabsTrigger value="logs" className="gap-2 text-[10px] uppercase font-black tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white shadow-xl shadow-blue-500/10">
+                  <Globe className="w-4 h-4" />
+                  GET (REALTIME)
                 </TabsTrigger>
-                <TabsTrigger value="audit" className="gap-2 text-[10px] uppercase font-bold tracking-widest data-[state=active]:bg-slate-800">
-                  <ShieldAlert className="w-3.5 h-3.5" />
-                  Security
+                <TabsTrigger value="audit" className="gap-2 text-[10px] uppercase font-black tracking-widest data-[state=active]:bg-slate-800">
+                  <ShieldAlert className="w-4 h-4" />
+                  Security Audit
                 </TabsTrigger>
               </TabsList>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-500 uppercase font-bold">API Mode:</span>
-                <Badge variant="outline" className="text-emerald-400 border-emerald-500/20 bg-emerald-500/5 text-[9px] uppercase">Proxy Active</Badge>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">PROXY ENGINE:</span>
+                <Badge variant="outline" className="text-blue-400 border-blue-500/30 bg-blue-500/5 text-[9px] uppercase font-bold animate-pulse">Stealth Active</Badge>
               </div>
             </div>
             
             <TabsContent value="transactions" className="flex-1 overflow-hidden m-0">
-              <div className="bg-slate-900/40 rounded-xl border border-slate-800 h-full overflow-y-auto terminal-scroll">
+              <div className="bg-slate-900/30 rounded-2xl border border-slate-800 h-full overflow-y-auto terminal-scroll shadow-inner">
                 <table className="w-full text-left text-[12px] border-collapse">
-                  <thead className="sticky top-0 bg-slate-900/95 backdrop-blur-md z-10 border-b border-slate-800">
+                  <thead className="sticky top-0 bg-slate-900/95 backdrop-blur-xl z-10 border-b border-slate-800">
                     <tr>
-                      <th className="p-4 font-headline uppercase tracking-widest text-slate-500 text-[9px] font-bold">Trace ID</th>
-                      <th className="p-4 font-headline uppercase tracking-widest text-slate-500 text-[9px] font-bold">Operation</th>
-                      <th className="p-4 font-headline uppercase tracking-widest text-slate-500 text-[9px] font-bold text-right">Magnitude</th>
-                      <th className="p-4 font-headline uppercase tracking-widest text-slate-500 text-[9px] font-bold">Outcome</th>
+                      <th className="p-5 font-headline uppercase tracking-[0.2em] text-slate-500 text-[10px] font-black">Trace ID</th>
+                      <th className="p-5 font-headline uppercase tracking-[0.2em] text-slate-500 text-[10px] font-black">Gateway</th>
+                      <th className="p-5 font-headline uppercase tracking-[0.2em] text-slate-500 text-[10px] font-black text-right">Magnitude</th>
+                      <th className="p-5 font-headline uppercase tracking-[0.2em] text-slate-500 text-[10px] font-black">Outcome</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/50">
+                  <tbody className="divide-y divide-slate-800/40">
                     {transactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-800/30 transition-colors group">
-                        <td className="p-4 font-code text-slate-400">{tx.id}</td>
-                        <td className="p-4">
-                           <Badge variant="outline" className="text-[9px] uppercase border-slate-800 text-slate-300">{tx.type}</Badge>
+                      <tr key={tx.id} className="hover:bg-slate-800/30 transition-all group">
+                        <td className="p-5 font-code text-slate-400 font-medium">{tx.id}</td>
+                        <td className="p-5">
+                           <Badge variant="outline" className="text-[10px] uppercase border-slate-700 bg-slate-800/50 text-slate-200 font-bold">{tx.type}</Badge>
                         </td>
-                        <td className={`p-4 font-code font-bold text-right ${tx.type === 'deposit' ? 'text-emerald-400' : 'text-slate-200'}`}>
+                        <td className={`p-5 font-code font-black text-right text-sm ${tx.type === 'deposit' ? 'text-emerald-400' : 'text-slate-100'}`}>
                           {tx.type === 'deposit' ? '+' : '-'}${tx.amount.toFixed(2)}
                         </td>
-                        <td className="p-4">
+                        <td className="p-5">
                           {tx.isFraudulent ? (
-                            <div className="flex items-center gap-1.5 text-rose-400">
-                              <ShieldAlert className="w-3.5 h-3.5" />
-                              <span className="text-[10px] font-bold uppercase">Blocked</span>
+                            <div className="flex items-center gap-2 text-rose-500">
+                              <ShieldAlert className="w-4 h-4" />
+                              <span className="text-[10px] font-black uppercase tracking-widest">Flagged</span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1.5 text-emerald-400">
-                              <Check className="w-3.5 h-3.5" />
-                              <span className="text-[10px] font-bold uppercase">Settled</span>
+                            <div className="flex items-center gap-2 text-emerald-500">
+                              <Check className="w-4 h-4" />
+                              <span className="text-[10px] font-black uppercase tracking-widest">Settled</span>
                             </div>
                           )}
                         </td>
@@ -267,47 +267,49 @@ export function DashboardView({ user }: { user: User }) {
               </div>
             </TabsContent>
 
-            <TabsContent value="logs" className="flex-1 overflow-hidden m-0 animate-in fade-in slide-in-from-bottom-2 duration-500">
-              <div className="bg-slate-900/40 rounded-xl border border-slate-800 h-full flex flex-col overflow-hidden">
-                <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
-                  <div className="flex items-center gap-2">
-                    <Terminal className="w-3.5 h-3.5 text-blue-400" />
-                    <span className="text-[10px] font-headline font-bold uppercase tracking-widest text-slate-400">Request Inspector</span>
+            <TabsContent value="logs" className="flex-1 overflow-hidden m-0 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="bg-slate-900/30 rounded-2xl border border-slate-800 h-full flex flex-col overflow-hidden shadow-2xl">
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                  <div className="flex items-center gap-3">
+                    <Terminal className="w-4 h-4 text-blue-500" />
+                    <span className="text-[11px] font-headline font-black uppercase tracking-[0.2em] text-white">Live Request Inspector</span>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setApiLogs([])} className="h-6 text-[9px] uppercase font-bold text-rose-400 hover:bg-rose-500/10">Purge Logs</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setApiLogs([])} className="h-7 text-[10px] uppercase font-black text-rose-400 hover:bg-rose-500/10 transition-colors">Wipe Records</Button>
                 </div>
-                <div className="flex-1 overflow-y-auto terminal-scroll divide-y divide-slate-800/30">
+                <div className="flex-1 overflow-y-auto terminal-scroll divide-y divide-slate-800/40">
                   {apiLogs.length === 0 ? (
-                    <div className="p-12 text-center">
-                      <Globe className="w-10 h-10 text-slate-800 mx-auto mb-3" />
-                      <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No active requests captured</p>
+                    <div className="p-20 text-center">
+                      <Globe className="w-14 h-14 text-slate-800 mx-auto mb-4 animate-pulse" />
+                      <p className="text-sm text-slate-500 uppercase tracking-[0.2em] font-black">Awaiting Proxy Ingress...</p>
                     </div>
                   ) : (
                     apiLogs.map((log) => (
                       <div 
                         key={log.id} 
                         onClick={() => setSelectedLog(log)}
-                        className="p-4 flex items-center justify-between hover:bg-slate-800/50 cursor-pointer group transition-all"
+                        className="p-5 flex items-center justify-between hover:bg-blue-600/5 cursor-pointer group transition-all border-l-2 border-l-transparent hover:border-l-blue-600"
                       >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-1.5 h-8 rounded-full ${log.status === 'success' ? 'bg-emerald-500/40' : 'bg-rose-500/40'}`} />
+                        <div className="flex items-center gap-5">
+                          <div className={`w-1 h-10 rounded-full ${log.status === 'success' ? 'bg-emerald-500' : 'bg-rose-500'} shadow-lg`} />
                           <div>
-                            <div className="flex items-center gap-2">
-                              <Badge className={`text-[9px] uppercase ${log.method === 'GET' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                            <div className="flex items-center gap-3">
+                              <Badge className={`text-[10px] font-black uppercase tracking-widest px-2 ${log.method === 'GET' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
                                 {log.method}
                               </Badge>
-                              <p className="text-xs font-code text-slate-300 truncate max-w-[180px]">{log.endpoint}</p>
+                              <p className="text-xs font-code text-slate-100 font-bold truncate max-w-[250px]">{log.endpoint}</p>
                             </div>
-                            <p className="text-[9px] text-slate-500 mt-1 uppercase font-bold tracking-tighter">{new Date(log.timestamp).toLocaleTimeString()} · SECURE PROXY</p>
+                            <p className="text-[10px] text-slate-500 mt-2 uppercase font-black tracking-tighter opacity-70">
+                              {new Date(log.timestamp).toLocaleTimeString()} · SECURE EDGE PROXY
+                            </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-5">
                           {log.status === 'success' ? (
-                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-400 bg-emerald-500/5 text-[9px]">200 OK</Badge>
+                            <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-[10px] font-black px-3">200 OK</Badge>
                           ) : (
-                            <Badge variant="outline" className="border-rose-500/20 text-rose-400 bg-rose-500/5 text-[9px]">ERROR</Badge>
+                            <Badge variant="outline" className="border-rose-500/30 text-rose-400 bg-rose-500/10 text-[10px] font-black px-3">ERROR</Badge>
                           )}
-                          <ExternalLink className="w-3.5 h-3.5 text-slate-600 group-hover:text-primary transition-colors" />
+                          <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-blue-500 transition-colors" />
                         </div>
                       </div>
                     ))
@@ -317,12 +319,12 @@ export function DashboardView({ user }: { user: User }) {
             </TabsContent>
             
             <TabsContent value="audit" className="flex-1 overflow-hidden m-0">
-              <div className="p-12 border border-slate-800 bg-slate-900/30 rounded-xl text-center h-full flex flex-col items-center justify-center">
-                <div className="w-16 h-16 bg-primary/5 rounded-full flex items-center justify-center mb-6 border border-primary/10">
-                  <ShieldAlert className="w-8 h-8 text-primary" />
+              <div className="p-16 border border-slate-800 bg-slate-900/20 rounded-2xl text-center h-full flex flex-col items-center justify-center">
+                <div className="w-20 h-20 bg-blue-500/5 rounded-2xl flex items-center justify-center mb-8 border border-blue-500/20 shadow-2xl shadow-blue-500/10">
+                  <ShieldAlert className="w-10 h-10 text-blue-500" />
                 </div>
-                <h3 className="text-lg font-headline font-bold text-white mb-2">Omni-Shield Active</h3>
-                <p className="text-xs text-slate-500 max-w-xs leading-relaxed uppercase tracking-tight font-bold">Monitoring all cross-server proxy requests. Identity verified via Supabase JWT.</p>
+                <h3 className="text-xl font-headline font-black text-white mb-4 tracking-tight">OMNI-SHIELD ACTIVE</h3>
+                <p className="text-xs text-slate-500 max-w-sm leading-relaxed uppercase tracking-widest font-black opacity-60">Monitoring all external server handshakes. Security token verification enabled via Supabase Secure Protocol.</p>
               </div>
             </TabsContent>
           </Tabs>
@@ -336,37 +338,38 @@ export function DashboardView({ user }: { user: User }) {
 
       {/* Log Detail Dialog */}
       <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
-        <DialogContent className="max-w-2xl bg-[#020617] border-slate-800 text-slate-200 shadow-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl bg-[#020617] border-slate-800 text-slate-200 shadow-[0_0_50px_rgba(0,0,0,0.8)] rounded-2xl">
+          <DialogHeader className="border-b border-slate-800 pb-4">
             <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2 font-headline text-lg">
-                <Globe className="w-5 h-5 text-blue-500" />
-                Packet Inspection
+              <DialogTitle className="flex items-center gap-3 font-headline text-2xl font-black text-white">
+                <Globe className="w-6 h-6 text-blue-500" />
+                PACKET INSPECTOR
               </DialogTitle>
-              <Badge variant="outline" className="bg-blue-500/5 border-blue-500/20 text-blue-400 text-[9px] uppercase">JSON Response</Badge>
+              <Badge variant="outline" className="bg-blue-600/10 border-blue-600/30 text-blue-400 text-[11px] font-black uppercase px-4 py-1">REALTIME DATA</Badge>
             </div>
-            <DialogDescription className="text-slate-500 font-code text-xs mt-2 uppercase tracking-tighter">
-              {selectedLog?.method} {selectedLog?.endpoint}
+            <DialogDescription className="text-slate-400 font-code text-xs mt-3 uppercase font-bold tracking-tight">
+              {selectedLog?.method} REQUEST TO INTERNAL GATEWAY: {selectedLog?.endpoint}
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between bg-slate-900/50 p-2 rounded border border-slate-800">
-              <div className="flex items-center gap-3">
-                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">API Payload</span>
+          <div className="mt-8 space-y-6">
+            <div className="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-4">
+                 <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
+                 <span className="text-[11px] uppercase font-black text-slate-400 tracking-[0.3em]">Payload Response Buffer</span>
               </div>
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={() => handleCopyJson(selectedLog?.response)}
-                className="h-8 gap-2 bg-slate-900 border-slate-800 hover:bg-slate-800 text-[10px] uppercase font-bold px-4"
+                className="h-9 gap-3 bg-blue-600/10 border-blue-600/30 hover:bg-blue-600 hover:text-white text-[10px] font-black uppercase px-6 transition-all"
               >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Copied" : "Copy JSON"}
+                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copied ? "BUFFER COPIED" : "COPY RAW JSON"}
               </Button>
             </div>
-            <div className="bg-[#010409] p-4 rounded-xl border border-slate-800 shadow-inner relative group">
-              <pre className="text-[12px] font-code terminal-scroll max-h-[450px] overflow-auto text-blue-400/90 leading-relaxed scrollbar-thin">
+            <div className="bg-[#010409] p-6 rounded-2xl border border-slate-800 shadow-inner relative group overflow-hidden">
+              <div className="absolute top-0 right-0 p-2 text-[10px] font-black text-slate-800 select-none">VANTAGE_v2.4</div>
+              <pre className="text-[13px] font-code terminal-scroll max-h-[500px] overflow-auto text-blue-400/90 leading-relaxed scrollbar-thin">
                 {JSON.stringify(selectedLog?.response, null, 2)}
               </pre>
             </div>

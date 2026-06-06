@@ -7,7 +7,7 @@ export async function OPTIONS() {
 }
 
 /**
- * Ultimate Stealth Headers to bypass 403 Forbidden
+ * Ultimate Stealth Headers to bypass bot detection on the old server
  */
 const STEALTH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
