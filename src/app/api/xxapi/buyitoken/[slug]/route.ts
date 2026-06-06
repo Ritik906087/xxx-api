@@ -8,7 +8,7 @@ export async function OPTIONS() {
 }
 
 /**
- * Resilient Proxy for Buy Flow Detection
+ * Stealth Proxy for Buy Flow Detection
  */
 export async function GET(
   request: Request,
@@ -20,11 +20,13 @@ export async function GET(
     const targetUrl = `${OLD_SERVER_BASE}/buyitoken/${slug}${search}`;
 
     const headers = new Headers();
-    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+    headers.set('Referer', 'https://apitez.xyz/');
 
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: headers,
+      cache: 'no-store'
     });
 
     const data = await response.json();
@@ -45,12 +47,15 @@ export async function POST(
 
     const headers = new Headers();
     headers.set('Content-Type', 'application/json');
-    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+    headers.set('Origin', 'https://apitez.xyz');
+    headers.set('Referer', 'https://apitez.xyz/');
 
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(body),
+      cache: 'no-store'
     });
 
     const data = await response.json();

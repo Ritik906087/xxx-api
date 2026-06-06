@@ -8,8 +8,8 @@ export async function OPTIONS() {
 }
 
 /**
- * Proxy for Available Collection Tools
- * Cleaned headers to bypass security blocks
+ * Stealth Proxy for Available Collection Tools
+ * Bypasses 403 by mimicking site-origin requests
  */
 export async function GET(request: Request) {
   try {
@@ -17,9 +17,12 @@ export async function GET(request: Request) {
     const targetUrl = `${OLD_SERVER_BASE}/availablect${search}`;
 
     const headers = new Headers();
-    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
     headers.set('Accept', 'application/json, text/plain, */*');
     headers.set('Accept-Language', 'en-US,en;q=0.9');
+    headers.set('Referer', 'https://apitez.xyz/');
+    headers.set('Origin', 'https://apitez.xyz');
+    headers.set('X-Requested-With', 'XMLHttpRequest');
 
     const response = await fetch(targetUrl, {
       method: 'GET',
