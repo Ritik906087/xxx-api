@@ -1,6 +1,8 @@
 
 name = "vantage-backend"
 compatibility_date = "2024-03-01"
+
+# Specify the build output directory for Next.js
 pages_build_output_dir = ".next"
 
 [vars]
@@ -8,7 +10,6 @@ pages_build_output_dir = ".next"
 MONGODB_DB_NAME = "TDM"
 SB_PROJECT_URL = "https://slytlppadlmnnloszuwd.supabase.co"
 
-# Secret variables should be set via 'npx wrangler secret put'
-# MONGODB_URI
-# SUPABASE_JWT_SECRET
-# MERA_OTP_API_KEY
+# For Cloudflare Pages, ensure we treat the build as assets
+[assets]
+directory = ".next"
