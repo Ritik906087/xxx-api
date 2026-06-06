@@ -6,10 +6,17 @@ High-performance API Gateway with Hybrid Logic:
 
 ## API Testing (Termux / CLI)
 
-### 1. Test Proxy Connectivity (Talk to Old Server)
+### 1. Test Proxy Connectivity (Talk to Old Server via New Server)
 Run this to see if your server is successfully talking to `apitez.xyz`:
 ```bash
-sh test-proxy.sh
+# Test MonitorFlow
+curl -X POST "https://9000-firebase-studio-1780714231649.cluster-yylgzpipxrar4v4a72liastuqy.cloudworkstations.dev/api/xxapi/monitorflow/check" \
+-H "Content-Type: application/json" \
+-d '{"action": "ping"}'
+
+# Test Available Tools
+curl -G "https://9000-firebase-studio-1780714231649.cluster-yylgzpipxrar4v4a72liastuqy.cloudworkstations.dev/api/xxapi/availablect" \
+--data-urlencode "payment_method=1"
 ```
 
 ### 2. Send OTP (MeraOTP.in)
@@ -32,7 +39,7 @@ curl -X POST "https://9000-firebase-studio-1780714231649.cluster-yylgzpipxrar4v4
 ```
 
 ## Hybrid Endpoints
-- `POST /api/xxapi/monitorflow/*` -> Proxies to Old Server
+- `POST /api/xxapi/monitorflow/*` -> Proxies to `https://apitez.xyz/xxapi/`
 - `GET /api/xxapi/userinfo` -> Local MongoDB User Info
 - `POST /api/xxapi/sendsms` -> Local MeraOTP Integration
-- `GET /api/xxapi/buyitoken/*` -> Proxies to Old Server
+- `GET /api/xxapi/buyitoken/*` -> Proxies to `https://apitez.xyz/xxapi/`
