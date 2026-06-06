@@ -62,19 +62,20 @@ export default function GetResultsPage() {
     setIsProcessing(true);
     setApiLogs([]);
     
+    // Using shorter URLs now enabled by next.config.ts rewrites
     const endpoints = [
-      { method: 'GET', path: '/api/app/version' },
-      { method: 'GET', path: '/api/app/jsValue' },
-      { method: 'GET', path: '/api/init' },
-      { method: 'GET', path: '/api/xxapi/config' },
-      { method: 'GET', path: '/api/xxapi/teaminfo' },
-      { method: 'GET', path: '/api/xxapi/simpConfig' },
-      { method: 'GET', path: '/api/xxapi/availablect' },
-      { method: 'GET', path: '/api/xxapi/collectiontoollist' },
-      { method: 'GET', path: '/api/xxapi/monitorflow/check' },
-      { method: 'GET', path: '/api/xxapi/buyitoken/history' },
-      { method: 'GET', path: '/api/xxapi/sell/history' },
-      { method: 'POST', path: '/api/xxapi/sendLoginSms', body: { mobileNo: '919060873927' } }
+      { method: 'GET', path: '/app/version' },
+      { method: 'GET', path: '/app/jsValue' },
+      { method: 'GET', path: '/init' },
+      { method: 'GET', path: '/xxapi/config' },
+      { method: 'GET', path: '/xxapi/teaminfo' },
+      { method: 'GET', path: '/xxapi/simpConfig' },
+      { method: 'GET', path: '/xxapi/availablect?payment_method=1' },
+      { method: 'GET', path: '/xxapi/collectiontoollist' },
+      { method: 'GET', path: '/xxapi/checkSmsNew' },
+      { method: 'GET', path: '/xxapi/buyitoken/history' },
+      { method: 'GET', path: '/xxapi/sell/history' },
+      { method: 'POST', path: '/xxapi/sendLoginSms', body: { mobileNo: '919060873927' } }
     ];
 
     for (const ep of endpoints) {
