@@ -66,6 +66,9 @@ export function DashboardView({ user }: { user: User }) {
     
     const endpoints = [
       { method: 'GET', path: '/api/app/version' },
+      { method: 'GET', path: '/api/app/jsValue' },
+      { method: 'GET', path: '/api/init' },
+      { method: 'GET', path: '/api/auth/check' },
       { method: 'POST', path: '/api/xxapi/monitorflow/check', body: { action: 'ping' } },
       { method: 'GET', path: '/api/xxapi/availablect?payment_method=1' }
     ];
@@ -80,7 +83,6 @@ export function DashboardView({ user }: { user: User }) {
 
         const res = await fetch(ep.path, fetchOptions);
         
-        // Handle potential non-JSON responses to avoid parsing errors
         const contentType = res.headers.get("content-type");
         let data;
         if (contentType && contentType.indexOf("application/json") !== -1) {
