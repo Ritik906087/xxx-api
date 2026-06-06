@@ -8,8 +8,7 @@ export async function OPTIONS() {
 }
 
 /**
- * Proxy for Buy Flow Detection sub-routes
- * Fixed 403 Forbidden by improving header handling
+ * Resilient Proxy for Buy Flow Detection
  */
 export async function GET(
   request: Request,
@@ -18,27 +17,20 @@ export async function GET(
   try {
     const { slug } = await params;
     const { search } = new URL(request.url);
+    const targetUrl = `${OLD_SERVER_BASE}/buyitoken/${slug}${search}`;
 
-    const forwardHeaders = new Headers();
-    request.headers.forEach((value, key) => {
-      if (key.toLowerCase() !== 'host') {
-        forwardHeaders.set(key, value);
-      }
-    });
+    const headers = new Headers();
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
 
-    if (!forwardHeaders.has('user-agent')) {
-      forwardHeaders.set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    }
-
-    const response = await fetch(`${OLD_SERVER_BASE}/buyitoken/${slug}${search}`, {
+    const response = await fetch(targetUrl, {
       method: 'GET',
-      headers: forwardHeaders,
+      headers: headers,
     });
 
     const data = await response.json();
     return jsonResponse(data, response.status);
   } catch (error: any) {
-    return errorResponse("Buy Flow Proxy Error", 502, error.message);
+    return errorResponse("Buy Flow Proxy Connection Failed", 502, error.message);
   }
 }
 
@@ -49,27 +41,21 @@ export async function POST(
   try {
     const { slug } = await params;
     const body = await request.json();
+    const targetUrl = `${OLD_SERVER_BASE}/buyitoken/${slug}`;
 
-    const forwardHeaders = new Headers();
-    request.headers.forEach((value, key) => {
-      if (key.toLowerCase() !== 'host') {
-        forwardHeaders.set(key, value);
-      }
-    });
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
 
-    if (!forwardHeaders.has('user-agent')) {
-      forwardHeaders.set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    }
-
-    const response = await fetch(`${OLD_SERVER_BASE}/buyitoken/${slug}`, {
+    const response = await fetch(targetUrl, {
       method: 'POST',
-      headers: forwardHeaders,
+      headers: headers,
       body: JSON.stringify(body),
     });
 
     const data = await response.json();
     return jsonResponse(data, response.status);
   } catch (error: any) {
-    return errorResponse("Buy Flow Post Proxy Error", 502, error.message);
+    return errorResponse("Buy Flow POST Proxy Failed", 502, error.message);
   }
 }

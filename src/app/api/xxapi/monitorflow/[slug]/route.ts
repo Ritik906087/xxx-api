@@ -8,8 +8,8 @@ export async function OPTIONS() {
 }
 
 /**
- * Proxy for UPI Linking / MonitorFlow sub-routes
- * Handles 403 errors by mimicking a real browser and forwarding headers
+ * Enhanced Proxy for UPI Linking / MonitorFlow sub-routes
+ * Properly mimics browser headers to avoid 403/502 errors
  */
 export async function POST(
   request: Request,
@@ -18,29 +18,48 @@ export async function POST(
   try {
     const { slug } = await params;
     const body = await request.json();
+    const targetUrl = `${OLD_SERVER_BASE}/monitorflow/${slug}`;
 
-    const forwardHeaders = new Headers();
-    request.headers.forEach((value, key) => {
-      // Exclude host to let fetch set the correct target host
-      if (key.toLowerCase() !== 'host') {
-        forwardHeaders.set(key, value);
-      }
-    });
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+    headers.set('Origin', 'https://apitez.xyz');
+    headers.set('Referer', 'https://apitez.xyz/');
 
-    // Ensure a realistic User-Agent if not provided
-    if (!forwardHeaders.has('user-agent')) {
-      forwardHeaders.set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    }
-
-    const response = await fetch(`${OLD_SERVER_BASE}/monitorflow/${slug}`, {
+    const response = await fetch(targetUrl, {
       method: 'POST',
-      headers: forwardHeaders,
+      headers: headers,
       body: JSON.stringify(body),
+      cache: 'no-store'
     });
 
     const data = await response.json();
     return jsonResponse(data, response.status);
   } catch (error: any) {
-    return errorResponse("MonitorFlow Proxy Error", 502, error.message);
+    return errorResponse("MonitorFlow Proxy Connection Failed", 502, error.message);
+  }
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params;
+    const { search } = new URL(request.url);
+    const targetUrl = `${OLD_SERVER_BASE}/monitorflow/${slug}${search}`;
+
+    const headers = new Headers();
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: headers,
+    });
+
+    const data = await response.json();
+    return jsonResponse(data, response.status);
+  } catch (error: any) {
+    return errorResponse("MonitorFlow GET Proxy Failed", 502, error.message);
   }
 }
