@@ -7,14 +7,14 @@ High-performance API Gateway with Hybrid Logic:
 ## API Testing (Termux / CLI)
 
 ### 1. Test Proxy Connectivity (Talk to Old Server via New Server)
-Run this to see if your server is successfully talking to `apitez.xyz`:
+Run this to see if your server is successfully talking to `apitez.xyz` using Stealth Bypass:
 ```bash
-# Test MonitorFlow
+# Test MonitorFlow (Bypass 403)
 curl -X POST "https://9000-firebase-studio-1780714231649.cluster-yylgzpipxrar4v4a72liastuqy.cloudworkstations.dev/api/xxapi/monitorflow/check" \
 -H "Content-Type: application/json" \
 -d '{"action": "ping"}'
 
-# Test Available Tools
+# Test Available Tools (Bypass 403)
 curl -G "https://9000-firebase-studio-1780714231649.cluster-yylgzpipxrar4v4a72liastuqy.cloudworkstations.dev/api/xxapi/availablect" \
 --data-urlencode "payment_method=1"
 ```
@@ -39,7 +39,7 @@ curl -X POST "https://9000-firebase-studio-1780714231649.cluster-yylgzpipxrar4v4
 ```
 
 ## Hybrid Endpoints
-- `POST /api/xxapi/monitorflow/*` -> Proxies to `https://apitez.xyz/xxapi/`
+- `POST /api/xxapi/monitorflow/*` -> Stealth Proxy to `apitez.xyz`
 - `GET /api/xxapi/userinfo` -> Local MongoDB User Info
 - `POST /api/xxapi/sendsms` -> Local MeraOTP Integration
-- `GET /api/xxapi/buyitoken/*` -> Proxies to `https://apitez.xyz/xxapi/`
+- `GET /api/xxapi/buyitoken/*` -> Stealth Proxy to `apitez.xyz`
