@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Shield, Server, Zap, Globe, Terminal, Activity, CheckCircle2, AlertCircle, RefreshCcw, Send, Lock, KeyRound, Loader2 } from 'lucide-react';
+import { Shield, Server, Zap, Globe, Terminal, Activity, CheckCircle2, AlertCircle, RefreshCcw, Send, Lock, KeyRound, Loader2, Play } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,43 +66,48 @@ export default function ArchitectDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 font-code selection:bg-primary selection:text-white">
-      {/* Top Banner */}
-      <header className="border-b border-slate-800 bg-[#020617]/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-code selection:bg-primary selection:text-white">
+      {/* Top Header */}
+      <header className="border-b border-slate-200 bg-white/90 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-[#f59e0b] rounded flex items-center justify-center font-bold text-black text-xl">CF</div>
+          <div className="w-10 h-10 bg-amber-500 rounded flex items-center justify-center font-bold text-white text-xl shadow-sm">V</div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-headline font-bold text-lg tracking-tight">Cloudflare Workers REST API</h1>
-              <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] uppercase animate-pulse">Live Gateway</Badge>
+              <h1 className="font-headline font-bold text-lg tracking-tight text-slate-900">Vantage Hybrid API Gateway</h1>
+              <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] uppercase animate-pulse">Live Status</Badge>
             </div>
-            <p className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold">MongoDB Atlas & Supabase Integration</p>
+            <p className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold">MongoDB Atlas & Supabase Core</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden md:block text-right">
-            <p className="text-[10px] text-slate-500 uppercase font-bold">Deployment Target</p>
-            <p className="text-xs font-semibold text-primary">Cloudflare Workers Isolate</p>
+            <p className="text-[10px] text-slate-500 uppercase font-bold">Edge Network</p>
+            <p className="text-xs font-semibold text-blue-600">US-EAST-WORKER</p>
           </div>
-          <Button variant="outline" size="sm" className="bg-slate-900 border-slate-800 text-[10px] uppercase font-bold px-4">Fullscreen</Button>
+          {/* Replaced Fullscreen with GET Button */}
+          <Button 
+            className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold px-6 h-9 shadow-md shadow-blue-500/20"
+          >
+            GET
+          </Button>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto p-6 space-y-8">
         {/* Active Integration Specs */}
         <section>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-4 ml-1">Active Supabase Integration Specs</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-4 ml-1">Enterprise Configuration</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="bg-[#0f172a] border-slate-800 p-4 relative group hover:border-primary/50 transition-all">
+            <Card className="bg-white border-slate-200 p-4 relative group hover:border-blue-500/50 transition-all shadow-sm">
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">SB_PROJECT_URL</span>
-                <span className="text-sm font-code text-blue-400 truncate">https://slytlppadlmnnloszuwd.supabase.co</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase">SUPABASE_URL</span>
+                <span className="text-sm font-code text-blue-600 truncate">https://slytlppadlmnnloszuwd.supabase.co</span>
               </div>
             </Card>
-            <Card className="bg-[#0f172a] border-slate-800 p-4 relative group hover:border-primary/50 transition-all">
+            <Card className="bg-white border-slate-200 p-4 relative group hover:border-blue-500/50 transition-all shadow-sm">
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">SB_PUBLISHABLE_KEY</span>
-                <span className="text-sm font-code text-amber-400 truncate">sb_publishable_b17Qw8jmbfhisK4E69BbxQ__9KZwKX</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase">MONGODB_CLUSTER</span>
+                <span className="text-sm font-code text-amber-600 truncate">tdm.uwkxmdo.mongodb.net</span>
               </div>
             </Card>
           </div>
@@ -111,33 +116,33 @@ export default function ArchitectDashboard() {
         {/* System Connections */}
         <section className="space-y-4">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1">System Connections</div>
-            <Button variant="ghost" size="sm" className="text-[10px] text-primary uppercase font-bold h-6 gap-2">
-              <RefreshCcw className="w-3 h-3" /> Refresh
+            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1">Live Backend Services</div>
+            <Button variant="ghost" size="sm" className="text-[10px] text-blue-600 uppercase font-bold h-6 gap-2">
+              <RefreshCcw className="w-3 h-3" /> Sync Now
             </Button>
           </div>
           
-          <Card className="bg-[#0f172a] border-slate-800 divide-y divide-slate-800 overflow-hidden">
-            <div className="p-6 flex items-center justify-between group hover:bg-slate-900/50 transition-colors">
+          <Card className="bg-white border-slate-200 divide-y divide-slate-100 overflow-hidden shadow-sm">
+            <div className="p-6 flex items-center justify-between group hover:bg-slate-50 transition-colors">
               <div className="flex items-center gap-4">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
                 <div>
-                  <h3 className="text-sm font-bold">MongoDB Atlas Status</h3>
-                  <p className="text-[11px] text-slate-500">Connected to <span className="text-emerald-400">Atlas Cluster</span>. DB: <span className="text-slate-300 italic">TDM</span></p>
+                  <h3 className="text-sm font-bold text-slate-900">Database Engine</h3>
+                  <p className="text-[11px] text-slate-500">Connected to <span className="text-emerald-600 font-bold">MongoDB Atlas</span>. Active pool: 5 connections</p>
                 </div>
               </div>
-              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 bg-emerald-50 font-bold uppercase">Stable</Badge>
             </div>
 
-            <div className="p-6 flex items-center justify-between group hover:bg-slate-900/50 transition-colors">
+            <div className="p-6 flex items-center justify-between group hover:bg-slate-50 transition-colors">
               <div className="flex items-center gap-4">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
                 <div>
-                  <h3 className="text-sm font-bold">Supabase Secure JWT</h3>
-                  <p className="text-[11px] text-slate-500">Supabase JWT Configured. <span className="text-slate-300">Active JWT decoding activated.</span></p>
+                  <h3 className="text-sm font-bold text-slate-900">Identity Provider</h3>
+                  <p className="text-[11px] text-slate-500">Supabase Auth Provider ready. <span className="text-slate-600">JWT Signing key verified.</span></p>
                 </div>
               </div>
-              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 bg-emerald-50 font-bold uppercase">Secure</Badge>
             </div>
           </Card>
         </section>
@@ -145,33 +150,33 @@ export default function ArchitectDashboard() {
         {/* OTP Auth Engine */}
         <section className="space-y-4">
           <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Phone SMS OTP Auth Engine (via MeraOTP.in)
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> External SMS Gateway (MeraOTP.in)
           </div>
-          <Card className="bg-[#0f172a] border-slate-800 p-8 space-y-6">
+          <Card className="bg-white border-slate-200 p-8 space-y-6 shadow-sm">
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Step 1: Get SMS Passcode</label>
+              <label className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Phase 1: OTP Initiation</label>
               <div className="flex gap-4">
                 <div className="relative flex-1">
                   <Input 
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="e.g. 919060873927"
-                    className="bg-[#020617] border-slate-800 text-sm font-code h-12 pl-4 focus:border-primary transition-all"
+                    className="bg-slate-50 border-slate-200 text-sm font-code h-12 pl-4 focus:border-blue-500 transition-all"
                   />
-                  <div className="absolute right-3 top-3.5 text-[10px] text-slate-600 font-bold">MOBILE_NO</div>
+                  <div className="absolute right-3 top-3.5 text-[10px] text-slate-400 font-bold">MOBILE_NO</div>
                 </div>
                 <Button 
                   onClick={handleTriggerOTP}
                   disabled={isLoading}
-                  className="bg-slate-900 border border-slate-700 hover:bg-slate-800 text-[10px] uppercase font-bold h-12 px-8 min-w-[200px]"
+                  className="bg-slate-900 text-white hover:bg-slate-800 text-[10px] uppercase font-bold h-12 px-8 min-w-[200px] shadow-sm"
                 >
-                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Trigger OTP SMS Route"}
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send SMS Request"}
                 </Button>
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Step 2: Sign In Verification</label>
+              <label className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Phase 2: Validation</label>
               <div className="flex gap-4">
                 <div className="relative flex-1">
                   <Input 
@@ -179,42 +184,23 @@ export default function ArchitectDashboard() {
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
                     maxLength={6}
-                    className="bg-[#020617] border-slate-800 text-sm font-code h-12 pl-4 focus:border-primary transition-all tracking-[0.5em]"
+                    className="bg-slate-50 border-slate-200 text-sm font-code h-12 pl-4 focus:border-blue-500 transition-all tracking-[0.5em]"
                   />
-                  <div className="absolute right-3 top-3.5 text-[10px] text-slate-600 font-bold uppercase">OTP_CODE</div>
+                  <div className="absolute right-3 top-3.5 text-[10px] text-slate-400 font-bold uppercase">TOKEN</div>
                 </div>
                 <Button 
                   onClick={handleVerifyOTP}
                   disabled={isLoading || otp.length < 6}
-                  className="bg-gradient-to-r from-emerald-600 to-blue-600 border-none hover:opacity-90 text-[10px] uppercase font-bold h-12 px-8"
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold h-12 px-8 shadow-md shadow-blue-500/20"
                 >
-                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify & Sign In Session"}
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Authenticate Session"}
                 </Button>
               </div>
               {lastSentOtp && (
-                <p className="text-[10px] text-emerald-500 mt-2">Dev Hint: Last OTP sent was {lastSentOtp}</p>
+                <div className="bg-blue-50 border border-blue-100 p-2 rounded mt-2">
+                  <p className="text-[10px] text-blue-600 font-bold">DEBUG_OTP_RECOVERY: {lastSentOtp}</p>
+                </div>
               )}
-            </div>
-          </Card>
-        </section>
-
-        {/* How To Deploy */}
-        <section className="space-y-4">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1">How To Deploy</div>
-          <Card className="bg-[#020617] border-slate-800 p-6 overflow-hidden">
-            <div className="font-code text-[12px] leading-loose text-slate-400">
-              <p className="text-slate-500 mb-2"># Deploy this backend code directly to Cloudflare Edge Nodes worldwide with standard keys:</p>
-              <div className="space-y-1">
-                <p><span className="text-slate-600"># 1. Install wrangler CLI</span></p>
-                <p><span className="text-emerald-500">npm i -g wrangler</span></p>
-                <p className="mt-2"><span className="text-slate-600"># 2. Run local development</span></p>
-                <p><span className="text-emerald-500">npx wrangler dev src/worker.ts</span></p>
-                <p className="mt-2"><span className="text-slate-600"># 3. Add Atlas / Supabase bindings</span></p>
-                <p><span className="text-emerald-500">npx wrangler secret put MONGODB_URI</span></p>
-                <p><span className="text-emerald-500">npx wrangler secret put SUPABASE_JWT_SECRET</span></p>
-                <p className="mt-2"><span className="text-slate-600"># 4. Deploy to worldwide edge servers</span></p>
-                <p><span className="text-emerald-500">npx wrangler deploy src/worker.ts</span></p>
-              </div>
             </div>
           </Card>
         </section>
@@ -222,49 +208,49 @@ export default function ArchitectDashboard() {
         {/* Interactive REST Playground */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1">Interactive REST Playground</div>
-            <div className="text-[10px] text-slate-600 font-bold uppercase">Connected to Cloud Atlas</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1">REST API Explorer</div>
+            <div className="text-[10px] text-slate-400 font-bold uppercase">Protocol: HTTPS/REST</div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[400px]">
-            <Card className="bg-[#0f172a] border-slate-800 flex flex-col overflow-hidden">
-              <div className="p-4 border-b border-slate-800 text-[10px] uppercase font-bold text-slate-500">Endpoint Routing</div>
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-800/50">
+            <Card className="bg-white border-slate-200 flex flex-col overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-slate-100 text-[10px] uppercase font-bold text-slate-500 bg-slate-50/50">Endpoints</div>
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
                 {[
-                  { method: 'GET', path: '/api/health', desc: 'Status', color: 'text-blue-400' },
-                  { method: 'POST', path: '/api/auth/send-otp', desc: 'OTP SMS', color: 'text-emerald-400' },
-                  { method: 'POST', path: '/api/auth/verify-otp', desc: 'Verify', color: 'text-amber-400' },
-                  { method: 'GET', path: '/api/items', desc: 'Items', color: 'text-purple-400' },
+                  { method: 'GET', path: '/api/health', desc: 'Heartbeat', color: 'text-blue-500' },
+                  { method: 'POST', path: '/api/auth/send-otp', desc: 'SMS Dispatch', color: 'text-emerald-500' },
+                  { method: 'POST', path: '/api/auth/verify-otp', desc: 'Session Auth', color: 'text-amber-500' },
+                  { method: 'GET', path: '/api/xxapi/userinfo', desc: 'Local User', color: 'text-purple-500' },
                 ].map((route, i) => (
-                  <div key={i} className="p-4 flex items-center justify-between hover:bg-slate-900 transition-colors group cursor-pointer">
+                  <div key={i} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group cursor-pointer">
                     <div className="flex items-center gap-4">
-                      <span className={`text-[10px] font-bold w-12 ${route.color}`}>{route.method}</span>
-                      <span className="text-xs font-code">{route.path}</span>
+                      <span className={`text-[10px] font-black w-12 ${route.color}`}>{route.method}</span>
+                      <span className="text-xs font-code text-slate-700">{route.path}</span>
                     </div>
-                    <span className="text-[10px] text-slate-600 font-bold uppercase opacity-0 group-hover:opacity-100 transition-opacity">{route.desc}</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase opacity-0 group-hover:opacity-100 transition-opacity">{route.desc}</span>
                   </div>
                 ))}
               </div>
             </Card>
             
-            <Card className="bg-[#0f172a] border-slate-800 flex flex-col p-6 space-y-6">
+            <Card className="bg-white border-slate-200 flex flex-col p-6 space-y-6 shadow-sm">
               <div className="space-y-2">
-                <div className="text-[10px] uppercase font-bold text-slate-500">Request Parameters</div>
-                <div className="flex items-center justify-between p-3 bg-[#020617] border border-slate-800 rounded">
-                  <span className="text-[11px] text-slate-400 italic">Authorization Header Status:</span>
-                  <span className="text-[10px] text-rose-400 font-bold uppercase">None Included</span>
+                <div className="text-[10px] uppercase font-bold text-slate-500">Execution Context</div>
+                <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded">
+                  <span className="text-[11px] text-slate-500 italic">Auth Token:</span>
+                  <span className="text-[10px] text-rose-500 font-bold uppercase">Missing</span>
                 </div>
               </div>
-              <Button className="w-full bg-primary hover:bg-primary/90 text-[10px] uppercase font-bold h-12 shadow-[0_0_20px_rgba(59,130,246,0.3)]">
-                Execute Endpoint
+              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold h-12 shadow-lg shadow-blue-500/20">
+                Execute Selected Route
               </Button>
             </Card>
           </div>
         </section>
 
-        {/* Footer info */}
-        <footer className="pt-8 pb-12 text-center">
-          <p className="text-[10px] text-slate-600 uppercase font-bold tracking-[0.3em]">
-            This app was developed by Ritik. Enterprise Backend Security Enabled.
+        {/* Footer */}
+        <footer className="pt-8 pb-12 text-center border-t border-slate-200">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.3em]">
+            Vantage Enterprise Backend • Optimized for High Scale • Ritik Engine
           </p>
         </footer>
       </main>
