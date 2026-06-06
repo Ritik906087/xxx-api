@@ -1,0 +1,14 @@
+
+name = "vantage-backend"
+compatibility_date = "2024-03-01"
+pages_build_output_dir = ".next"
+
+[vars]
+# Add your environment variables here for deployment
+MONGODB_DB_NAME = "TDM"
+SB_PROJECT_URL = "https://slytlppadlmnnloszuwd.supabase.co"
+
+# Secret variables should be set via 'npx wrangler secret put'
+# MONGODB_URI
+# SUPABASE_JWT_SECRET
+# MERA_OTP_API_KEY
