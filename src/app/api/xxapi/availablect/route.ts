@@ -6,6 +6,10 @@ export async function OPTIONS() {
   return handleOptions();
 }
 
+/**
+ * Ultimate Stealth Headers to bypass 403 Forbidden
+ * Mimics a real Windows Chrome browser requesting from the same domain
+ */
 const STEALTH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
@@ -35,6 +39,16 @@ export async function GET(request: Request) {
       headers: STEALTH_HEADERS,
       cache: 'no-store'
     });
+
+    if (!response.ok) {
+        const errorData = await response.text();
+        console.error(`[AvailableCT Error ${response.status}]:`, errorData);
+        try {
+            return jsonResponse(JSON.parse(errorData), response.status);
+        } catch (e) {
+            return errorResponse("Upstream Server Error", response.status, errorData);
+        }
+    }
 
     const data = await response.json();
     return jsonResponse(data, response.status);

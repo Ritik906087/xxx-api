@@ -6,6 +6,9 @@ export async function OPTIONS() {
   return handleOptions();
 }
 
+/**
+ * Ultimate Stealth Headers to bypass 403 Forbidden
+ */
 const STEALTH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
@@ -44,6 +47,16 @@ export async function POST(
       cache: 'no-store'
     });
 
+    if (!response.ok) {
+        const errorData = await response.text();
+        console.error(`[MonitorFlow POST Error ${response.status}]:`, errorData);
+        try {
+            return jsonResponse(JSON.parse(errorData), response.status);
+        } catch (e) {
+            return errorResponse("Upstream MonitorFlow Error", response.status, errorData);
+        }
+    }
+
     const data = await response.json();
     return jsonResponse(data, response.status);
   } catch (error: any) {
@@ -65,6 +78,16 @@ export async function GET(
       headers: STEALTH_HEADERS,
       cache: 'no-store'
     });
+
+    if (!response.ok) {
+        const errorData = await response.text();
+        console.error(`[MonitorFlow GET Error ${response.status}]:`, errorData);
+        try {
+            return jsonResponse(JSON.parse(errorData), response.status);
+        } catch (e) {
+            return errorResponse("Upstream MonitorFlow Error", response.status, errorData);
+        }
+    }
 
     const data = await response.json();
     return jsonResponse(data, response.status);

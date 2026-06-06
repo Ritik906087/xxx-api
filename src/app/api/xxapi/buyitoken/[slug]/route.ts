@@ -40,6 +40,15 @@ export async function GET(
       cache: 'no-store'
     });
 
+    if (!response.ok) {
+        const errorData = await response.text();
+        try {
+            return jsonResponse(JSON.parse(errorData), response.status);
+        } catch (e) {
+            return errorResponse("Upstream Buy Flow Error", response.status, errorData);
+        }
+    }
+
     const data = await response.json();
     return jsonResponse(data, response.status);
   } catch (error: any) {
@@ -65,6 +74,15 @@ export async function POST(
       body: JSON.stringify(body),
       cache: 'no-store'
     });
+
+    if (!response.ok) {
+        const errorData = await response.text();
+        try {
+            return jsonResponse(JSON.parse(errorData), response.status);
+        } catch (e) {
+            return errorResponse("Upstream Buy Flow POST Error", response.status, errorData);
+        }
+    }
 
     const data = await response.json();
     return jsonResponse(data, response.status);
