@@ -1,16 +1,12 @@
+
 export type TransactionType = 'credit' | 'debit' | 'transfer' | 'withdrawal' | 'deposit' | 'purchase';
 
 export interface User {
   id: string;
   email: string;
+  mobileNo: string;
   role: 'user' | 'admin';
   createdAt: string;
-}
-
-export interface Wallet {
-  userId: string;
-  balance: number;
-  currency: string;
 }
 
 export interface Transaction {
@@ -21,7 +17,14 @@ export interface Transaction {
   type: TransactionType;
   description: string;
   timestamp: string;
-  isFraudulent?: boolean;
+  isFraudulent: boolean;
+}
+
+export interface Wallet {
+  userId: string;
+  balance: number;
+  currency: string;
+  lastUpdated: string;
 }
 
 export interface Order {
@@ -33,31 +36,55 @@ export interface Order {
   timestamp: string;
 }
 
-export interface AuditLog {
-  id: string;
-  adminId: string;
-  action: string;
-  targetId: string;
-  timestamp: string;
-  details: string;
+export interface Config {
+  brandName: string;
+  version: string;
+  maintenance: boolean;
+  minDeposit: number;
+  maxWithdrawal: number;
 }
 
-// Initial Mock Data
 export const MOCK_USERS: User[] = [
-  { id: 'usr_01', email: 'admin@vantage.io', role: 'admin', createdAt: '2023-01-01T00:00:00Z' },
-  { id: 'usr_02', email: 'user@example.com', role: 'user', createdAt: '2023-05-12T10:30:00Z' },
+  {
+    id: 'usr_1',
+    email: 'admin@vantage.io',
+    mobileNo: '919060873927',
+    role: 'admin',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'usr_2',
+    email: 'user@example.com',
+    mobileNo: '911234567890',
+    role: 'user',
+    createdAt: new Date().toISOString()
+  }
 ];
 
 export const MOCK_WALLETS: Wallet[] = [
-  { userId: 'usr_01', balance: 500000.00, currency: 'USD' },
-  { userId: 'usr_02', balance: 1250.75, currency: 'USD' },
+  {
+    userId: 'usr_1',
+    balance: 50000.00,
+    currency: 'USD',
+    lastUpdated: new Date().toISOString()
+  },
+  {
+    userId: 'usr_2',
+    balance: 1250.75,
+    currency: 'USD',
+    lastUpdated: new Date().toISOString()
+  }
 ];
 
 export const MOCK_TRANSACTIONS: Transaction[] = [
-  { id: 'tx_01', userId: 'usr_02', amount: 50.00, currency: 'USD', type: 'purchase', description: 'Cloud Subscription', timestamp: new Date(Date.now() - 3600000).toISOString() },
-  { id: 'tx_02', userId: 'usr_02', amount: 100.00, currency: 'USD', type: 'deposit', description: 'Bank Transfer', timestamp: new Date(Date.now() - 7200000).toISOString() },
-];
-
-export const MOCK_AUDIT_LOGS: AuditLog[] = [
-  { id: 'log_01', adminId: 'usr_01', action: 'LEDGER_ADJUST', targetId: 'usr_02', timestamp: '2023-10-25T14:20:00Z', details: 'Manual balance adjustment of +$500.00' },
+  {
+    id: 'tx_001',
+    userId: 'usr_1',
+    amount: 1500.00,
+    currency: 'USD',
+    type: 'deposit',
+    description: 'Initial balance load',
+    timestamp: new Date().toISOString(),
+    isFraudulent: false
+  }
 ];

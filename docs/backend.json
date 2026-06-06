@@ -1,0 +1,45 @@
+
+{
+  "entities": {
+    "User": {
+      "title": "User Account",
+      "description": "Enterprise user profile stored in MongoDB",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "mobileNo": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["mobileNo", "email"]
+    },
+    "Wallet": {
+      "title": "Financial Wallet",
+      "description": "User liquid balance and currency details",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "balance": { "type": "number" },
+        "currency": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Order": {
+      "title": "Transaction Order",
+      "description": "Records of deposits, withdrawals and purchases",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed", "flagged"] },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["mobile_otp", "email_password"]
+  },
+  "firestore": {}
+}
