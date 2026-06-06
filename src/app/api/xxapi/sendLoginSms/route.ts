@@ -1,8 +1,7 @@
 import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 
 /**
- * Sends a Login OTP using local MeraOTP integration.
- * No longer proxies to the old server to avoid 403/500 errors.
+ * Sends a Login OTP using local MeraOTP integration with Monexo Branding.
  */
 export async function POST(request: Request) {
   try {
@@ -13,7 +12,8 @@ export async function POST(request: Request) {
       return errorResponse("mobileNo is required", 400);
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 4-digit OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
     const apiKey = "4ef8fe7a7412390737d7a6e591";
     const url = "https://meraotp.in/api/sendSMS";
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       apiKey: apiKey,
       mobileNo: mobileNo,
       messageType: "AUTH_OTP",
-      brandName: "Vantage",
+      brandName: "Monexo",
       otp: otp,
       senderId: "MRAOTP"
     };
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     return jsonResponse({
       status: result.status === "success" || result.statusCode === 200 ? "ok" : "failed",
       success: result.status === "success" || result.statusCode === 200,
-      message: result.message || "SMS Request Processed",
+      message: result.message || "SMS Request Processed (Monexo)",
       ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
     });
 

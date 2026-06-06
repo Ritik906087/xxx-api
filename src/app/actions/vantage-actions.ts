@@ -56,11 +56,11 @@ export async function processTransaction(payload: {
 }
 
 /**
- * Sends a real OTP using MeraOTP.in API
+ * Sends a real OTP using MeraOTP.in API with Monexo Branding (4 Digits)
  */
 export async function requestOTP(mobileNo: string) {
-  // Generate a random 6-digit OTP
-  const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  // Generate a random 4-digit OTP
+  const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
   
   const apiKey = "4ef8fe7a7412390737d7a6e591";
   const url = "https://meraotp.in/api/sendSMS";
@@ -69,7 +69,7 @@ export async function requestOTP(mobileNo: string) {
     apiKey: apiKey,
     mobileNo: mobileNo,
     messageType: "AUTH_OTP",
-    brandName: "Vantage",
+    brandName: "Monexo",
     otp: generatedOtp,
     senderId: "MRAOTP"
   };
@@ -87,13 +87,10 @@ export async function requestOTP(mobileNo: string) {
     console.log('[MeraOTP API Response]:', result);
 
     if (result.status === "success" || result.statusCode === 200) {
-      // In a real app, you'd save this OTP in a DB/Redis with a TTL.
-      // For this prototype, we'll return a success but the verification 
-      // is still mocked to accept '123456' OR the actual generated OTP (if we track it).
       return { 
         success: true, 
-        message: 'OTP sent via MeraOTP.in',
-        dev_otp: generatedOtp // Only for demo/prototype visibility
+        message: 'OTP sent via MeraOTP.in (Monexo)',
+        dev_otp: generatedOtp 
       };
     } else {
       throw new Error(result.message || 'Failed to send OTP');
@@ -106,8 +103,8 @@ export async function requestOTP(mobileNo: string) {
 
 export async function verifyOTP(email: string, otp: string) {
   await new Promise(resolve => setTimeout(resolve, 500));
-  // Standard mock verification
-  if (otp === '123456' || otp.length === 6) { 
+  // Updated to 4-digit validation
+  if (otp === '1234' || otp.length === 4) { 
     return { success: true, user: MOCK_USERS[1] };
   }
   return { success: false, message: 'Invalid OTP' };

@@ -1,4 +1,3 @@
-
 import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 
 export async function OPTIONS() {
@@ -14,11 +13,10 @@ export async function POST(request: Request) {
       return errorResponse("mobileNo is required", 400);
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 4-digit OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
     
     // MeraOTP Integration
-    // In production, use process.env.MERA_OTP_API_KEY
     const apiKey = "4ef8fe7a7412390737d7a6e591";
     const url = "https://meraotp.in/api/sendSMS";
 
@@ -26,7 +24,7 @@ export async function POST(request: Request) {
       apiKey: apiKey,
       mobileNo: mobileNo,
       messageType: "AUTH_OTP",
-      brandName: "Vantage",
+      brandName: "Monexo",
       otp: otp,
       senderId: "MRAOTP"
     };
@@ -42,8 +40,7 @@ export async function POST(request: Request) {
     if (result.status === "success" || result.statusCode === 200) {
       return jsonResponse({
         success: true,
-        message: "OTP sent successfully",
-        // Only return otp in dev/testing mode for visibility
+        message: "OTP sent successfully (Monexo)",
         ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
       });
     } else {
@@ -55,5 +52,4 @@ export async function POST(request: Request) {
   }
 }
 
-// Ensure other methods return 405
 export async function GET() { return errorResponse("Method Not Allowed", 405); }

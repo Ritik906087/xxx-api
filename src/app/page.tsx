@@ -29,7 +29,7 @@ export default function ArchitectDashboard() {
         setLastSentOtp(res.dev_otp || null);
         toast({
           title: "OTP Sent Successfully",
-          description: `API: MeraOTP | Status: 200 OK | Sent to: ${phone}`,
+          description: `API: Monexo | Status: 200 OK | Sent to: ${phone}`,
         });
       } else {
         toast({
@@ -71,10 +71,10 @@ export default function ArchitectDashboard() {
       {/* Top Header */}
       <header className="border-b border-slate-200 bg-white/90 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white text-xl shadow-sm">V</div>
+          <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white text-xl shadow-sm">M</div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-headline font-bold text-lg tracking-tight text-slate-900">Vantage Hybrid API Gateway</h1>
+              <h1 className="font-headline font-bold text-lg tracking-tight text-slate-900">Monexo Hybrid API Gateway</h1>
               <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] uppercase animate-pulse">Live Status</Badge>
             </div>
             <p className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold">MongoDB Atlas & Supabase Core</p>
@@ -154,7 +154,7 @@ export default function ArchitectDashboard() {
         {/* OTP Auth Engine */}
         <section className="space-y-4">
           <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> External SMS Gateway (MeraOTP.in)
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Monexo SMS Gateway (MeraOTP.in)
           </div>
           <Card className="bg-white border-slate-200 p-8 space-y-6 shadow-sm">
             <div className="space-y-2">
@@ -184,17 +184,17 @@ export default function ArchitectDashboard() {
               <div className="flex gap-4">
                 <div className="relative flex-1">
                   <Input 
-                    placeholder="Enter 6-digit code"
+                    placeholder="Enter 4-digit code"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    maxLength={6}
+                    maxLength={4}
                     className="bg-slate-50 border-slate-200 text-sm font-code h-12 pl-4 focus:border-blue-500 transition-all tracking-[0.5em]"
                   />
                   <div className="absolute right-3 top-3.5 text-[10px] text-slate-400 font-bold uppercase">TOKEN</div>
                 </div>
                 <Button 
                   onClick={handleVerifyOTP}
-                  disabled={isLoading || otp.length < 6}
+                  disabled={isLoading || otp.length < 4}
                   className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold h-12 px-8 shadow-md shadow-blue-500/20"
                 >
                   {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Authenticate Session"}
@@ -212,7 +212,7 @@ export default function ArchitectDashboard() {
         {/* Footer */}
         <footer className="pt-8 pb-12 text-center border-t border-slate-200">
           <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.3em]">
-            Vantage Enterprise Backend • Optimized for High Scale • Ritik Engine
+            Monexo Enterprise Backend • Optimized for High Scale
           </p>
         </footer>
       </main>

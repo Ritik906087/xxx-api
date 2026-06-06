@@ -1,7 +1,7 @@
 import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 
 /**
- * Standard SMS sending route using MeraOTP.
+ * Standard SMS sending route using MeraOTP with Monexo Branding.
  */
 export async function POST(request: Request) {
   try {
@@ -10,7 +10,8 @@ export async function POST(request: Request) {
 
     if (!mobileNo) return errorResponse("mobileNo required", 400);
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 4-digit OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
     const apiKey = "4ef8fe7a7412390737d7a6e591";
     
     const response = await fetch("https://meraotp.in/api/sendSMS", {
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
         apiKey,
         mobileNo,
         messageType: "AUTH_OTP",
-        brandName: "Vantage",
+        brandName: "Monexo",
         otp,
         senderId: "MRAOTP"
       }),
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
     return jsonResponse({
       status: "ok",
       success: result.status === "success" || result.statusCode === 200,
-      message: "SMS Request Dispatched",
+      message: "SMS Request Dispatched (Monexo)",
       ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
     });
   } catch (e: any) {

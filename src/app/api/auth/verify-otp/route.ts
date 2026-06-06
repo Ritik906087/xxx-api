@@ -1,4 +1,3 @@
-
 import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 
 export async function OPTIONS() {
@@ -14,13 +13,12 @@ export async function POST(request: Request) {
       return errorResponse("mobileNo and otp are required", 400);
     }
 
-    // Prototype Logic: Accept '123456' or any 6-digit code for now
-    // In production, you would verify this against a database (MongoDB)
-    if (otp.length === 6) {
+    // Prototype Logic: Accept any 4-digit code for now
+    if (otp.length === 4) {
       return jsonResponse({
         success: true,
         message: "Session authorized",
-        token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock_payload", // Mock JWT
+        token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock_payload",
         user: {
           id: "usr_mock_" + Math.random().toString(36).substr(2, 5),
           phone: mobileNo,

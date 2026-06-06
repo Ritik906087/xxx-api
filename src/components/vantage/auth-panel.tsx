@@ -23,7 +23,7 @@ export function AuthPanel({ onAuthSuccess }: { onAuthSuccess: (user: any) => voi
     setIsLoading(false);
     if (res.success) {
       setStep('otp');
-      toast({ title: "OTP Sent", description: "Simulation: Use 123456" });
+      toast({ title: "OTP Sent", description: "Simulation: Monexo Verification" });
     }
   };
 
@@ -44,9 +44,9 @@ export function AuthPanel({ onAuthSuccess }: { onAuthSuccess: (user: any) => voi
         <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
           <Shield className="w-6 h-6 text-primary" />
         </div>
-        <CardTitle className="text-2xl font-headline font-bold">Vantage Omni-Auth</CardTitle>
+        <CardTitle className="text-2xl font-headline font-bold">Monexo Omni-Auth</CardTitle>
         <CardDescription className="text-muted-foreground">
-          {step === 'email' ? 'Enter your institutional email to proceed' : 'Enter the 6-digit security code sent via OTP'}
+          {step === 'email' ? 'Enter your institutional email to proceed' : 'Enter the 4-digit security code'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -57,7 +57,7 @@ export function AuthPanel({ onAuthSuccess }: { onAuthSuccess: (user: any) => voi
               <Input 
                 id="email" 
                 type="email" 
-                placeholder="identity@vantage.io" 
+                placeholder="identity@monexo.io" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-background/50 border-primary/20 focus-visible:ring-primary h-12 pl-10"
@@ -72,8 +72,8 @@ export function AuthPanel({ onAuthSuccess }: { onAuthSuccess: (user: any) => voi
               <Input 
                 id="otp" 
                 type="text" 
-                maxLength={6}
-                placeholder="000000" 
+                maxLength={4}
+                placeholder="0000" 
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 className="bg-background/50 border-primary/20 focus-visible:ring-primary h-12 pl-10 tracking-[1em] font-bold"

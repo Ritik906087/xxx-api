@@ -1,4 +1,3 @@
-
 import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 import { getDb } from '@/lib/mongodb';
 
@@ -10,8 +9,8 @@ export async function POST(request: Request) {
   try {
     const { mobileNo, otp, password } = await request.json();
     
-    // Validate OTP (Prototype: length check)
-    if (otp && otp.length !== 6) {
+    // Validate OTP (Updated to 4 digits)
+    if (otp && otp.length !== 4) {
       return errorResponse("Invalid OTP format", 401);
     }
 
