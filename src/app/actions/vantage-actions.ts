@@ -103,7 +103,7 @@ export async function requestOTP(mobileNo: string) {
 
 export async function verifyOTP(email: string, otp: string) {
   await new Promise(resolve => setTimeout(resolve, 500));
-  // Updated to 4-digit validation
+  // Validation for 4-digit OTP
   if (otp === '1234' || otp.length === 4) { 
     return { success: true, user: MOCK_USERS[1] };
   }
