@@ -1,43 +1,68 @@
-
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Shield, Server, Zap, Globe, Terminal, Activity, CheckCircle2, AlertCircle, RefreshCcw, Send, Lock, KeyRound } from 'lucide-react';
+import React, { useState } from 'react';
+import { Shield, Server, Zap, Globe, Terminal, Activity, CheckCircle2, AlertCircle, RefreshCcw, Send, Lock, KeyRound, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { VantageTerminal } from '@/components/vantage/terminal';
+import { requestOTP, verifyOTP } from '@/app/actions/vantage-actions';
 
 export default function ArchitectDashboard() {
   const [phone, setPhone] = useState('919060873927');
   const [otp, setOtp] = useState('');
-  const [isMongoConnected, setIsMongoConnected] = useState(true);
-  const [isSupabaseConnected, setIsSupabaseConnected] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [lastSentOtp, setLastSentOtp] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleTriggerOTP = () => {
+  const handleTriggerOTP = async () => {
+    if (!phone) {
+      toast({ variant: 'destructive', title: "Error", description: "Mobile number is required" });
+      return;
+    }
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await requestOTP(phone);
+      if (res.success) {
+        setLastSentOtp(res.dev_otp || null);
+        toast({
+          title: "OTP Sent Successfully",
+          description: `API: MeraOTP | Status: 200 OK | Sent to: ${phone}`,
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: "SMS Gateway Error",
+          description: res.message,
+        });
+      }
+    } catch (e) {
+      toast({ variant: 'destructive', title: "Network Error", description: "Could not connect to SMS route" });
+    } finally {
       setIsLoading(false);
-      toast({
-        title: "OTP Sent Successfully",
-        description: "Status: 200 OK | Destination: SMS Gateway",
-      });
-    }, 1000);
+    }
   };
 
-  const handleVerifyOTP = () => {
+  const handleVerifyOTP = async () => {
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await verifyOTP("user@example.com", otp);
+      if (res.success) {
+        toast({
+          title: "Session Authorized",
+          description: "Supabase JWT issued | Access Granted",
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: "Auth Failed",
+          description: res.message,
+        });
+      }
+    } finally {
       setIsLoading(false);
-      toast({
-        title: "Session Authorized",
-        description: "Supabase JWT issued | Access Granted",
-      });
-    }, 800);
+    }
   };
 
   return (
@@ -120,7 +145,7 @@ export default function ArchitectDashboard() {
         {/* OTP Auth Engine */}
         <section className="space-y-4">
           <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Phone SMS OTP Auth Engine
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Phone SMS OTP Auth Engine (via MeraOTP.in)
           </div>
           <Card className="bg-[#0f172a] border-slate-800 p-8 space-y-6">
             <div className="space-y-2">
@@ -130,6 +155,7 @@ export default function ArchitectDashboard() {
                   <Input 
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    placeholder="e.g. 919060873927"
                     className="bg-[#020617] border-slate-800 text-sm font-code h-12 pl-4 focus:border-primary transition-all"
                   />
                   <div className="absolute right-3 top-3.5 text-[10px] text-slate-600 font-bold">MOBILE_NO</div>
@@ -137,9 +163,9 @@ export default function ArchitectDashboard() {
                 <Button 
                   onClick={handleTriggerOTP}
                   disabled={isLoading}
-                  className="bg-slate-900 border border-slate-700 hover:bg-slate-800 text-[10px] uppercase font-bold h-12 px-8"
+                  className="bg-slate-900 border border-slate-700 hover:bg-slate-800 text-[10px] uppercase font-bold h-12 px-8 min-w-[200px]"
                 >
-                  Trigger OTP SMS Route
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Trigger OTP SMS Route"}
                 </Button>
               </div>
             </div>
@@ -162,9 +188,12 @@ export default function ArchitectDashboard() {
                   disabled={isLoading || otp.length < 6}
                   className="bg-gradient-to-r from-emerald-600 to-blue-600 border-none hover:opacity-90 text-[10px] uppercase font-bold h-12 px-8"
                 >
-                  Verify & Sign In Session
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify & Sign In Session"}
                 </Button>
               </div>
+              {lastSentOtp && (
+                <p className="text-[10px] text-emerald-500 mt-2">Dev Hint: Last OTP sent was {lastSentOtp}</p>
+              )}
             </div>
           </Card>
         </section>
