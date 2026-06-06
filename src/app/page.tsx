@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Shield, Server, Zap, Globe, Terminal, Activity, CheckCircle2, AlertCircle, RefreshCcw, Send, Lock, KeyRound, Loader2, Play } from 'lucide-react';
+import Link from 'next/link';
+import { Shield, Server, Zap, Globe, Terminal, Activity, CheckCircle2, AlertCircle, RefreshCcw, Send, Lock, KeyRound, Loader2, Play, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,11 +67,11 @@ export default function ArchitectDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-code selection:bg-primary selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-code selection:bg-blue-600 selection:text-white">
       {/* Top Header */}
       <header className="border-b border-slate-200 bg-white/90 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-amber-500 rounded flex items-center justify-center font-bold text-white text-xl shadow-sm">V</div>
+          <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white text-xl shadow-sm">V</div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-headline font-bold text-lg tracking-tight text-slate-900">Vantage Hybrid API Gateway</h1>
@@ -84,11 +85,14 @@ export default function ArchitectDashboard() {
             <p className="text-[10px] text-slate-500 uppercase font-bold">Edge Network</p>
             <p className="text-xs font-semibold text-blue-600">US-EAST-WORKER</p>
           </div>
-          {/* Replaced Fullscreen with GET Button */}
           <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold px-6 h-9 shadow-md shadow-blue-500/20"
+            asChild
+            className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold px-6 h-10 shadow-md shadow-blue-500/20 flex gap-2"
           >
-            GET
+            <Link href="/get">
+              <ExternalLink className="w-4 h-4" />
+              GET RESULTS
+            </Link>
           </Button>
         </div>
       </header>
@@ -203,48 +207,6 @@ export default function ArchitectDashboard() {
               )}
             </div>
           </Card>
-        </section>
-
-        {/* Interactive REST Playground */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1">REST API Explorer</div>
-            <div className="text-[10px] text-slate-400 font-bold uppercase">Protocol: HTTPS/REST</div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[400px]">
-            <Card className="bg-white border-slate-200 flex flex-col overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-slate-100 text-[10px] uppercase font-bold text-slate-500 bg-slate-50/50">Endpoints</div>
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-                {[
-                  { method: 'GET', path: '/api/health', desc: 'Heartbeat', color: 'text-blue-500' },
-                  { method: 'POST', path: '/api/auth/send-otp', desc: 'SMS Dispatch', color: 'text-emerald-500' },
-                  { method: 'POST', path: '/api/auth/verify-otp', desc: 'Session Auth', color: 'text-amber-500' },
-                  { method: 'GET', path: '/api/xxapi/userinfo', desc: 'Local User', color: 'text-purple-500' },
-                ].map((route, i) => (
-                  <div key={i} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group cursor-pointer">
-                    <div className="flex items-center gap-4">
-                      <span className={`text-[10px] font-black w-12 ${route.color}`}>{route.method}</span>
-                      <span className="text-xs font-code text-slate-700">{route.path}</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase opacity-0 group-hover:opacity-100 transition-opacity">{route.desc}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-            
-            <Card className="bg-white border-slate-200 flex flex-col p-6 space-y-6 shadow-sm">
-              <div className="space-y-2">
-                <div className="text-[10px] uppercase font-bold text-slate-500">Execution Context</div>
-                <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded">
-                  <span className="text-[11px] text-slate-500 italic">Auth Token:</span>
-                  <span className="text-[10px] text-rose-500 font-bold uppercase">Missing</span>
-                </div>
-              </div>
-              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold h-12 shadow-lg shadow-blue-500/20">
-                Execute Selected Route
-              </Button>
-            </Card>
-          </div>
         </section>
 
         {/* Footer */}
