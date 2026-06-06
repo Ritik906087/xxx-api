@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VantageTerminal } from './terminal';
 import { MOCK_WALLETS, MOCK_TRANSACTIONS, type Transaction, type User } from '@/lib/vantage-store';
 import { processTransaction } from '@/app/actions/vantage-actions';
-import { Wallet, ArrowUpRight, ArrowDownLeft, ShieldAlert, History, Globe, Settings, User as UserIcon, Copy, Check, Terminal, ExternalLink, Loader2 } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, ShieldAlert, History, Globe, Settings, User as UserIcon, Copy, Check, Terminal, ExternalLink, Loader2, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
@@ -25,6 +25,7 @@ export function DashboardView({ user }: { user: User }) {
   const [balance, setBalance] = useState(MOCK_WALLETS.find(w => w.userId === user.id)?.balance ?? 0);
   const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [activeTab, setActiveTab] = useState('transactions');
   const [apiLogs, setApiLogs] = useState<ApiLog[]>([
     {
       id: 'log_1',
@@ -106,7 +107,17 @@ export function DashboardView({ user }: { user: User }) {
           </div>
           <Badge variant="outline" className="ml-2 border-primary/20 text-primary bg-primary/5 text-[9px] uppercase font-bold animate-pulse">V2.4.0-LIVE</Badge>
         </div>
+        
         <div className="flex items-center gap-4">
+          {/* Prominent BLUE GET Button */}
+          <Button 
+            onClick={() => setActiveTab('logs')}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase px-6 h-10 shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all animate-in zoom-in-95 duration-300 gap-2"
+          >
+            <Play className="w-3 h-3 fill-current" />
+            GET RESULTS
+          </Button>
+
           <div className="hidden md:flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-full border border-slate-800">
             <UserIcon className="w-3.5 h-3.5 text-slate-500" />
             <span className="text-xs font-code text-slate-300">{user.mobileNo}</span>
@@ -193,16 +204,16 @@ export function DashboardView({ user }: { user: User }) {
 
         {/* Middle Inspector Column */}
         <div className="col-span-12 lg:col-span-6 flex flex-col h-full overflow-hidden">
-          <Tabs defaultValue="transactions" className="w-full flex-1 flex flex-col overflow-hidden">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col overflow-hidden">
             <div className="flex items-center justify-between mb-4 px-1">
               <TabsList className="bg-slate-900 border border-slate-800 p-1 h-10">
                 <TabsTrigger value="transactions" className="gap-2 text-[10px] uppercase font-bold tracking-widest data-[state=active]:bg-slate-800">
                   <History className="w-3.5 h-3.5" />
                   Ledger
                 </TabsTrigger>
-                <TabsTrigger value="logs" className="gap-2 text-[10px] uppercase font-bold tracking-widest data-[state=active]:bg-slate-800">
+                <TabsTrigger value="logs" className="gap-2 text-[10px] uppercase font-bold tracking-widest data-[state=active]:bg-blue-600 data-[state=active]:text-white">
                   <Globe className="w-3.5 h-3.5" />
-                  Get (Proxy)
+                  GET (RECORDS)
                 </TabsTrigger>
                 <TabsTrigger value="audit" className="gap-2 text-[10px] uppercase font-bold tracking-widest data-[state=active]:bg-slate-800">
                   <ShieldAlert className="w-3.5 h-3.5" />
@@ -256,20 +267,20 @@ export function DashboardView({ user }: { user: User }) {
               </div>
             </TabsContent>
 
-            <TabsContent value="logs" className="flex-1 overflow-hidden m-0">
+            <TabsContent value="logs" className="flex-1 overflow-hidden m-0 animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="bg-slate-900/40 rounded-xl border border-slate-800 h-full flex flex-col overflow-hidden">
                 <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
                   <div className="flex items-center gap-2">
-                    <Terminal className="w-3.5 h-3.5 text-primary" />
+                    <Terminal className="w-3.5 h-3.5 text-blue-400" />
                     <span className="text-[10px] font-headline font-bold uppercase tracking-widest text-slate-400">Request Inspector</span>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setApiLogs([])} className="h-6 text-[9px] uppercase font-bold text-rose-400 hover:bg-rose-500/10">Purge Data</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setApiLogs([])} className="h-6 text-[9px] uppercase font-bold text-rose-400 hover:bg-rose-500/10">Purge Logs</Button>
                 </div>
                 <div className="flex-1 overflow-y-auto terminal-scroll divide-y divide-slate-800/30">
                   {apiLogs.length === 0 ? (
                     <div className="p-12 text-center">
                       <Globe className="w-10 h-10 text-slate-800 mx-auto mb-3" />
-                      <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No active requests found</p>
+                      <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">No active requests captured</p>
                     </div>
                   ) : (
                     apiLogs.map((log) => (
@@ -287,7 +298,7 @@ export function DashboardView({ user }: { user: User }) {
                               </Badge>
                               <p className="text-xs font-code text-slate-300 truncate max-w-[180px]">{log.endpoint}</p>
                             </div>
-                            <p className="text-[9px] text-slate-500 mt-1 uppercase font-bold tracking-tighter">{new Date(log.timestamp).toLocaleTimeString()} · SSL SECURE</p>
+                            <p className="text-[9px] text-slate-500 mt-1 uppercase font-bold tracking-tighter">{new Date(log.timestamp).toLocaleTimeString()} · SECURE PROXY</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -329,10 +340,10 @@ export function DashboardView({ user }: { user: User }) {
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-2 font-headline text-lg">
-                <Globe className="w-5 h-5 text-primary" />
+                <Globe className="w-5 h-5 text-blue-500" />
                 Packet Inspection
               </DialogTitle>
-              <Badge variant="outline" className="bg-emerald-500/5 border-emerald-500/20 text-emerald-400 text-[9px] uppercase">Proxy Response</Badge>
+              <Badge variant="outline" className="bg-blue-500/5 border-blue-500/20 text-blue-400 text-[9px] uppercase">JSON Response</Badge>
             </div>
             <DialogDescription className="text-slate-500 font-code text-xs mt-2 uppercase tracking-tighter">
               {selectedLog?.method} {selectedLog?.endpoint}
@@ -341,8 +352,8 @@ export function DashboardView({ user }: { user: User }) {
           <div className="mt-6 space-y-4">
             <div className="flex items-center justify-between bg-slate-900/50 p-2 rounded border border-slate-800">
               <div className="flex items-center gap-3">
-                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Payload Data</span>
+                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">API Payload</span>
               </div>
               <Button 
                 variant="outline" 
@@ -351,11 +362,11 @@ export function DashboardView({ user }: { user: User }) {
                 className="h-8 gap-2 bg-slate-900 border-slate-800 hover:bg-slate-800 text-[10px] uppercase font-bold px-4"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Copied Packet" : "Copy JSON"}
+                {copied ? "Copied" : "Copy JSON"}
               </Button>
             </div>
             <div className="bg-[#010409] p-4 rounded-xl border border-slate-800 shadow-inner relative group">
-              <pre className="text-[12px] font-code terminal-scroll max-h-[450px] overflow-auto text-emerald-400/90 leading-relaxed scrollbar-thin">
+              <pre className="text-[12px] font-code terminal-scroll max-h-[450px] overflow-auto text-blue-400/90 leading-relaxed scrollbar-thin">
                 {JSON.stringify(selectedLog?.response, null, 2)}
               </pre>
             </div>
