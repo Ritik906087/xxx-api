@@ -1,24 +1,36 @@
 
 import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 
-/**
- * Handles all MonitorFlow segments (one/two/three/check)
- */
+const OLD_SERVER_BASE = "https://apitez.xyz/xxapi";
+
 export async function OPTIONS() {
   return handleOptions();
 }
 
+/**
+ * Proxy function to forward UPI Linking requests to the old server
+ */
 export async function POST(request: Request) {
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const body = await request.json();
+  try {
+    const url = new URL(request.url);
+    const pathSegments = url.pathname.split('/monitorflow/');
+    const subPath = pathSegments[1]; // one, two, three, check, etc.
+    
+    const body = await request.json();
 
-  // Logic to simulate flow progression
-  return jsonResponse({
-    success: true,
-    flow_id: "flw_" + Math.random().toString(36).substr(2, 9),
-    step: path.split('/').pop(),
-    status: "processing",
-    timestamp: new Date().toISOString()
-  });
+    // Forwarding to Old Server
+    const response = await fetch(`${OLD_SERVER_BASE}/monitorflow/${subPath}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': request.headers.get('Authorization') || '',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+    return jsonResponse(data, response.status);
+  } catch (error: any) {
+    return errorResponse("MonitorFlow Proxy Error", 502, error.message);
+  }
 }
