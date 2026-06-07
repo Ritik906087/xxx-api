@@ -6,6 +6,7 @@ export async function OPTIONS() {
 
 /**
  * Robust Login handler for APK compatibility.
+ * Returns exactly what the APK expects: code 0 and token string in data.
  */
 export async function POST(request: Request) {
   try {
@@ -21,14 +22,12 @@ export async function POST(request: Request) {
       searchParams.get('mobileNo') || 
       searchParams.get('phone');
 
-    const otp = body.otp || searchParams.get('otp');
-    
-    console.log('[LOGIN ATTEMPT]:', { mobileNo, otp });
+    console.log('[LOGIN ATTEMPT]:', { mobileNo });
 
-    // Mock success token format for the APK
+    // Mock success token format for the APK (matches d5e5f3b68f9b403a83e861ce31393de5 style)
     const mockToken = "vantage_" + Math.random().toString(36).substr(2, 15) + Math.random().toString(36).substr(2, 15);
 
-    // Return exactly what the APK expects: code 0 and token string in data
+    // Using jsonResponse which wraps it in { code: 0, msg: "success", data: mockToken }
     return jsonResponse(mockToken);
 
   } catch (e: any) {
