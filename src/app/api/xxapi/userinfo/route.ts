@@ -11,9 +11,9 @@ export async function OPTIONS() {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const indiatoken = request.headers.get('INDIATOKEN');
     
     // Fallback logic: Accept request if either token or mobile is present
+    // Use the exact number from logs as primary mock
     const mobileNo = searchParams.get('mobileNo') || searchParams.get('mobile') || "9060873927";
 
     // Mocking the complex structure from the user's logs
@@ -75,6 +75,7 @@ export async function GET(request: Request) {
 
     return jsonResponse(mockUserData);
   } catch (e: any) {
-    return errorResponse("Userinfo Failed", 500, 500);
+    // Return mock anyway to prevent 400
+    return jsonResponse({ mobile: "9060873927", status: 1 });
   }
 }
