@@ -5,17 +5,21 @@ export async function OPTIONS() {
 }
 
 /**
- * Enhanced Send SMS handler that checks both body and query params for phone/mobileNo.
+ * Enhanced Send SMS handler with robust error detection and logging.
  */
 export async function POST(request: Request) {
+  const logContext = `[SMS_SEND_${Date.now()}]`;
   try {
     const { searchParams } = new URL(request.url);
     const body = await getSafeBody(request);
     
+    console.log(`${logContext} Incoming Request:`, { body, params: Object.fromEntries(searchParams.entries()) });
+
     // Check all possible sources for the phone number
     const mobileNo = body.mobileNo || body.phone || searchParams.get('mobileNo') || searchParams.get('phone');
 
     if (!mobileNo) {
+      console.error(`${logContext} Error: mobileNo is missing`);
       return errorResponse("mobileNo is required", 400);
     }
 
@@ -32,26 +36,35 @@ export async function POST(request: Request) {
       senderId: "MRAOTP"
     };
 
-    console.log('[SMS SEND REQUEST]:', payload);
+    console.log(`${logContext} Gateway Payload:`, payload);
 
-    const response = await fetch("https://meraotp.in/api/sendSMS", {
+    const gatewayResponse = await fetch("https://meraotp.in/api/sendSMS", {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
 
-    const result = await response.json();
-    console.log('[SMS SEND RESPONSE]:', result);
+    const result = await gatewayResponse.json();
+    console.log(`${logContext} Gateway Response:`, { status: gatewayResponse.status, body: result });
 
-    const isSuccess = result.status === "success" || result.statusCode === 200 || result.status === "ok";
+    // Comprehensive success check
+    const isSuccess = 
+      result.status === "success" || 
+      result.status === "ok" || 
+      result.statusCode === 200 || 
+      result.code === 200 ||
+      result.code === 0 ||
+      (result.message && result.message.toLowerCase().includes('success'));
     
     if (isSuccess) {
+      console.log(`${logContext} Status: SUCCESS`);
       return jsonResponse("Send Success");
     } else {
+      console.warn(`${logContext} Status: FAILURE from Gateway`);
       return errorResponse(result.message || "Gateway Error", 502);
     }
   } catch (e: any) {
-    console.error('[SMS SEND CRITICAL ERROR]:', e);
-    return errorResponse("Internal SMS Error", 500);
+    console.error(`${logContext} CRITICAL ERROR:`, e);
+    return errorResponse("Internal SMS Service Error", 500, e.message);
   }
 }

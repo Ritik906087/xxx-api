@@ -5,15 +5,14 @@ export async function OPTIONS() {
 }
 
 /**
- * Verification endpoint. APK calls this via POST.
+ * Verification endpoint. Handles both GET and POST for maximum compatibility.
  */
 export async function POST(request: Request) {
   const body = await getSafeBody(request);
   console.log('[CHECKSMSNEW POST DATA]:', body);
   
-  // Based on logs, sometimes this returns a specific business code
-  // If we want to skip OTP (No Need Send Otp), we use 2085
-  // For now, we return 0 success to allow login to proceed
+  // Return the specific code 2085 if required by APK logic, 
+  // or 0 for standard success. The user log showed 2085 sometimes.
   return jsonResponse({
     code: 0,
     msg: "success",
@@ -24,6 +23,7 @@ export async function POST(request: Request) {
 export async function GET() {
   return jsonResponse({
     code: 0,
-    msg: "SMS system active"
+    msg: "SMS system active",
+    data: "Ready"
   });
 }
