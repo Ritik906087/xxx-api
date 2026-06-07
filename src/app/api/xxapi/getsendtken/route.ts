@@ -1,4 +1,3 @@
-
 import { jsonResponse, handleOptions, getSafeBody } from '@/lib/api-response';
 
 export async function OPTIONS() {
@@ -7,20 +6,19 @@ export async function OPTIONS() {
 
 /**
  * Generates a temporary token for SMS requests.
- * Handles both JSON and application/x-www-form-urlencoded
+ * Expected by APK to pass splash/init phase.
  */
 export async function POST(request: Request) {
-  // We parse the body but don't strictly need it for token generation
-  // This prevents the request from hanging/failing if body is sent
   const body = await getSafeBody(request);
-  console.log('[GETSENDTKEN REQUEST BODY]:', body);
+  console.log('[GETSENDTKEN REQUEST]:', body);
 
+  // Return specific code if phone is missing or other logic is needed
+  // But for now, we follow the success pattern from the logs
   const token = "vantage_tk_" + Math.random().toString(36).substr(2, 16);
   
-  return jsonResponse({
-    success: true,
-    token: token,
-    expires_in: 300,
-    received_context: body.token ? 'verification_ok' : 'initial_request'
-  });
+  return jsonResponse(token);
+}
+
+export async function GET() {
+  return jsonResponse("Vantage Token System Active");
 }

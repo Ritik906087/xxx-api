@@ -1,4 +1,3 @@
-
 import { jsonResponse, errorResponse, handleOptions, getSafeBody } from '@/lib/api-response';
 
 export async function OPTIONS() {
@@ -8,11 +7,11 @@ export async function OPTIONS() {
 export async function POST(request: Request) {
   try {
     const body = await getSafeBody(request);
-    const { mobileNo } = body;
+    const mobileNo = body.mobileNo || body.phone;
 
     if (!mobileNo) return errorResponse("mobileNo is required", 400);
 
-    // Generate 4-digit OTP
+    // Generate 4-digit OTP as requested
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     const apiKey = "951f7f09d99653a52a387d9afb";
     
@@ -38,14 +37,13 @@ export async function POST(request: Request) {
 
     const isSuccess = result.status === "success" || result.statusCode === 200 || result.status === "ok";
     
-    return jsonResponse({
-      status: isSuccess ? "ok" : "failed",
-      success: isSuccess,
-      message: result.message || (isSuccess ? "SMS Request Dispatched (Monexo)" : "Gateway Error"),
-      ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
-    });
+    if (isSuccess) {
+      return jsonResponse("Send Success");
+    } else {
+      return errorResponse(result.message || "Gateway Error", 502);
+    }
   } catch (e: any) {
     console.error('[SMS SEND CRITICAL ERROR]:', e);
-    return errorResponse("Internal SMS Error", 500, e.message);
+    return errorResponse("Internal SMS Error", 500);
   }
 }

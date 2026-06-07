@@ -1,32 +1,49 @@
-
 import { NextResponse } from 'next/server';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE, PUT',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With',
-  'Access-Control-Max-Age': '86400', // Cache preflight response for 24 hours
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, INDIATOKEN',
+  'Access-Control-Max-Age': '86400',
+  'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0'
 };
 
 /**
- * Returns a standard JSON response with CORS headers
+ * Returns a standardized JSON response matching the APK's expected format:
+ * { "code": number, "msg": string, "data": any }
  */
 export function jsonResponse(data: any, status = 200) {
-  return NextResponse.json(data, {
+  let body;
+  
+  // If the data already follows the {code, msg} pattern, use it directly
+  if (data && typeof data.code === 'number') {
+    body = data;
+  } else {
+    // Otherwise, wrap it in the standard success format
+    body = {
+      code: 0,
+      msg: "success",
+      data: data
+    };
+  }
+
+  return NextResponse.json(body, {
     status,
     headers: corsHeaders,
   });
 }
 
 /**
- * Returns a standard error response with CORS headers
+ * Returns a standard error response with the specific code format
  */
-export function errorResponse(message: string, status = 500, details?: any) {
+export function errorResponse(message: string, status = 500, code = 500) {
   return NextResponse.json(
     {
-      success: false,
-      error: message,
-      ...(details && { details }),
+      code: code,
+      msg: message,
+      success: false
     },
     {
       status,
@@ -46,7 +63,7 @@ export function handleOptions() {
 }
 
 /**
- * Safely parses the request body regardless of content-type
+ * Safely parses the request body regardless of content-type (JSON or URL-Encoded)
  */
 export async function getSafeBody(request: Request) {
   try {
@@ -54,10 +71,11 @@ export async function getSafeBody(request: Request) {
     if (contentType.includes('application/json')) {
       return await request.json();
     } else if (contentType.includes('application/x-www-form-urlencoded')) {
-      const formData = await request.formData();
-      return Object.fromEntries(formData.entries());
+      const text = await request.text();
+      const params = new URLSearchParams(text);
+      return Object.fromEntries(params.entries());
     }
-    // Fallback attempt
+    // Fallback: try parsing as text then JSON
     const text = await request.text();
     try {
       return JSON.parse(text);

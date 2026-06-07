@@ -1,4 +1,3 @@
-
 import { jsonResponse, handleOptions, getSafeBody } from '@/lib/api-response';
 
 export async function OPTIONS() {
@@ -6,26 +5,25 @@ export async function OPTIONS() {
 }
 
 /**
- * Handles both GET and POST for checking SMS status.
- * Prevents 405 Method Not Allowed during registration.
+ * Verification endpoint. APK calls this via POST.
  */
-export async function GET() {
-  return jsonResponse({
-    status: "ok",
-    success: true,
-    message: "SMS system active",
-    timestamp: new Date().toISOString()
-  });
-}
-
 export async function POST(request: Request) {
   const body = await getSafeBody(request);
   console.log('[CHECKSMSNEW POST DATA]:', body);
   
+  // Based on logs, sometimes this returns a specific business code
+  // If we want to skip OTP (No Need Send Otp), we use 2085
+  // For now, we return 0 success to allow login to proceed
   return jsonResponse({
-    status: "ok",
-    success: true,
-    message: "Verification context received",
-    timestamp: new Date().toISOString()
+    code: 0,
+    msg: "success",
+    data: "Verification Processed"
+  });
+}
+
+export async function GET() {
+  return jsonResponse({
+    code: 0,
+    msg: "SMS system active"
   });
 }
