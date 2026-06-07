@@ -63,32 +63,34 @@ export function handleOptions() {
 }
 
 /**
- * Safely parses the request body regardless of content-type (JSON or URL-Encoded)
+ * Safely parses the request body regardless of content-type (JSON, URL-Encoded, or Raw Text)
  */
 export async function getSafeBody(request: Request) {
   try {
     const contentType = request.headers.get('content-type') || '';
+    let body: any = {};
+
     if (contentType.includes('application/json')) {
-      return await request.json();
-    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      body = await request.json();
+    } else {
       const text = await request.text();
-      const params = new URLSearchParams(text);
-      return Object.fromEntries(params.entries());
-    }
-    
-    // Fallback: try parsing as text then JSON
-    const text = await request.text();
-    if (!text) return {};
-    try {
-      return JSON.parse(text);
-    } catch {
-      // If not JSON, check if it's form-like text
-      if (text.includes('=') && text.includes('&')) {
-        const params = new URLSearchParams(text);
-        return Object.fromEntries(params.entries());
+      if (!text) return {};
+      
+      try {
+        // Try parsing as JSON first even if header is missing
+        body = JSON.parse(text);
+      } catch {
+        // If not JSON, check for form-data (key=value)
+        if (text.includes('=')) {
+          const params = new URLSearchParams(text);
+          body = Object.fromEntries(params.entries());
+        } else if (text.length > 0) {
+          // If it's just a raw string (sometimes APKs send just the phone number)
+          body = { rawText: text };
+        }
       }
-      return {};
     }
+    return body;
   } catch (e) {
     console.error('[SafeBody Parser Error]:', e);
     return {};

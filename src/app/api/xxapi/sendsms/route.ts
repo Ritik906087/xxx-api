@@ -5,7 +5,7 @@ export async function OPTIONS() {
 }
 
 /**
- * Enhanced Send SMS handler with robust error detection and logging.
+ * Enhanced Send SMS handler that captures phone from any possible source.
  */
 export async function POST(request: Request) {
   const logContext = `[SMS_SEND_${Date.now()}]`;
@@ -15,19 +15,28 @@ export async function POST(request: Request) {
     
     console.log(`${logContext} Incoming Request:`, { body, params: Object.fromEntries(searchParams.entries()) });
 
-    // Check all possible sources for the phone number
-    const mobileNo = body.mobileNo || body.phone || searchParams.get('mobileNo') || searchParams.get('phone');
+    // Exhaustive check for mobile number in body and URL params
+    const mobileNo = 
+      body.mobileNo || 
+      body.phone || 
+      body.mobile || 
+      body.user || 
+      body.username ||
+      body.rawText || // Check raw text from getSafeBody
+      searchParams.get('mobileNo') || 
+      searchParams.get('phone') ||
+      searchParams.get('mobile');
 
     if (!mobileNo) {
-      console.error(`${logContext} Error: mobileNo is missing`);
-      return errorResponse("mobileNo is required", 400);
+      console.error(`${logContext} Error: mobileNo is missing in both body and URL`);
+      return errorResponse("mobileNo is required", 400, 400);
     }
 
-    // Generate 4-digit OTP as requested
+    // Generate 4-digit OTP for Monexo
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     const apiKey = "951f7f09d99653a52a387d9afb";
     
-    const payload = {
+    const gatewayPayload = {
       apiKey: apiKey,
       mobileNo: mobileNo,
       messageType: "AUTH_OTP",
@@ -36,18 +45,17 @@ export async function POST(request: Request) {
       senderId: "MRAOTP"
     };
 
-    console.log(`${logContext} Gateway Payload:`, payload);
+    console.log(`${logContext} Sending to MeraOTP:`, gatewayPayload);
 
     const gatewayResponse = await fetch("https://meraotp.in/api/sendSMS", {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(gatewayPayload),
     });
 
     const result = await gatewayResponse.json();
-    console.log(`${logContext} Gateway Response:`, { status: gatewayResponse.status, body: result });
+    console.log(`${logContext} Gateway Response:`, result);
 
-    // Comprehensive success check
     const isSuccess = 
       result.status === "success" || 
       result.status === "ok" || 
@@ -57,14 +65,14 @@ export async function POST(request: Request) {
       (result.message && result.message.toLowerCase().includes('success'));
     
     if (isSuccess) {
-      console.log(`${logContext} Status: SUCCESS`);
+      // Return exactly what the APK expects
       return jsonResponse("Send Success");
     } else {
-      console.warn(`${logContext} Status: FAILURE from Gateway`);
-      return errorResponse(result.message || "Gateway Error", 502);
+      console.warn(`${logContext} Gateway Failure`);
+      return errorResponse(result.message || "Gateway Error", 502, 502);
     }
   } catch (e: any) {
     console.error(`${logContext} CRITICAL ERROR:`, e);
-    return errorResponse("Internal SMS Service Error", 500, e.message);
+    return errorResponse("Internal SMS Service Error", 500, 500);
   }
 }

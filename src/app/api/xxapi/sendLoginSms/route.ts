@@ -5,7 +5,7 @@ export async function OPTIONS() {
 }
 
 /**
- * Sends a Login OTP using local MeraOTP integration with Monexo Branding.
+ * Handles Login SMS requests with multiple parameter fallback logic.
  */
 export async function POST(request: Request) {
   const logContext = `[LOGIN_SMS_${Date.now()}]`;
@@ -13,13 +13,16 @@ export async function POST(request: Request) {
     const { searchParams } = new URL(request.url);
     const body = await getSafeBody(request);
     
-    console.log(`${logContext} Incoming Request:`, { body, params: Object.fromEntries(searchParams.entries()) });
-
-    const mobileNo = body.mobileNo || body.phone || searchParams.get('mobileNo') || searchParams.get('phone');
+    const mobileNo = 
+      body.mobileNo || 
+      body.phone || 
+      body.mobile || 
+      body.rawText ||
+      searchParams.get('mobileNo') || 
+      searchParams.get('phone');
 
     if (!mobileNo) {
-      console.error(`${logContext} Error: mobileNo is missing`);
-      return errorResponse("mobileNo is required", 400);
+      return errorResponse("mobileNo is required", 400, 400);
     }
 
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -34,7 +37,7 @@ export async function POST(request: Request) {
       senderId: "MRAOTP"
     };
 
-    console.log(`${logContext} Gateway Payload:`, payload);
+    console.log(`${logContext} Gateway Request:`, payload);
 
     const gatewayResponse = await fetch("https://meraotp.in/api/sendSMS", {
       method: 'POST',
@@ -43,25 +46,22 @@ export async function POST(request: Request) {
     });
 
     const result = await gatewayResponse.json();
-    console.log(`${logContext} Gateway Response:`, { status: gatewayResponse.status, body: result });
+    console.log(`${logContext} Gateway Response:`, result);
 
     const isSuccess = 
       result.status === "success" || 
       result.status === "ok" || 
       result.statusCode === 200 || 
       result.code === 200 ||
-      result.code === 0 ||
-      (result.message && result.message.toLowerCase().includes('success'));
+      result.code === 0;
 
     if (isSuccess) {
-      console.log(`${logContext} Status: SUCCESS`);
       return jsonResponse("Send Success");
     } else {
-      console.warn(`${logContext} Status: FAILURE from Gateway`);
-      return errorResponse(result.message || "Gateway rejection", 502);
+      return errorResponse(result.message || "Gateway rejection", 502, 502);
     }
   } catch (error: any) {
-    console.error(`${logContext} CRITICAL ERROR:`, error);
-    return errorResponse("SMS Gateway Connection Failed", 500, error.message);
+    console.error(`${logContext} ERROR:`, error);
+    return errorResponse("Gateway Connection Failed", 500, 500);
   }
 }
