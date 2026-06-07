@@ -1,13 +1,19 @@
-import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
+import { jsonResponse, errorResponse, handleOptions, getSafeBody } from '@/lib/api-response';
+
+export async function OPTIONS() {
+  return handleOptions();
+}
 
 /**
  * Sends a Login OTP using local MeraOTP integration with Monexo Branding.
- * Fixed to use the correct API key and payload structure.
+ * Checks both body and search params for flexibility.
  */
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { mobileNo } = body;
+    const { searchParams } = new URL(request.url);
+    const body = await getSafeBody(request);
+    
+    const mobileNo = body.mobileNo || body.phone || searchParams.get('mobileNo') || searchParams.get('phone');
 
     if (!mobileNo) {
       return errorResponse("mobileNo is required", 400);
@@ -27,7 +33,7 @@ export async function POST(request: Request) {
       senderId: "MRAOTP"
     };
 
-    console.log('[SMS GATEWAY REQUEST]:', payload);
+    console.log('[LOGIN SMS REQUEST]:', payload);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -36,23 +42,18 @@ export async function POST(request: Request) {
     });
 
     const result = await response.json();
-    console.log('[SMS GATEWAY RESPONSE]:', result);
+    console.log('[LOGIN SMS RESPONSE]:', result);
 
     const isSuccess = result.status === "success" || result.statusCode === 200 || result.status === "ok";
 
-    return jsonResponse({
-      status: isSuccess ? "ok" : "failed",
-      success: isSuccess,
-      message: result.message || (isSuccess ? "SMS Request Processed (Monexo)" : "SMS Gateway rejected request"),
-      ...(process.env.NODE_ENV === 'development' && { dev_otp: otp })
-    });
+    if (isSuccess) {
+      return jsonResponse("Send Success");
+    } else {
+      return errorResponse(result.message || "Gateway rejection", 502);
+    }
 
   } catch (error: any) {
-    console.error('[SMS GATEWAY CRITICAL ERROR]:', error);
-    return errorResponse("SMS Gateway Connection Failed", 500, error.message);
+    console.error('[LOGIN SMS CRITICAL ERROR]:', error);
+    return errorResponse("SMS Gateway Connection Failed", 500);
   }
-}
-
-export async function OPTIONS() {
-  return handleOptions();
 }

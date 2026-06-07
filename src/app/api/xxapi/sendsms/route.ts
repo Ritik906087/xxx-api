@@ -4,12 +4,20 @@ export async function OPTIONS() {
   return handleOptions();
 }
 
+/**
+ * Enhanced Send SMS handler that checks both body and query params for phone/mobileNo.
+ */
 export async function POST(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
     const body = await getSafeBody(request);
-    const mobileNo = body.mobileNo || body.phone;
+    
+    // Check all possible sources for the phone number
+    const mobileNo = body.mobileNo || body.phone || searchParams.get('mobileNo') || searchParams.get('phone');
 
-    if (!mobileNo) return errorResponse("mobileNo is required", 400);
+    if (!mobileNo) {
+      return errorResponse("mobileNo is required", 400);
+    }
 
     // Generate 4-digit OTP as requested
     const otp = Math.floor(1000 + Math.random() * 9000).toString();

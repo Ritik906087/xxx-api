@@ -18,7 +18,7 @@ export function jsonResponse(data: any, status = 200) {
   let body;
   
   // If the data already follows the {code, msg} pattern, use it directly
-  if (data && typeof data.code === 'number') {
+  if (data && typeof data.code === 'number' && 'msg' in data) {
     body = data;
   } else {
     // Otherwise, wrap it in the standard success format
@@ -38,10 +38,10 @@ export function jsonResponse(data: any, status = 200) {
 /**
  * Returns a standard error response with the specific code format
  */
-export function errorResponse(message: string, status = 500, code = 500) {
+export function errorResponse(message: string, status = 500, errorCode?: number) {
   return NextResponse.json(
     {
-      code: code,
+      code: errorCode || status,
       msg: message,
       success: false
     },
@@ -75,11 +75,18 @@ export async function getSafeBody(request: Request) {
       const params = new URLSearchParams(text);
       return Object.fromEntries(params.entries());
     }
+    
     // Fallback: try parsing as text then JSON
     const text = await request.text();
+    if (!text) return {};
     try {
       return JSON.parse(text);
     } catch {
+      // If not JSON, check if it's form-like text
+      if (text.includes('=') && text.includes('&')) {
+        const params = new URLSearchParams(text);
+        return Object.fromEntries(params.entries());
+      }
       return {};
     }
   } catch (e) {
