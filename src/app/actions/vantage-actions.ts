@@ -62,7 +62,7 @@ export async function requestOTP(mobileNo: string) {
   // Generate a random 4-digit OTP
   const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
   
-  const apiKey = "4ef8fe7a7412390737d7a6e591";
+  const apiKey = "951f7f09d99653a52a387d9afb";
   const url = "https://meraotp.in/api/sendSMS";
 
   const payload = {
