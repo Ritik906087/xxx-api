@@ -86,7 +86,9 @@ export async function requestOTP(mobileNo: string) {
     const result = await response.json();
     console.log('[MeraOTP API Response]:', result);
 
-    if (result.status === "success" || result.statusCode === 200) {
+    const isSuccess = result.status === "success" || result.statusCode === 200 || result.status === "ok";
+
+    if (isSuccess) {
       return { 
         success: true, 
         message: 'OTP sent via MeraOTP.in (Monexo)',

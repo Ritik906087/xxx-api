@@ -29,6 +29,8 @@ export async function POST(request: Request) {
       senderId: "MRAOTP"
     };
 
+    console.log('[AUTH SEND OTP REQUEST]:', payload);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -36,8 +38,11 @@ export async function POST(request: Request) {
     });
 
     const result = await response.json();
+    console.log('[AUTH SEND OTP RESPONSE]:', result);
 
-    if (result.status === "success" || result.statusCode === 200) {
+    const isSuccess = result.status === "success" || result.statusCode === 200 || result.status === "ok";
+
+    if (isSuccess) {
       return jsonResponse({
         success: true,
         message: "OTP sent successfully (Monexo)",
@@ -48,6 +53,7 @@ export async function POST(request: Request) {
     }
 
   } catch (error: any) {
+    console.error('[AUTH SEND OTP CRITICAL ERROR]:', error);
     return errorResponse("Internal Server Error", 500, error.message);
   }
 }
