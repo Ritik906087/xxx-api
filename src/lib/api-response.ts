@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE, PUT',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With',
+  'Access-Control-Max-Age': '86400', // Cache preflight response for 24 hours
 };
 
 /**
@@ -42,4 +43,29 @@ export function handleOptions() {
     status: 204,
     headers: corsHeaders,
   });
+}
+
+/**
+ * Safely parses the request body regardless of content-type
+ */
+export async function getSafeBody(request: Request) {
+  try {
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await request.json();
+    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      const formData = await request.formData();
+      return Object.fromEntries(formData.entries());
+    }
+    // Fallback attempt
+    const text = await request.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return {};
+    }
+  } catch (e) {
+    console.error('[SafeBody Parser Error]:', e);
+    return {};
+  }
 }

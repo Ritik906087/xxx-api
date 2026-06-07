@@ -1,27 +1,31 @@
-import { jsonResponse, handleOptions } from '@/lib/api-response';
+
+import { jsonResponse, handleOptions, getSafeBody } from '@/lib/api-response';
+
+export async function OPTIONS() {
+  return handleOptions();
+}
 
 /**
- * Handles both GET and POST requests for checking SMS status locally.
- * Returns HTTP 200 OK to satisfy frontend handshake and verification.
+ * Handles both GET and POST for checking SMS status.
+ * Prevents 405 Method Not Allowed during registration.
  */
 export async function GET() {
   return jsonResponse({
     status: "ok",
     success: true,
-    message: "SMS system verified and active",
+    message: "SMS system active",
     timestamp: new Date().toISOString()
-  }, 200);
+  });
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  const body = await getSafeBody(request);
+  console.log('[CHECKSMSNEW POST DATA]:', body);
+  
   return jsonResponse({
     status: "ok",
     success: true,
-    message: "SMS verification successful",
+    message: "Verification context received",
     timestamp: new Date().toISOString()
-  }, 200);
-}
-
-export async function OPTIONS() {
-  return handleOptions();
+  });
 }

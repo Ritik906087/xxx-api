@@ -1,15 +1,16 @@
-import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 
-/**
- * Standard SMS sending route using MeraOTP with Monexo Branding.
- * Fixed to use the correct API key and 4-digit OTP.
- */
+import { jsonResponse, errorResponse, handleOptions, getSafeBody } from '@/lib/api-response';
+
+export async function OPTIONS() {
+  return handleOptions();
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await getSafeBody(request);
     const { mobileNo } = body;
 
-    if (!mobileNo) return errorResponse("mobileNo required", 400);
+    if (!mobileNo) return errorResponse("mobileNo is required", 400);
 
     // Generate 4-digit OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
     
     const payload = {
       apiKey: apiKey,
-      mobileNo,
+      mobileNo: mobileNo,
       messageType: "AUTH_OTP",
       brandName: "Monexo",
       otp: otp,
@@ -47,8 +48,4 @@ export async function POST(request: Request) {
     console.error('[SMS SEND CRITICAL ERROR]:', e);
     return errorResponse("Internal SMS Error", 500, e.message);
   }
-}
-
-export async function OPTIONS() {
-  return handleOptions();
 }
