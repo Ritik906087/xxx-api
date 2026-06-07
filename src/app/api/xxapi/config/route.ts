@@ -5,7 +5,8 @@ export async function OPTIONS() {
 }
 
 /**
- * Returns the exact configuration structure provided in the logs.
+ * Returns the exact configuration structure provided in RITIK's logs.
+ * Locally mocked to prevent 403 Forbidden from old server.
  */
 export async function GET() {
   const mockConfig = {
@@ -16,8 +17,10 @@ export async function GET() {
     rewardRules: {
       freeze_comp_reward: { name: "freeze_comp_reward", fixed: 0.00, ratio: 0.00, minCondi: 0, ruleActive: 0, rule: "{}" },
       inr_buy_dividend: { name: "inr_buy_dividend", fixed: 0.00, ratio: 0.00, minCondi: 0, ruleActive: 1, rule: "{\"1\": 0.003, \"2\": 0.002, \"3\": 0.001}" },
-      inr_buy_reward: { name: "inr_buy_reward", fixed: 0.00, ratio: 2.50, minCondi: 1, ruleActive: 0, rule: "{\"rate_change\": \"2.0,2.5\", \"fixed_change\": \"0,0\"}" }
-      // ... truncated for brevity but structure is maintained
+      inr_buy_reward: { name: "inr_buy_reward", fixed: 0.00, ratio: 2.50, minCondi: 1, ruleActive: 0, rule: "{\"rate_change\": \"2.0,2.5\", \"fixed_change\": \"0,0\"}" },
+      inr_buy_reward_0: { name: "inr_buy_reward_0", fixed: 0.00, ratio: 2.50, minCondi: 0, ruleActive: 1, rule: "{\"rate_change\": \"2.0,2.5\", \"fixed_change\": \"0,0\"}" },
+      today_buy_times_reward: { name: "today_buy_times_reward", fixed: 0.00, ratio: 0.00, minCondi: 0, ruleActive: 1, rule: "{\"1\": 10, \"3\": 20, \"5\": 20, \"10\": 50}" },
+      usdt_buy_dividend: { name: "usdt_buy_dividend", fixed: 0.00, ratio: 0.00, minCondi: 100, ruleActive: 1, rule: "{\"1\": 0.003, \"2\": 0.001, \"3\": 0.0}" }
     },
     bannerSrcs: [
       "https://picsum.photos/seed/1/800/400",

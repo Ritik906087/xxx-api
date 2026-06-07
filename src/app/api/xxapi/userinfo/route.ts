@@ -1,4 +1,4 @@
-import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
+import { jsonResponse, handleOptions } from '@/lib/api-response';
 
 export async function OPTIONS() {
   return handleOptions();
@@ -6,17 +6,13 @@ export async function OPTIONS() {
 
 /**
  * Robust User Info handler for APK compatibility.
- * Returns the exact nested data structure expected by the front-end.
+ * Returns the exact nested data structure from RITIK's logs to prevent 403 logout.
  */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    
-    // Fallback logic: Accept request if either token or mobile is present
-    // Use the exact number from logs as primary mock
     const mobileNo = searchParams.get('mobileNo') || searchParams.get('mobile') || "9060873927";
 
-    // Mocking the complex structure from the user's logs
     const mockUserData = {
       username: mobileNo,
       userType: 3,
@@ -75,7 +71,6 @@ export async function GET(request: Request) {
 
     return jsonResponse(mockUserData);
   } catch (e: any) {
-    // Return mock anyway to prevent 400
     return jsonResponse({ mobile: "9060873927", status: 1 });
   }
 }

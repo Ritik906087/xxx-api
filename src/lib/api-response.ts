@@ -12,11 +12,13 @@ const corsHeaders = {
 
 /**
  * Standardized JSON response wrapper for Vantage Engine
+ * Matches the format: { "code": 0, "msg": "success", "data": ... }
  */
 export function jsonResponse(data: any, status = 200) {
   let body;
   
   // APK expectation: { code: 0, msg: "success", data: "..." }
+  // Check if data is already wrapped or has a specific code
   if (data && typeof data.code === 'number' && 'msg' in data) {
     body = data;
   } else {
@@ -87,7 +89,7 @@ export async function getSafeBody(request: Request) {
       } catch (e) {}
     }
 
-    // Regex Fallback: If no explicit phone field, find any 10-digit number in raw text
+    // Regex Fallback: Find any 10-digit number in raw text
     if (!body.mobileNo && !body.phone) {
       const phoneMatch = text.match(/\b\d{10,12}\b/);
       if (phoneMatch) {

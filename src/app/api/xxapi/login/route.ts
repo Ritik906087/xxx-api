@@ -24,8 +24,8 @@ export async function POST(request: Request) {
 
     console.log('[LOGIN ATTEMPT]:', { mobileNo });
 
-    // Mock success token format for the APK (matches d5e5f3b68f9b403a83e861ce31393de5 style)
-    const mockToken = "vantage_" + Math.random().toString(36).substr(2, 15) + Math.random().toString(36).substr(2, 15);
+    // Mock token matching the format d5e5f3b68f9b403a83e861ce31393de5
+    const mockToken = "vantage_" + Math.random().toString(36).substr(2, 15);
 
     // Using jsonResponse which wraps it in { code: 0, msg: "success", data: mockToken }
     return jsonResponse(mockToken);
