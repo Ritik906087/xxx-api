@@ -13,24 +13,26 @@ export async function POST(request: Request) {
     const { searchParams } = new URL(request.url);
     const body = await getSafeBody(request);
     
-    console.log(`${logContext} Incoming Request:`, { body, params: Object.fromEntries(searchParams.entries()) });
-
-    // Exhaustive check for mobile number in body and URL params
+    // Comprehensive check for mobile number
     const mobileNo = 
       body.mobileNo || 
       body.phone || 
       body.mobile || 
       body.user || 
       body.username ||
-      body.rawText || // Check raw text from getSafeBody
+      body.extractedPhone ||
+      body.rawText ||
       searchParams.get('mobileNo') || 
       searchParams.get('phone') ||
-      searchParams.get('mobile');
+      request.headers.get('phone');
 
-    if (!mobileNo) {
-      console.error(`${logContext} Error: mobileNo is missing in both body and URL`);
+    if (!mobileNo || String(mobileNo).length < 10) {
+      console.error(`${logContext} Error: mobileNo is missing or invalid. Body:`, body);
       return errorResponse("mobileNo is required", 400, 400);
     }
+
+    // Clean number to 10 digits
+    const cleanPhone = String(mobileNo).replace(/\D/g, '').slice(-10);
 
     // Generate 4-digit OTP for Monexo
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
     
     const gatewayPayload = {
       apiKey: apiKey,
-      mobileNo: mobileNo,
+      mobileNo: cleanPhone,
       messageType: "AUTH_OTP",
       brandName: "Monexo",
       otp: otp,

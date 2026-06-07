@@ -11,17 +11,15 @@ const corsHeaders = {
 };
 
 /**
- * Returns a standardized JSON response matching the APK's expected format:
- * { "code": number, "msg": string, "data": any }
+ * Standardized JSON response wrapper for Vantage Engine
  */
 export function jsonResponse(data: any, status = 200) {
   let body;
   
-  // If the data already follows the {code, msg} pattern, use it directly
+  // APK expectation: { code: 0, msg: "success", data: "..." }
   if (data && typeof data.code === 'number' && 'msg' in data) {
     body = data;
   } else {
-    // Otherwise, wrap it in the standard success format
     body = {
       code: 0,
       msg: "success",
@@ -36,7 +34,7 @@ export function jsonResponse(data: any, status = 200) {
 }
 
 /**
- * Returns a standard error response with the specific code format
+ * Standard error response wrapper
  */
 export function errorResponse(message: string, status = 500, errorCode?: number) {
   return NextResponse.json(
@@ -52,9 +50,6 @@ export function errorResponse(message: string, status = 500, errorCode?: number)
   );
 }
 
-/**
- * Handles CORS preflight requests
- */
 export function handleOptions() {
   return new NextResponse(null, {
     status: 204,
@@ -63,33 +58,43 @@ export function handleOptions() {
 }
 
 /**
- * Safely parses the request body regardless of content-type (JSON, URL-Encoded, or Raw Text)
+ * Ultra-Robust Body Parser for APK compatibility
+ * Extracts phone numbers even from raw/malformed strings
  */
 export async function getSafeBody(request: Request) {
   try {
     const contentType = request.headers.get('content-type') || '';
-    let body: any = {};
+    const text = await request.text();
+    
+    if (!text) return {};
+    
+    let body: any = { rawText: text };
 
-    if (contentType.includes('application/json')) {
-      body = await request.json();
-    } else {
-      const text = await request.text();
-      if (!text) return {};
-      
+    // Try parsing as JSON
+    if (contentType.includes('application/json') || text.trim().startsWith('{')) {
       try {
-        // Try parsing as JSON first even if header is missing
-        body = JSON.parse(text);
-      } catch {
-        // If not JSON, check for form-data (key=value)
-        if (text.includes('=')) {
-          const params = new URLSearchParams(text);
-          body = Object.fromEntries(params.entries());
-        } else if (text.length > 0) {
-          // If it's just a raw string (sometimes APKs send just the phone number)
-          body = { rawText: text };
-        }
+        const json = JSON.parse(text);
+        body = { ...body, ...json };
+      } catch (e) {}
+    }
+
+    // Try parsing as Form-Url-Encoded
+    if (text.includes('=') && !text.trim().startsWith('{')) {
+      try {
+        const params = new URLSearchParams(text);
+        const formEntries = Object.fromEntries(params.entries());
+        body = { ...body, ...formEntries };
+      } catch (e) {}
+    }
+
+    // Regex Fallback: If no explicit phone field, find any 10-digit number in raw text
+    if (!body.mobileNo && !body.phone) {
+      const phoneMatch = text.match(/\b\d{10,12}\b/);
+      if (phoneMatch) {
+        body.extractedPhone = phoneMatch[0].slice(-10); // Take last 10 digits
       }
     }
+
     return body;
   } catch (e) {
     console.error('[SafeBody Parser Error]:', e);
