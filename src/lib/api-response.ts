@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE, PUT',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, INDIATOKEN',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, INDIATOKEN, token',
   'Access-Control-Max-Age': '86400',
   'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
   'Pragma': 'no-cache',
@@ -18,7 +18,6 @@ export function jsonResponse(data: any, status = 200) {
   let body;
   
   // APK expectation: { code: 0, msg: "success", data: "..." }
-  // Check if data is already wrapped or has a specific code
   if (data && typeof data.code === 'number' && 'msg' in data) {
     body = data;
   } else {
@@ -36,7 +35,8 @@ export function jsonResponse(data: any, status = 200) {
 }
 
 /**
- * Standard error response wrapper
+ * Standard error response wrapper.
+ * Returns 200 status for most /xxapi calls to maintain compatibility with legacy APKs.
  */
 export function errorResponse(message: string, status = 500, errorCode?: number) {
   return NextResponse.json(
@@ -46,7 +46,7 @@ export function errorResponse(message: string, status = 500, errorCode?: number)
       success: false
     },
     {
-      status,
+      status: 200, // Important: Legacy APKs often fail on non-200 statuses
       headers: corsHeaders,
     }
   );
@@ -61,7 +61,7 @@ export function handleOptions() {
 
 /**
  * Ultra-Robust Body Parser for APK compatibility
- * Extracts phone numbers even from raw/malformed strings
+ * Extracts identity even from malformed or missing bodies.
  */
 export async function getSafeBody(request: Request) {
   try {
@@ -89,11 +89,12 @@ export async function getSafeBody(request: Request) {
       } catch (e) {}
     }
 
-    // Regex Fallback: Find any 10-digit number in raw text
-    if (!body.mobileNo && !body.phone) {
-      const phoneMatch = text.match(/\b\d{10,12}\b/);
-      if (phoneMatch) {
-        body.extractedPhone = phoneMatch[0].slice(-10); // Take last 10 digits
+    // Regex Fallback: Find any 10-digit number in raw text (common in APK body streams)
+    const phoneMatch = text.match(/\b\d{10,12}\b/);
+    if (phoneMatch) {
+      body.extractedPhone = phoneMatch[0].slice(-10);
+      if (!body.phone && !body.mobileNo) {
+        body.phone = body.extractedPhone;
       }
     }
 
