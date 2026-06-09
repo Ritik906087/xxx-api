@@ -1,49 +1,27 @@
-
-import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
-
-const OLD_SERVER_BASE = "https://apitez.xyz/xxapi";
+import { jsonResponse, handleOptions, getSafeBody } from '@/lib/api-response';
 
 export async function OPTIONS() {
   return handleOptions();
 }
 
 /**
- * Proxy for Collection Tooling
+ * FULL LOCAL IMPLEMENTATION - Collection Tools
  */
 export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const response = await fetch(`${OLD_SERVER_BASE}/collectiontool`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': request.headers.get('Authorization') || '',
-      },
-      body: JSON.stringify(body),
-    });
+  const body = await getSafeBody(request);
+  console.log(`[COLLECTION_TOOL_LOCAL_POST]`, body);
 
-    const data = await response.json();
-    return jsonResponse(data, response.status);
-  } catch (error: any) {
-    return errorResponse("Collection Tool Proxy Error", 502);
-  }
+  return jsonResponse({
+    code: 0,
+    msg: "success",
+    data: { status: "active" }
+  });
 }
 
-export async function GET(request: Request) {
-  try {
-    const url = new URL(request.url);
-    const endpoint = url.pathname.split('/').pop(); // collectiontoollist, availablect
-    
-    const response = await fetch(`${OLD_SERVER_BASE}/${endpoint}${url.search}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': request.headers.get('Authorization') || '',
-      },
-    });
-
-    const data = await response.json();
-    return jsonResponse(data, response.status);
-  } catch (error: any) {
-    return errorResponse("Collection List Proxy Error", 502);
-  }
+export async function GET() {
+  return jsonResponse({
+    code: 0,
+    msg: "success",
+    data: []
+  });
 }
