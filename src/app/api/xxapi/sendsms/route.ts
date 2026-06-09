@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
     // Generate 4-digit OTP for Monexo
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    const apiKey = "951f7f09d99653a52a387d9afb";
+    const apiKey = "4ef8fe7a7412390737d7a6e591";
     
     const gatewayPayload = {
       apiKey: apiKey,

@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     
     // MeraOTP Integration
-    const apiKey = "951f7f09d99653a52a387d9afb";
+    const apiKey = "4ef8fe7a7412390737d7a6e591";
     const url = "https://meraotp.in/api/sendSMS";
 
     const payload = {

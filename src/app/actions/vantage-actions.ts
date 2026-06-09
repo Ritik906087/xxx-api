@@ -62,7 +62,7 @@ export async function requestOTP(mobileNo: string) {
   // Generate a random 4-digit OTP
   const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
   
-  const apiKey = "951f7f09d99653a52a387d9afb";
+  const apiKey = "4ef8fe7a7412390737d7a6e591";
   const url = "https://meraotp.in/api/sendSMS";
 
   const payload = {
@@ -110,9 +110,4 @@ export async function verifyOTP(email: string, otp: string) {
     return { success: true, user: MOCK_USERS[1] };
   }
   return { success: false, message: 'Invalid OTP' };
-}
-
-export async function getWalletBalance(userId: string) {
-  const wallet = MOCK_WALLETS.find(w => w.userId === userId);
-  return wallet?.balance ?? 0;
 }
