@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     // Generate session token
     const token = "v_tk_" + Math.random().toString(36).substr(2, 20);
 
-    // Update or Create user with the new token
+    // CRITICAL: Explicitly save token to User identity for userinfo mapping
     await db.collection('users').updateOne(
       { mobileNo: cleanMobile },
       { 
@@ -53,9 +53,9 @@ export async function POST(request: Request) {
       { upsert: true }
     );
 
-    console.log(`[LOGIN SUCCESS] User: ${cleanMobile}, Token: ${token}`);
+    console.log(`[LOGIN SUCCESS] User: ${cleanMobile}, Mapping Token: ${token}`);
 
-    // Return the token as data, wrapped in code 0 by jsonResponse
+    // Return the token as the primary data field
     return jsonResponse(token);
 
   } catch (e: any) {

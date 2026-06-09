@@ -14,16 +14,26 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const db = await getDb();
     
-    // 1. Try to identify by INDIATOKEN header (Primary)
-    const indiaToken = request.headers.get('INDIATOKEN');
+    // 1. Get token from all possible sources (Headers or Query Params)
+    let indiaToken = request.headers.get('INDIATOKEN') || 
+                     request.headers.get('token') || 
+                     searchParams.get('token') ||
+                     searchParams.get('INDIATOKEN');
+
+    // Clean token (remove quotes or whitespace that APK might send)
+    if (indiaToken) {
+      indiaToken = indiaToken.replace(/['"]+/g, '').trim();
+    }
+
     let user = null;
 
-    if (indiaToken) {
-      console.log(`[USERINFO] Searching by INDIATOKEN: ${indiaToken}`);
+    // 2. Primary Identity Check: Search by Session Token
+    if (indiaToken && indiaToken !== 'null' && indiaToken !== 'undefined') {
+      console.log(`[USERINFO] Searching by Token: ${indiaToken}`);
       user = await db.collection('users').findOne({ token: indiaToken });
     }
 
-    // 2. Fallback to mobile identity parameters
+    // 3. Secondary Identity Check: Fallback to Mobile Identity
     if (!user) {
       const mobileNo = searchParams.get('mobileNo') || 
                        searchParams.get('mobile') || 
@@ -32,22 +42,24 @@ export async function GET(request: Request) {
       
       if (mobileNo) {
         const cleanMobile = String(mobileNo).replace(/\D/g, '').slice(-10);
-        console.log(`[USERINFO] Fallback: Searching by Mobile: ${cleanMobile}`);
+        console.log(`[USERINFO] Fallback lookup for Mobile: ${cleanMobile}`);
         user = await db.collection('users').findOne({ mobileNo: cleanMobile });
       }
     }
 
+    // 4. If identity still missing, return structured error for APK
     if (!user) {
-      console.warn('[USERINFO] Missing Identity: No user found for token or mobile');
+      console.warn('[USERINFO] Missing Identity: Identity link failed.');
       return jsonResponse({ 
         status: 0, 
         msg: "Missing Identity",
-        hint: "Please re-login to establish session token" 
-      }, 200); // Return 200 with error structure to prevent APK crash
+        hint: "Please re-login to establish identity" 
+      }, 200);
     }
 
-    // 3. Return exact nested structure with real MongoDB values
+    // 5. Return complete profile including userId and balance
     const responseData = {
+      userId: user._id.toString(),
       username: user.username || user.mobileNo,
       userType: user.role === 'admin' ? 1 : 3,
       realName: user.fullName || user.mobileNo,
@@ -72,7 +84,7 @@ export async function GET(request: Request) {
 
     return jsonResponse(responseData);
   } catch (e: any) {
-    console.error('[USERINFO ERROR]:', e);
+    console.error('[USERINFO CRITICAL ERROR]:', e);
     return jsonResponse({ status: 0, msg: "Internal Server Error" });
   }
 }
