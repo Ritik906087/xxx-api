@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VantageTerminal } from './terminal';
 import { MOCK_TRANSACTIONS, type Transaction, type User } from '@/lib/vantage-store';
 import { processTransaction } from '@/app/actions/vantage-actions';
-import { Wallet, ArrowUpRight, ArrowDownLeft, History, Globe, User as UserIcon, Copy, Check, ExternalLink, Play, Search, Code, Cpu, RefreshCw } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, History, Globe, User as UserIcon, Copy, Check, ExternalLink, Play, Search, Code, Cpu, RefreshCw, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
@@ -35,10 +35,23 @@ export function DashboardView({ user }: { user: User }) {
 
   const fetchRealBalance = async () => {
     try {
-      const res = await fetch(`/api/xxapi/userinfo?mobileNo=${user.mobileNo}`);
+      // Critical: Retrieve current token for identity mapping
+      const token = localStorage.getItem('vantage_session_token');
+      
+      const res = await fetch(`/api/xxapi/userinfo?mobileNo=${user.mobileNo}`, {
+        headers: {
+          'INDIATOKEN': token || ''
+        }
+      });
       const json = await res.json();
+      
+      // If userinfo returns a success and it contains balance
       if (json.code === 0 && json.data) {
-        setBalance(json.data.itoken);
+        if (json.data.status === 0 && json.data.msg === "Missing Identity") {
+          console.error("Identity link failed. Token mismatch.");
+        } else {
+          setBalance(json.data.itoken || 0);
+        }
       }
     } catch (e) {
       console.error('Failed to sync balance');
@@ -48,9 +61,10 @@ export function DashboardView({ user }: { user: User }) {
   useEffect(() => {
     fetchRealBalance();
     addApiLog('GET', '/api/xxapi/config', 'success', { brand: 'Vantage', version: '2.4.0' }, 200);
-    addApiLog('GET', '/api/xxapi/userinfo', 'success', { id: user.id, mobile: user.mobileNo }, 200);
     
-    // Auto-refresh balance every 30 seconds
+    const initialToken = localStorage.getItem('vantage_session_token');
+    addApiLog('GET', '/api/xxapi/userinfo', 'success', { id: user.id, mobile: user.mobileNo, mappedToken: initialToken }, 200);
+    
     const interval = setInterval(fetchRealBalance, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -76,16 +90,22 @@ export function DashboardView({ user }: { user: User }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('vantage_session_token');
+    localStorage.removeItem('vantage_session_user');
+    window.location.reload();
+  };
+
   const runProxyTest = async () => {
     setIsProcessing(true);
     setActiveTab('logs');
     
+    const token = localStorage.getItem('vantage_session_token');
     const endpoints = [
       { method: 'GET', path: '/api/app/version' },
-      { method: 'GET', path: '/api/app/jsValue' },
       { method: 'GET', path: '/api/init' },
-      { method: 'GET', path: '/api/xxapi/userinfo' },
-      { method: 'POST', path: '/api/xxapi/monitorflow/check', body: { action: 'ping' } },
+      { method: 'GET', path: `/api/xxapi/userinfo?token=${token}` },
+      { method: 'POST', path: '/api/xxapi/monitorflow/check', body: { action: 'ping', token } },
       { method: 'GET', path: '/api/xxapi/availablect?payment_method=1' }
     ];
 
@@ -93,7 +113,10 @@ export function DashboardView({ user }: { user: User }) {
       try {
         const fetchOptions: any = { 
           method: ep.method,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            'INDIATOKEN': token || ''
+          }
         };
         if (ep.body) fetchOptions.body = JSON.stringify(ep.body);
 
@@ -121,12 +144,9 @@ export function DashboardView({ user }: { user: User }) {
           toast({ variant: 'destructive', title: 'Security Alert', description: 'AI Flagged high-risk pattern.' });
         } else {
           setTransactions(prev => [res.transaction, ...prev]);
-          // Re-fetch balance from API to ensure DB sync
           fetchRealBalance();
           toast({ title: 'Settlement OK', description: 'Transaction processed and balance synced.' });
         }
-      } else {
-        addApiLog('POST', '/api/v1/ledger/process', 'failed', res, 400, payload);
       }
     } catch (e: any) {
       setIsProcessing(false);
@@ -143,8 +163,6 @@ export function DashboardView({ user }: { user: User }) {
             <span className="font-headline font-bold text-xl tracking-tight text-slate-900 leading-none">VANTAGE ENGINE</span>
             <span className="text-[10px] text-slate-400 uppercase tracking-[0.4em] font-black mt-1">Hybrid Cloud Gateway</span>
           </div>
-          <div className="h-8 w-px bg-slate-200 ml-2" />
-          <Badge variant="outline" className="border-emerald-500/20 text-emerald-600 bg-emerald-50 text-[10px] uppercase font-bold px-4 py-1.5">Node: Stable</Badge>
         </div>
         
         <div className="flex items-center gap-4">
@@ -158,23 +176,24 @@ export function DashboardView({ user }: { user: User }) {
           <Button 
             onClick={runProxyTest}
             disabled={isProcessing}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[12px] uppercase px-10 h-12 shadow-xl shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98] flex gap-3"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[12px] uppercase px-10 h-12 shadow-xl shadow-blue-600/20 transition-all flex gap-3"
           >
             {isProcessing ? <Cpu className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
             GET RESULTS
           </Button>
 
-          <div className="hidden xl:flex items-center gap-4 px-5 py-2.5 bg-slate-50 rounded-xl border border-slate-200">
-            <UserIcon className="w-4 h-4 text-slate-400" />
+          <div className="flex items-center gap-4 px-5 py-2.5 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-xs font-bold text-slate-700">{user.mobileNo}</span>
-            <Badge className="bg-blue-50 text-blue-600 border-blue-100 text-[9px] uppercase font-black">Admin</Badge>
+            <Button onClick={handleLogout} variant="ghost" size="sm" className="h-8 w-8 p-0 text-rose-500 hover:bg-rose-50 rounded-lg">
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </header>
 
       <main className="flex-1 overflow-hidden p-8 gap-8 grid grid-cols-12 max-w-[1800px] mx-auto w-full">
         <div className="col-span-12 lg:col-span-3 space-y-6">
-          <Card className="bg-white border-slate-200 overflow-hidden border-l-4 border-l-blue-600 shadow-sm transition-hover hover:shadow-md">
+          <Card className="bg-white border-slate-200 overflow-hidden border-l-4 border-l-blue-600 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-black flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-blue-600" />
@@ -194,34 +213,18 @@ export function DashboardView({ user }: { user: User }) {
 
           <Card className="bg-white border-slate-200 shadow-sm">
             <CardHeader className="pb-4">
-              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-black">Action Nodes</CardTitle>
+              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-black">Simulation Controls</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 px-2">
               <Button 
                 variant="outline" 
-                className="justify-start gap-4 h-16 border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-all group"
+                className="justify-start gap-4 h-16 border-slate-200 bg-slate-50 hover:bg-blue-50 transition-all group"
                 onClick={() => handleTestTransaction(150.00, 'deposit')}
               >
-                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-200">
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
                   <ArrowDownLeft className="w-6 h-6" />
                 </div>
-                <div className="text-left">
-                  <p className="text-xs font-black uppercase tracking-tight">Deposit</p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase">Target: MongoDB</p>
-                </div>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="justify-start gap-4 h-16 border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-all group"
-                onClick={() => handleTestTransaction(1200.00, 'purchase')}
-              >
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-200">
-                  <ArrowUpRight className="w-6 h-6" />
-                </div>
-                <div className="text-left">
-                  <p className="text-xs font-black uppercase tracking-tight">Purchase</p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase">Target: Gateway</p>
-                </div>
+                <p className="text-xs font-black uppercase tracking-tight">Deposit Mock</p>
               </Button>
             </CardContent>
           </Card>
@@ -231,18 +234,13 @@ export function DashboardView({ user }: { user: User }) {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col overflow-hidden">
             <div className="flex items-center justify-between mb-8">
               <TabsList className="bg-slate-100/50 border border-slate-200 p-1.5 h-14 rounded-2xl">
-                <TabsTrigger value="transactions" className="gap-2 text-[10px] uppercase font-black tracking-widest px-6 data-[state=active]:bg-white data-[state=active]:shadow-lg data-[state=active]:text-blue-600">
-                  <History className="w-4 h-4" />
+                <TabsTrigger value="transactions" className="gap-2 text-[10px] uppercase font-black tracking-widest px-6 data-[state=active]:bg-white data-[state=active]:shadow-lg">
                   Ledger
                 </TabsTrigger>
-                <TabsTrigger value="logs" className="gap-2 text-[10px] uppercase font-black tracking-widest px-6 data-[state=active]:bg-blue-600 data-[state=active]:shadow-lg data-[state=active]:text-white">
-                  <Globe className="w-4 h-4" />
-                  Get Results
+                <TabsTrigger value="logs" className="gap-2 text-[10px] uppercase font-black tracking-widest px-6 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                  Audit Logs
                 </TabsTrigger>
               </TabsList>
-              <div className="flex items-center gap-3">
-                <Badge variant="outline" className="text-blue-600 border-blue-100 bg-blue-50 text-[10px] font-black uppercase tracking-tighter animate-pulse">Stealth Proxy ON</Badge>
-              </div>
             </div>
             
             <TabsContent value="transactions" className="flex-1 overflow-hidden m-0">
@@ -253,23 +251,15 @@ export function DashboardView({ user }: { user: User }) {
                       <th className="p-6 uppercase tracking-widest text-slate-400 text-[10px] font-black">Trace ID</th>
                       <th className="p-6 uppercase tracking-widest text-slate-400 text-[10px] font-black">Type</th>
                       <th className="p-6 uppercase tracking-widest text-slate-400 text-[10px] font-black text-right">Value</th>
-                      <th className="p-6 uppercase tracking-widest text-slate-400 text-[10px] font-black">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {transactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50/50 transition-all cursor-default group">
-                        <td className="p-6 font-bold text-slate-500 group-hover:text-blue-600">{tx.id}</td>
-                        <td className="p-6"><Badge variant="outline" className="text-[10px] font-black uppercase border-slate-200">{tx.type}</Badge></td>
-                        <td className={`p-6 font-black text-right text-sm ${tx.type === 'deposit' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                          {tx.type === 'deposit' ? '+' : '-'}${tx.amount.toFixed(2)}
-                        </td>
-                        <td className="p-6">
-                          {tx.isFraudulent ? (
-                            <Badge variant="destructive" className="text-[9px] font-black uppercase px-3">Blocked</Badge>
-                          ) : (
-                            <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px] font-black uppercase px-3">Settled</Badge>
-                          )}
+                      <tr key={tx.id} className="hover:bg-slate-50/50 transition-all">
+                        <td className="p-6 font-bold text-slate-500">{tx.id}</td>
+                        <td className="p-6"><Badge variant="outline" className="text-[10px] font-black uppercase">{tx.type}</Badge></td>
+                        <td className={`p-6 font-black text-right ${tx.type === 'deposit' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                          ${tx.amount.toFixed(2)}
                         </td>
                       </tr>
                     ))}
@@ -280,50 +270,27 @@ export function DashboardView({ user }: { user: User }) {
 
             <TabsContent value="logs" className="flex-1 overflow-hidden m-0">
               <div className="bg-white rounded-3xl border border-slate-200 h-full flex flex-col overflow-hidden shadow-sm">
-                <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/30">
-                  <div className="flex items-center gap-3 text-blue-600">
-                    <Code className="w-5 h-5" />
-                    <span className="text-xs font-black uppercase tracking-widest">Network Request Monitor</span>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => setApiLogs([])} className="h-8 text-[10px] font-black uppercase text-rose-500 hover:bg-rose-50 rounded-xl">Clear All</Button>
+                <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/30">
+                  <span className="text-xs font-black uppercase tracking-widest text-blue-600">Network Request Monitor</span>
                 </div>
-                <div className="flex-1 overflow-y-auto terminal-scroll p-4 space-y-3 bg-slate-50/20">
-                  {apiLogs.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-20 opacity-30">
-                      <Search className="w-16 h-16 mb-6 text-slate-300" />
-                      <p className="text-sm font-black uppercase tracking-[0.3em]">Listening for traffic...</p>
-                    </div>
-                  ) : (
-                    apiLogs.map((log) => (
-                      <div 
-                        key={log.id} 
-                        onClick={() => setSelectedLog(log)}
-                        className="bg-white border border-slate-200 p-5 rounded-2xl hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer group flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-6">
-                          <div className={`w-2 h-10 rounded-full ${log.status === 'success' ? 'bg-emerald-500' : 'bg-rose-500'} shadow-lg`} />
-                          <div>
-                            <div className="flex items-center gap-3">
-                              <Badge className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 ${log.method === 'GET' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                {log.method}
-                              </Badge>
-                              <span className="text-xs font-bold text-slate-800 truncate max-w-[300px]">{log.endpoint}</span>
-                            </div>
-                            <div className="flex items-center gap-4 mt-3 opacity-60">
-                              <span className="text-[10px] font-black uppercase tracking-tight">{log.id}</span>
-                              <span className="text-[10px] font-bold">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <Badge variant="outline" className={`font-black text-[10px] border-slate-200 ${log.status === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {log.statusCode || 200} {log.status.toUpperCase()}
-                          </Badge>
-                          <ExternalLink className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transition-colors" />
-                        </div>
+                <div className="flex-1 overflow-y-auto terminal-scroll p-4 space-y-3">
+                  {apiLogs.map((log) => (
+                    <div 
+                      key={log.id} 
+                      onClick={() => setSelectedLog(log)}
+                      className="bg-white border border-slate-200 p-4 rounded-xl hover:border-blue-500 transition-all cursor-pointer group flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-4">
+                        <Badge className={`text-[9px] font-black uppercase ${log.method === 'GET' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {log.method}
+                        </Badge>
+                        <span className="text-xs font-bold text-slate-800 truncate max-w-[200px]">{log.endpoint}</span>
                       </div>
-                    ))
-                  )}
+                      <Badge variant="outline" className={`font-black text-[10px] ${log.status === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {log.statusCode || 200}
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
               </div>
             </TabsContent>
@@ -336,46 +303,21 @@ export function DashboardView({ user }: { user: User }) {
       </main>
 
       <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
-        <DialogContent className="max-w-4xl bg-white border-slate-200 text-slate-900 rounded-[2rem] shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="max-w-4xl bg-white text-slate-900 rounded-[2rem] p-0 overflow-hidden">
           <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div>
-              <DialogTitle className="text-2xl font-headline font-black text-slate-900 flex items-center gap-4">
-                <Code className="w-8 h-8 text-blue-600" />
-                PACKET INSPECTOR
-              </DialogTitle>
-              <DialogDescription className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-2">
-                Trace: {selectedLog?.id} | Gateway Bypass Active
-              </DialogDescription>
+              <DialogTitle className="text-2xl font-headline font-black">PACKET INSPECTOR</DialogTitle>
+              <DialogDescription className="text-slate-400 font-bold text-[10px] uppercase mt-1">Trace ID: {selectedLog?.id}</DialogDescription>
             </div>
-            <Button 
-              onClick={() => handleCopyJson(selectedLog?.response)}
-              className="h-12 px-8 gap-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] uppercase rounded-2xl shadow-xl shadow-blue-600/20 transition-all"
-            >
-              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copied ? "Buffer Copied" : "Copy Raw JSON"}
+            <Button onClick={() => handleCopyJson(selectedLog?.response)} className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] uppercase rounded-xl shadow-lg shadow-blue-600/20">
+              {copied ? "Copied" : "Copy Raw JSON"}
             </Button>
           </div>
-          <div className="p-8 space-y-8">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                <p className="text-[9px] font-black uppercase text-slate-400 mb-2">Endpoint Target</p>
-                <p className="text-xs font-bold text-slate-800 truncate">{selectedLog?.endpoint}</p>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                <p className="text-[9px] font-black uppercase text-slate-400 mb-2">Status Integrity</p>
-                <p className={`text-xs font-black uppercase ${selectedLog?.status === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {selectedLog?.statusCode} - Verified Secure
-                </p>
-              </div>
-            </div>
-            
-            <div className="relative group">
-               <div className="absolute -top-3 left-4 px-3 bg-slate-900 text-blue-400 text-[9px] font-black uppercase rounded-full z-10 border border-slate-800">Response_Body_v2.4</div>
-               <div className="bg-slate-950 p-8 rounded-[2rem] border border-slate-800 shadow-2xl overflow-hidden min-h-[400px]">
-                <pre className="text-[14px] font-code terminal-scroll max-h-[500px] overflow-auto text-blue-400 leading-relaxed selection:bg-blue-600/30">
-                  {JSON.stringify(selectedLog?.response, null, 2)}
-                </pre>
-              </div>
+          <div className="p-8">
+            <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
+              <pre className="text-[13px] font-code text-blue-400 leading-relaxed max-h-[400px] overflow-auto terminal-scroll">
+                {JSON.stringify(selectedLog?.response, null, 2)}
+              </pre>
             </div>
           </div>
         </DialogContent>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Shield, Server, Zap, Globe, Terminal, Activity, CheckCircle2, AlertCircle, RefreshCcw, Send, Lock, KeyRound, Loader2, Play, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,13 +9,23 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { requestOTP, verifyOTP } from '@/app/actions/vantage-actions';
+import { DashboardView } from '@/components/vantage/dashboard-view';
 
 export default function ArchitectDashboard() {
   const [phone, setPhone] = useState('919060873927');
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [lastSentOtp, setLastSentOtp] = useState<string | null>(null);
+  const [authenticatedUser, setAuthenticatedUser] = useState<any>(null);
   const { toast } = useToast();
+
+  // Clear stale tokens on mount for fresh session simulation
+  useEffect(() => {
+    const savedUser = localStorage.getItem('vantage_session_user');
+    if (savedUser) {
+      setAuthenticatedUser(JSON.parse(savedUser));
+    }
+  }, []);
 
   const handleTriggerOTP = async () => {
     if (!phone) {
@@ -48,23 +58,53 @@ export default function ArchitectDashboard() {
   const handleVerifyOTP = async () => {
     setIsLoading(true);
     try {
-      const res = await verifyOTP("user@example.com", otp);
-      if (res.success) {
-        toast({
-          title: "Session Authorized",
-          description: "Supabase JWT issued | Access Granted",
+      // 1. Internal Validation
+      const verifyRes = await verifyOTP("user@example.com", otp);
+      
+      if (verifyRes.success) {
+        // 2. Critical: Establish Identity Mapping with Backend and get naya token
+        const loginRes = await fetch('/api/xxapi/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mobileNo: phone })
         });
+        
+        const loginData = await loginRes.json();
+        
+        if (loginRes.ok && loginData.data) {
+          const newToken = loginData.data;
+          const userData = { ...verifyRes.user, mobileNo: phone, token: newToken };
+          
+          // 3. Save new token and user data
+          localStorage.setItem('vantage_session_token', newToken);
+          localStorage.setItem('vantage_session_user', JSON.stringify(userData));
+          
+          setAuthenticatedUser(userData);
+          
+          toast({
+            title: "Session Authorized",
+            description: `Token: ${newToken} | Identity Linked`,
+          });
+        } else {
+          throw new Error("Identity Mapping Failed");
+        }
       } else {
         toast({
           variant: 'destructive',
           title: "Auth Failed",
-          description: res.message,
+          description: verifyRes.message,
         });
       }
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: "Critical Auth Error", description: e.message });
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (authenticatedUser) {
+    return <DashboardView user={authenticatedUser} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-code selection:bg-blue-600 selection:text-white">
@@ -81,10 +121,6 @@ export default function ArchitectDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="hidden md:block text-right">
-            <p className="text-[10px] text-slate-500 uppercase font-bold">Edge Network</p>
-            <p className="text-xs font-semibold text-blue-600">US-EAST-WORKER</p>
-          </div>
           <Button 
             asChild
             className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold px-6 h-10 shadow-md shadow-blue-500/20 flex gap-2"
@@ -98,60 +134,6 @@ export default function ArchitectDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* Active Integration Specs */}
-        <section>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-4 ml-1">Enterprise Configuration</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="bg-white border-slate-200 p-4 relative group hover:border-blue-500/50 transition-all shadow-sm">
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">SUPABASE_URL</span>
-                <span className="text-sm font-code text-blue-600 truncate">https://slytlppadlmnnloszuwd.supabase.co</span>
-              </div>
-            </Card>
-            <Card className="bg-white border-slate-200 p-4 relative group hover:border-blue-500/50 transition-all shadow-sm">
-              <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">MONGODB_CLUSTER</span>
-                <span className="text-sm font-code text-amber-600 truncate">tdm.uwkxmdo.mongodb.net</span>
-              </div>
-            </Card>
-          </div>
-        </section>
-
-        {/* System Connections */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1">Live Backend Services</div>
-            <Button variant="ghost" size="sm" className="text-[10px] text-blue-600 uppercase font-bold h-6 gap-2">
-              <RefreshCcw className="w-3 h-3" /> Sync Now
-            </Button>
-          </div>
-          
-          <Card className="bg-white border-slate-200 divide-y divide-slate-100 overflow-hidden shadow-sm">
-            <div className="p-6 flex items-center justify-between group hover:bg-slate-50 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Database Engine</h3>
-                  <p className="text-[11px] text-slate-500">Connected to <span className="text-emerald-600 font-bold">MongoDB Atlas</span>. Active pool: 5 connections</p>
-                </div>
-              </div>
-              <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 bg-emerald-50 font-bold uppercase">Stable</Badge>
-            </div>
-
-            <div className="p-6 flex items-center justify-between group hover:bg-slate-50 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Identity Provider</h3>
-                  <p className="text-[11px] text-slate-500">Supabase Auth Provider ready. <span className="text-slate-600">JWT Signing key verified.</span></p>
-                </div>
-              </div>
-              <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 bg-emerald-50 font-bold uppercase">Secure</Badge>
-            </div>
-          </Card>
-        </section>
-
-        {/* OTP Auth Engine */}
         <section className="space-y-4">
           <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1 flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Monexo SMS Gateway (MeraOTP.in)
@@ -209,7 +191,6 @@ export default function ArchitectDashboard() {
           </Card>
         </section>
 
-        {/* Footer */}
         <footer className="pt-8 pb-12 text-center border-t border-slate-200">
           <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.3em]">
             Monexo Enterprise Backend • Optimized for High Scale
