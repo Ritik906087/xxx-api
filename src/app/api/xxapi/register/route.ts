@@ -11,6 +11,7 @@ export async function OPTIONS() {
 /**
  * Endpoint: POST /xxapi/register
  * Purpose: Registers a new user and ensures identity mapping is ready.
+ * Now captures and stores passwords for secure login.
  */
 export async function POST(request: Request) {
   try {
@@ -29,10 +30,12 @@ export async function POST(request: Request) {
     }
 
     const cleanMobile = String(mobileNo).replace(/\D/g, '').slice(-10);
+    const password = body.password || body.identity || body.pwd; // Capture password from various possible fields
+
     const db = await getDb();
     const usersCollection = db.collection('users');
 
-    // Check if user already exists
+    // 1. Check if user already exists (Prevent duplicate registrations)
     const existingUser = await usersCollection.findOne({ mobileNo: cleanMobile });
 
     if (!existingUser) {
@@ -42,6 +45,7 @@ export async function POST(request: Request) {
       await usersCollection.insertOne({
         mobileNo: cleanMobile,
         username: cleanMobile,
+        password: password || null, // Store password for future login validation
         role: 'user',
         status: 1,
         createdAt: new Date().toISOString(),
@@ -51,7 +55,9 @@ export async function POST(request: Request) {
       });
       console.log(`[REGISTER] New user record created for: ${cleanMobile}`);
     } else {
-      console.log(`[REGISTER] User ${cleanMobile} already exists, returning success`);
+      console.log(`[REGISTER] User ${cleanMobile} already exists, returning success (Idempotent)`);
+      // Optionally update password if identity mapping is being re-established, 
+      // but usually we keep the old one for security.
     }
 
     // Exact success format expected by legacy frontend/APK

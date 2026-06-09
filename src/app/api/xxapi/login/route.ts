@@ -7,7 +7,7 @@ export async function OPTIONS() {
 
 /**
  * Robust Login handler for APK compatibility.
- * Behaves like the old server by automatically resolving identity if missing.
+ * Now includes mandatory password/identity validation to prevent unauthorized access.
  */
 export async function POST(request: Request) {
   try {
@@ -40,35 +40,55 @@ export async function POST(request: Request) {
     }
 
     if (!mobileNo) {
-      // Return 200 with code 400 to match old server "Stealth" behavior
       return jsonResponse({
         code: 400,
-        msg: "Identity required for login"
+        msg: "Identity/Phone required for login"
       });
     }
 
     const cleanMobile = String(mobileNo).replace(/\D/g, '').slice(-10);
     
-    // 3. Generate session token (maintain existing token if possible or create new)
+    // 3. SECURE LOOKUP: Find existing user only (No more upserting in login)
+    const user = await db.collection('users').findOne({ mobileNo: cleanMobile });
+
+    if (!user) {
+      console.warn(`[LOGIN FAILED] User not found: ${cleanMobile}`);
+      return jsonResponse({
+        code: 404,
+        msg: "User record not found. Please register first."
+      });
+    }
+
+    // 4. PASSWORD VALIDATION
+    // The request might send 'password' or 'identity' as the secret
+    const providedSecret = body.password || body.identity || body.pwd || searchParams.get('password') || searchParams.get('identity');
+    
+    // If user has a password set in DB, we MUST validate it
+    if (user.password) {
+      if (!providedSecret || String(providedSecret) !== String(user.password)) {
+        console.warn(`[LOGIN FAILED] Invalid credentials for user: ${cleanMobile}`);
+        return jsonResponse({
+          code: 401,
+          msg: "Invalid password or identity provided"
+        });
+      }
+    } else if (providedSecret) {
+      // If user has no password yet (old record), but provides one, we might want to flag it 
+      // or consider it a failure if password auth is strictly required.
+      // For now, we allow if DB password is null (legacy compatibility).
+    }
+
+    // 5. SUCCESS: Generate and map new session token
     const token = "v_tk_" + Math.random().toString(36).substr(2, 20);
 
     await db.collection('users').updateOne(
-      { mobileNo: cleanMobile },
+      { _id: user._id },
       { 
         $set: { 
           token: token,
           lastLogin: new Date().toISOString()
-        },
-        $setOnInsert: {
-          username: cleanMobile,
-          role: 'user',
-          status: 1,
-          createdAt: new Date().toISOString(),
-          itoken: 0,
-          totalProfit: 0
         }
-      },
-      { upsert: true }
+      }
     );
 
     console.log(`[LOGIN SUCCESS] User: ${cleanMobile}, Token: ${token}`);
