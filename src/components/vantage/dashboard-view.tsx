@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -7,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VantageTerminal } from './terminal';
-import { MOCK_WALLETS, MOCK_TRANSACTIONS, type Transaction, type User } from '@/lib/vantage-store';
+import { MOCK_TRANSACTIONS, type Transaction, type User } from '@/lib/vantage-store';
 import { processTransaction } from '@/app/actions/vantage-actions';
-import { Wallet, ArrowUpRight, ArrowDownLeft, History, Globe, User as UserIcon, Copy, Check, ExternalLink, Play, Search, Code, Cpu } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, History, Globe, User as UserIcon, Copy, Check, ExternalLink, Play, Search, Code, Cpu, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
@@ -25,7 +24,7 @@ interface ApiLog {
 }
 
 export function DashboardView({ user }: { user: User }) {
-  const [balance, setBalance] = useState(MOCK_WALLETS.find(w => w.userId === user.id)?.balance ?? 0);
+  const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState('transactions');
@@ -34,9 +33,26 @@ export function DashboardView({ user }: { user: User }) {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
+  const fetchRealBalance = async () => {
+    try {
+      const res = await fetch(`/api/xxapi/userinfo?mobileNo=${user.mobileNo}`);
+      const json = await res.json();
+      if (json.code === 0 && json.data) {
+        setBalance(json.data.itoken);
+      }
+    } catch (e) {
+      console.error('Failed to sync balance');
+    }
+  };
+
   useEffect(() => {
+    fetchRealBalance();
     addApiLog('GET', '/api/xxapi/config', 'success', { brand: 'Vantage', version: '2.4.0' }, 200);
     addApiLog('GET', '/api/xxapi/userinfo', 'success', { id: user.id, mobile: user.mobileNo }, 200);
+    
+    // Auto-refresh balance every 30 seconds
+    const interval = setInterval(fetchRealBalance, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const addApiLog = (method: 'GET' | 'POST', endpoint: string, status: 'success' | 'failed', response: any, statusCode = 200, payload?: any) => {
@@ -68,7 +84,7 @@ export function DashboardView({ user }: { user: User }) {
       { method: 'GET', path: '/api/app/version' },
       { method: 'GET', path: '/api/app/jsValue' },
       { method: 'GET', path: '/api/init' },
-      { method: 'GET', path: '/api/auth/check' },
+      { method: 'GET', path: '/api/xxapi/userinfo' },
       { method: 'POST', path: '/api/xxapi/monitorflow/check', body: { action: 'ping' } },
       { method: 'GET', path: '/api/xxapi/availablect?payment_method=1' }
     ];
@@ -82,15 +98,7 @@ export function DashboardView({ user }: { user: User }) {
         if (ep.body) fetchOptions.body = JSON.stringify(ep.body);
 
         const res = await fetch(ep.path, fetchOptions);
-        
-        const contentType = res.headers.get("content-type");
-        let data;
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-          data = await res.json();
-        } else {
-          data = { error: "Non-JSON response received", raw: await res.text() };
-        }
-        
+        const data = await res.json();
         addApiLog(ep.method as any, ep.path, res.ok ? 'success' : 'failed', data, res.status, ep.body);
       } catch (e: any) {
         addApiLog(ep.method as any, ep.path, 'failed', { error: e.message }, 500);
@@ -113,8 +121,9 @@ export function DashboardView({ user }: { user: User }) {
           toast({ variant: 'destructive', title: 'Security Alert', description: 'AI Flagged high-risk pattern.' });
         } else {
           setTransactions(prev => [res.transaction, ...prev]);
-          setBalance(prev => type === 'deposit' ? prev + amount : prev - amount);
-          toast({ title: 'Settlement OK', description: 'Transaction written to MongoDB Atlas.' });
+          // Re-fetch balance from API to ensure DB sync
+          fetchRealBalance();
+          toast({ title: 'Settlement OK', description: 'Transaction processed and balance synced.' });
         }
       } else {
         addApiLog('POST', '/api/v1/ledger/process', 'failed', res, 400, payload);
@@ -139,6 +148,13 @@ export function DashboardView({ user }: { user: User }) {
         </div>
         
         <div className="flex items-center gap-4">
+          <Button 
+            onClick={fetchRealBalance}
+            variant="ghost"
+            className="h-12 w-12 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </Button>
           <Button 
             onClick={runProxyTest}
             disabled={isProcessing}
@@ -171,7 +187,7 @@ export function DashboardView({ user }: { user: User }) {
               </div>
               <div className="flex items-center gap-2 mt-4 text-[10px] font-bold text-emerald-600 uppercase">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Sync Mode: Realtime
+                Sync Mode: Realtime Atlas
               </div>
             </CardContent>
           </Card>

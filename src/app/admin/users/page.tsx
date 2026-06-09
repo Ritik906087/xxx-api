@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   ChevronLeft, 
   ChevronRight,
-  Filter
+  Filter,
+  Shield
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -74,9 +75,9 @@ export default function UsersManagement() {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="p-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Identity</th>
-                <th className="p-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Username</th>
-                <th className="p-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Balance</th>
+                <th className="p-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">User ID (MongoDB)</th>
+                <th className="p-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Mobile Identity</th>
+                <th className="p-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Balance (iToken)</th>
                 <th className="p-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Status</th>
                 <th className="p-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Actions</th>
               </tr>
@@ -94,6 +95,14 @@ export default function UsersManagement() {
                 users.map((user) => (
                   <tr key={user._id} className="hover:bg-blue-50/40 transition-all group">
                     <td className="p-8">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                          <Shield className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <span className="text-[10px] font-code text-slate-500 truncate max-w-[150px]">{user._id}</span>
+                      </div>
+                    </td>
+                    <td className="p-8">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all">
                           <UserIcon className="w-5 h-5" />
@@ -101,8 +110,7 @@ export default function UsersManagement() {
                         <span className="font-black text-slate-900 tracking-widest">{user.mobileNo}</span>
                       </div>
                     </td>
-                    <td className="p-8 text-xs font-bold text-slate-500 uppercase">{user.username || 'N/A'}</td>
-                    <td className="p-8 font-black text-emerald-600">${(user.itoken || 0).toLocaleString()}</td>
+                    <td className="p-8 font-black text-emerald-600 text-lg">${(user.itoken || 0).toLocaleString()}</td>
                     <td className="p-8 text-center">
                       <Badge className={`text-[9px] font-black uppercase px-3 py-1 ${user.status === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
                         {user.status === 1 ? 'ACTIVE' : 'BLOCKED'}

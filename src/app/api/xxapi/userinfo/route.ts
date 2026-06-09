@@ -1,4 +1,5 @@
 import { jsonResponse, handleOptions } from '@/lib/api-response';
+import { getDb } from '@/lib/mongodb';
 
 export async function OPTIONS() {
   return handleOptions();
@@ -6,71 +7,66 @@ export async function OPTIONS() {
 
 /**
  * Robust User Info handler for APK compatibility.
- * Returns the exact nested data structure from RITIK's logs to prevent 403 logout.
+ * Fetches real-time data from MongoDB Atlas.
  */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const mobileNo = searchParams.get('mobileNo') || searchParams.get('mobile') || "9060873927";
+    // Capture mobile number from search params or headers
+    const mobileNo = searchParams.get('mobileNo') || 
+                     searchParams.get('mobile') || 
+                     request.headers.get('phone') || 
+                     request.headers.get('INDIAMOBILE');
 
-    const mockUserData = {
-      username: mobileNo,
-      userType: 3,
-      realName: mobileNo,
+    if (!mobileNo) {
+      return jsonResponse({ status: 0, msg: "Missing Identity" }, 400);
+    }
+
+    // Clean number to match DB format (last 10 digits)
+    const cleanMobile = String(mobileNo).replace(/\D/g, '').slice(-10);
+    
+    const db = await getDb();
+    const user = await db.collection('users').findOne({ mobileNo: cleanMobile });
+
+    if (!user) {
+      // Return a basic structure even if user not fully registered to prevent app crash
+      return jsonResponse({
+        username: cleanMobile,
+        mobile: cleanMobile,
+        status: 1,
+        itoken: 0,
+        totalProfit: 0,
+        level: 1
+      });
+    }
+
+    // Return the exact nested data structure from legacy logs but with REAL DB values
+    const responseData = {
+      username: user.username || user.mobileNo,
+      userType: user.role === 'admin' ? 1 : 3,
+      realName: user.fullName || user.mobileNo,
       gender: 2,
-      mobile: mobileNo,
-      status: 1,
-      crtUser: "9214250307",
-      crtDate: 1780204608,
-      parentUser: "9214250307",
-      platformUser: "vantage",
-      level: 12,
-      payType: 3,
-      payerRewardFixed: 0.00,
-      payerRewardRatio: 0.00,
-      payeeRewardFixed: 0.00,
-      payeeRewardRatio: 0.00,
-      trc20Address: "TQJY4yY4ZqjGjpQ9BYg3gPVj8EQjVMDnrf",
-      inviteCode: "YKuRy4SQGz",
-      agentUser: "earning",
-      pageSize: 0,
-      net: "mainnet",
-      itoken: 14.66,
-      frozenItoken: 0.00,
-      totalProfit: 14.36,
+      mobile: user.mobileNo,
+      status: user.status ?? 1,
+      crtDate: user.createdAt ? new Date(user.createdAt).getTime() / 1000 : 0,
+      level: user.level || 1,
+      itoken: user.itoken || 0,
+      frozenItoken: user.frozenItoken || 0,
+      totalProfit: user.totalProfit || 0,
       todayProfit: 0,
-      inPayAmount: 0.00,
-      totalSucAmount: 0,
-      teamWorkId: 892779815,
-      receiveToday: {
-        username: mobileNo,
-        inTransation: 0,
-        todayDeal: 0,
-        todaySuccess: 0,
-        todayTimes: 0
-      },
-      recharge: 0,
-      reward: 0,
-      performance: 299.70,
+      inviteCode: user.inviteCode || "VANTAGE",
       safety_code: "1",
-      ifFinishNewbieActivity: 0,
-      totalTransferValue: 0,
-      minSellIToken: 1,
-      chargeFlag: 0,
-      chargeAmt: "1000,1500,2000,3000,5000,10000,20000",
+      chargeFlag: 1,
+      chargeAmt: "500,1000,2000,5000,10000",
       activityOpens: {
         today_buy_inr_reward: "1",
         newbie_reward: "1"
-      },
-      todayLotteryMode: "legacy",
-      userSellToken: ",",
-      ifFinishInviteStepActivity: -1,
-      userBankFlag: 0,
-      bankInAmt: 0
+      }
     };
 
-    return jsonResponse(mockUserData);
+    return jsonResponse(responseData);
   } catch (e: any) {
-    return jsonResponse({ mobile: "9060873927", status: 1 });
+    console.error('[USERINFO ERROR]:', e);
+    return jsonResponse({ status: 0, msg: "Internal Error" });
   }
 }
