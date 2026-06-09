@@ -10,15 +10,12 @@ export async function OPTIONS() {
 
 /**
  * Endpoint: POST /xxapi/register
- * Purpose: Registers a new user based on mobile number and returns the exact legacy success format.
- * Matches: {"code":0,"msg":"success"}
+ * Purpose: Registers a new user and ensures identity mapping is ready.
  */
 export async function POST(request: Request) {
   try {
-    // getSafeBody is used to capture phone numbers from Body, URL, or Headers automatically
     const body = await getSafeBody(request);
     
-    // Support all common field names for mobile number as per old server logic
     const mobileNo = 
       body.mobileNo || 
       body.phone || 
@@ -28,12 +25,10 @@ export async function POST(request: Request) {
       body.extractedPhone;
 
     if (!mobileNo) {
-      console.warn('[REGISTER] Missing mobile identity in request');
       return errorResponse("mobileNo is required", 400);
     }
 
     const cleanMobile = String(mobileNo).replace(/\D/g, '').slice(-10);
-
     const db = await getDb();
     const usersCollection = db.collection('users');
 
@@ -41,7 +36,9 @@ export async function POST(request: Request) {
     const existingUser = await usersCollection.findOne({ mobileNo: cleanMobile });
 
     if (!existingUser) {
-      // Create a basic profile in MongoDB for the user
+      // Generate initial token even on register for immediate session readiness
+      const initialToken = "v_tk_reg_" + Math.random().toString(36).substr(2, 15);
+      
       await usersCollection.insertOne({
         mobileNo: cleanMobile,
         username: cleanMobile,
@@ -49,14 +46,15 @@ export async function POST(request: Request) {
         status: 1,
         createdAt: new Date().toISOString(),
         itoken: 0,
-        totalProfit: 0
+        totalProfit: 0,
+        token: initialToken
       });
       console.log(`[REGISTER] New user record created for: ${cleanMobile}`);
     } else {
       console.log(`[REGISTER] User ${cleanMobile} already exists, returning success`);
     }
 
-    // Return the exact success format expected by the legacy frontend/APK
+    // Exact success format expected by legacy frontend/APK
     return jsonResponse({
       code: 0,
       msg: "success"
@@ -64,7 +62,6 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error('[REGISTER CRITICAL ERROR]:', error);
-    // Even on error, we try to maintain the code-based response format
     return errorResponse("Internal Server Error", 500);
   }
 }

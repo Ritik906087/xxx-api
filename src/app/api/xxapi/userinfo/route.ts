@@ -7,40 +7,46 @@ export async function OPTIONS() {
 
 /**
  * Robust User Info handler for APK compatibility.
- * Fetches real-time data from MongoDB Atlas.
+ * Resolves identity using INDIATOKEN or mobile identity.
  */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    // Capture mobile number from search params or headers
-    const mobileNo = searchParams.get('mobileNo') || 
-                     searchParams.get('mobile') || 
-                     request.headers.get('phone') || 
-                     request.headers.get('INDIAMOBILE');
+    const db = await getDb();
+    
+    // 1. Try to identify by INDIATOKEN header (Primary)
+    const indiaToken = request.headers.get('INDIATOKEN');
+    let user = null;
 
-    if (!mobileNo) {
-      return jsonResponse({ status: 0, msg: "Missing Identity" }, 400);
+    if (indiaToken) {
+      console.log(`[USERINFO] Searching by INDIATOKEN: ${indiaToken}`);
+      user = await db.collection('users').findOne({ token: indiaToken });
     }
 
-    // Clean number to match DB format (last 10 digits)
-    const cleanMobile = String(mobileNo).replace(/\D/g, '').slice(-10);
-    
-    const db = await getDb();
-    const user = await db.collection('users').findOne({ mobileNo: cleanMobile });
+    // 2. Fallback to mobile identity parameters
+    if (!user) {
+      const mobileNo = searchParams.get('mobileNo') || 
+                       searchParams.get('mobile') || 
+                       request.headers.get('phone') || 
+                       request.headers.get('INDIAMOBILE');
+      
+      if (mobileNo) {
+        const cleanMobile = String(mobileNo).replace(/\D/g, '').slice(-10);
+        console.log(`[USERINFO] Fallback: Searching by Mobile: ${cleanMobile}`);
+        user = await db.collection('users').findOne({ mobileNo: cleanMobile });
+      }
+    }
 
     if (!user) {
-      // Return a basic structure even if user not fully registered to prevent app crash
-      return jsonResponse({
-        username: cleanMobile,
-        mobile: cleanMobile,
-        status: 1,
-        itoken: 0,
-        totalProfit: 0,
-        level: 1
-      });
+      console.warn('[USERINFO] Missing Identity: No user found for token or mobile');
+      return jsonResponse({ 
+        status: 0, 
+        msg: "Missing Identity",
+        hint: "Please re-login to establish session token" 
+      }, 200); // Return 200 with error structure to prevent APK crash
     }
 
-    // Return the exact nested data structure from legacy logs but with REAL DB values
+    // 3. Return exact nested structure with real MongoDB values
     const responseData = {
       username: user.username || user.mobileNo,
       userType: user.role === 'admin' ? 1 : 3,
@@ -67,6 +73,6 @@ export async function GET(request: Request) {
     return jsonResponse(responseData);
   } catch (e: any) {
     console.error('[USERINFO ERROR]:', e);
-    return jsonResponse({ status: 0, msg: "Internal Error" });
+    return jsonResponse({ status: 0, msg: "Internal Server Error" });
   }
 }
