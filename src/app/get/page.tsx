@@ -42,7 +42,16 @@ export default function GetResultsPage() {
   const [selectedLog, setSelectedLog] = useState<ApiLog | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [activeToken, setActiveToken] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Load token only on mount to prevent SSR errors
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('vantage_session_token');
+      setActiveToken(token);
+    }
+  }, []);
 
   const addApiLog = (method: 'GET' | 'POST', endpoint: string, status: 'success' | 'failed', response: any, statusCode = 200, payload?: any) => {
     const newLog: ApiLog = {
@@ -62,21 +71,21 @@ export default function GetResultsPage() {
     setIsProcessing(true);
     setApiLogs([]);
     
-    // Critical: Retrieve current session token for authentic requests
-    const token = localStorage.getItem('vantage_session_token');
+    // Use the state token instead of direct localStorage
+    const token = activeToken || '';
     const headers = { 
       'Content-Type': 'application/json',
-      'INDIATOKEN': token || ''
+      'INDIATOKEN': token
     };
 
     const endpoints = [
-      { method: 'GET', path: '/app/version' },
-      { method: 'GET', path: '/init' },
-      { method: 'GET', path: '/xxapi/config' },
-      { method: 'GET', path: `/xxapi/userinfo?token=${token}` },
-      { method: 'GET', path: '/xxapi/availablect?payment_method=1' },
-      { method: 'GET', path: '/xxapi/buyitoken/history' },
-      { method: 'POST', path: '/xxapi/sendLoginSms', body: { mobileNo: '919060873927' } }
+      { method: 'GET', path: '/api/app/version' },
+      { method: 'GET', path: '/api/init' },
+      { method: 'GET', path: '/api/xxapi/config' },
+      { method: 'GET', path: `/api/xxapi/userinfo?token=${token}` },
+      { method: 'GET', path: '/api/xxapi/availablect?payment_method=1' },
+      { method: 'GET', path: '/api/xxapi/buyitoken/history' },
+      { method: 'POST', path: '/api/xxapi/sendLoginSms', body: { mobileNo: '919060873927' } }
     ];
 
     for (const ep of endpoints) {
@@ -99,8 +108,11 @@ export default function GetResultsPage() {
   };
 
   useEffect(() => {
-    runAllTests();
-  }, []);
+    // Wait for token to be loaded before running first audit
+    if (activeToken !== null) {
+      runAllTests();
+    }
+  }, [activeToken]);
 
   const handleCopyJson = (json: any) => {
     navigator.clipboard.writeText(JSON.stringify(json, null, 2));
@@ -194,7 +206,9 @@ export default function GetResultsPage() {
           <div className="p-12 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div>
               <DialogTitle className="text-4xl font-headline font-black">JSON_PACKET_TRACE</DialogTitle>
-              <DialogDescription className="text-slate-400 font-bold text-[12px] uppercase mt-4">TOKEN: {localStorage.getItem('vantage_session_token') || 'NONE'}</DialogDescription>
+              <DialogDescription className="text-slate-400 font-bold text-[12px] uppercase mt-4">
+                TOKEN: {activeToken || 'NONE'}
+              </DialogDescription>
             </div>
             <Button onClick={() => handleCopyJson(selectedLog?.response)} className="h-16 px-12 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-3xl">
               COPY_PAYLOAD
