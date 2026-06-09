@@ -23,20 +23,26 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ slug: string[] }> }
 ) {
+  const logContext = `[MONITORFLOW_POST_${Date.now()}]`;
   try {
     const { slug } = await params;
     const path = slug.join('/');
     const body = await getSafeBody(request);
+    const token = request.headers.get('INDIATOKEN') || request.headers.get('token') || "";
     
-    console.log(`[MONITORFLOW POST]: ${path}`, body);
+    console.log(`${logContext} PATH: ${path}`);
+    console.log(`${logContext} HEADERS:`, Object.fromEntries(request.headers.entries()));
+    console.log(`${logContext} BODY:`, body);
+    console.log(`${logContext} TOKEN:`, token);
 
     // MOCK OVERRIDES - Exact logic from user logs to ensure 200 OK
     if (path === 'one') {
+      console.log(`${logContext} Returning Mock for 'one'`);
       return jsonResponse({ pk: "ybNu1wFRq0ShgoT" });
     }
     
     if (path === 'check') {
-      // APK expects code 2052 "Ct Not Exist" as seen in logs
+      console.log(`${logContext} Returning Mock for 'check'`);
       return jsonResponse({
         code: 2052,
         msg: "Ct Not Exist",
@@ -50,26 +56,46 @@ export async function POST(
 
     // PROXY FALLBACK
     const targetUrl = `${OLD_SERVER_BASE}/monitorflow/${path}`;
+    console.log(`${logContext} Proxying to: ${targetUrl}`);
+    
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         ...STEALTH_HEADERS,
         'Content-Type': 'application/json',
-        'INDIATOKEN': request.headers.get('INDIATOKEN') || '',
+        'INDIATOKEN': token,
       },
       body: JSON.stringify(body),
       cache: 'no-store'
     });
 
-    if (!response.ok) {
-        return jsonResponse({ status: "proxy_fallback", msg: "Success" });
+    const text = await response.text();
+    console.log(`${logContext} UPSTREAM STATUS: ${response.status}`);
+    console.log(`${logContext} UPSTREAM BODY:`, text);
+
+    if (!text || !text.trim()) {
+      console.warn(`${logContext} Upstream returned empty body`);
+      return jsonResponse({ 
+        success: false, 
+        msg: "Upstream response empty",
+        status: response.status 
+      });
     }
 
-    const data = await response.json();
-    return jsonResponse(data);
+    try {
+      const data = JSON.parse(text);
+      return jsonResponse(data);
+    } catch (parseError) {
+      console.error(`${logContext} JSON Parse Error:`, parseError);
+      return jsonResponse({
+        success: false,
+        msg: "Upstream returned invalid JSON",
+        raw: text
+      });
+    }
   } catch (error: any) {
-    // Return success even on error to prevent app crash (Stealth Mode)
-    return jsonResponse({ code: 0, msg: "success", data: { status: "offline_fallback" } });
+    console.error(`${logContext} CRITICAL ERROR:`, error);
+    return jsonResponse({ code: 0, msg: "success", data: { status: "offline_fallback", error: error.message } });
   }
 }
 
@@ -77,28 +103,43 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string[] }> }
 ) {
+  const logContext = `[MONITORFLOW_GET_${Date.now()}]`;
   try {
     const { slug } = await params;
     const path = slug.join('/');
     const { search } = new URL(request.url);
+    const token = request.headers.get('INDIATOKEN') || request.headers.get('token') || "";
+    
     const targetUrl = `${OLD_SERVER_BASE}/monitorflow/${path}${search}`;
+    console.log(`${logContext} Proxying GET to: ${targetUrl}`);
+    console.log(`${logContext} TOKEN: ${token}`);
 
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
         ...STEALTH_HEADERS,
-        'INDIATOKEN': request.headers.get('INDIATOKEN') || '',
+        'INDIATOKEN': token,
       },
       cache: 'no-store'
     });
 
-    if (!response.ok) {
+    const text = await response.text();
+    console.log(`${logContext} UPSTREAM STATUS: ${response.status}`);
+    console.log(`${logContext} UPSTREAM BODY:`, text);
+
+    if (!text || !text.trim()) {
       return jsonResponse({ code: 0, msg: "success", data: [] });
     }
 
-    const data = await response.json();
-    return jsonResponse(data);
+    try {
+      const data = JSON.parse(text);
+      return jsonResponse(data);
+    } catch (parseError) {
+      console.error(`${logContext} JSON Parse Error:`, parseError);
+      return jsonResponse({ code: 0, msg: "success", data: [], raw: text });
+    }
   } catch (error: any) {
+    console.error(`${logContext} CRITICAL ERROR:`, error);
     return jsonResponse({ code: 0, msg: "success", data: [] });
   }
 }
