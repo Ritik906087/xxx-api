@@ -7,8 +7,13 @@ const SECRET_KEY = new TextEncoder().encode(process.env.ADMIN_JWT_SECRET || 'van
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Protect all /admin routes except login
-  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
+  // 1. Admin UI Protection
+  if (pathname.startsWith('/admin')) {
+    // Allow access to login page without token
+    if (pathname === '/admin/login') {
+      return NextResponse.next();
+    }
+
     const token = request.cookies.get('admin_token')?.value;
 
     if (!token) {
@@ -19,23 +24,29 @@ export async function middleware(request: NextRequest) {
       await jwtVerify(token, SECRET_KEY);
       return NextResponse.next();
     } catch (err) {
+      console.error('[MIDDLEWARE AUTH ERROR]:', err);
       return NextResponse.redirect(new URL('/admin/login', request.url));
     }
   }
 
-  // Protect admin API routes
-  if (pathname.startsWith('/api/admin') && pathname !== '/api/admin/login') {
+  // 2. Admin API Protection
+  if (pathname.startsWith('/api/admin')) {
+    // Allow login endpoint
+    if (pathname === '/api/admin/login') {
+      return NextResponse.next();
+    }
+
     const token = request.cookies.get('admin_token')?.value || request.headers.get('Authorization')?.split(' ')[1];
 
     if (!token) {
-      return NextResponse.json({ success: false, msg: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ success: false, msg: 'Security Bypass Detected: Unauthorized' }, { status: 401 });
     }
 
     try {
       await jwtVerify(token, SECRET_KEY);
       return NextResponse.next();
     } catch (err) {
-      return NextResponse.json({ success: false, msg: 'Invalid Session' }, { status: 401 });
+      return NextResponse.json({ success: false, msg: 'Invalid Admin Session' }, { status: 401 });
     }
   }
 

@@ -13,21 +13,31 @@ export async function POST(request: Request) {
     const { username, password } = body;
 
     if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-      const token = await createAdminToken({ username, role: 'super_admin' });
+      const token = await createAdminToken({ 
+        username, 
+        role: 'super_admin',
+        ts: Date.now() 
+      });
       
       const cookieStore = await cookies();
       cookieStore.set('admin_token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        path: '/', // Critical: Ensure cookie is available for all admin routes
         maxAge: 60 * 60 * 24 // 24 hours
       });
 
-      return jsonResponse({ success: true, msg: 'Login successful' });
+      return jsonResponse({ 
+        success: true, 
+        msg: 'Login successful',
+        redirect: '/admin'
+      });
     }
 
-    return errorResponse('Invalid credentials', 401);
+    return errorResponse('Access Denied: Invalid credentials.', 401);
   } catch (e: any) {
-    return errorResponse('Server Error', 500);
+    console.error('[ADMIN LOGIN ERROR]:', e);
+    return errorResponse('Identity Server Internal Error', 500);
   }
 }
