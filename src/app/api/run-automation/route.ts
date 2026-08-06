@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 /**
  * Helper to generate MD5 signature based on alphabetical sorting of keys.
+ * This ensures compatibility with the target server's verification engine.
  */
 function generateSignature(dataDict: Record<string, any>, sessionKey: string = "") {
   const sortedKeys = Object.keys(dataDict).sort();
@@ -15,137 +16,151 @@ function generateSignature(dataDict: Record<string, any>, sessionKey: string = "
 }
 
 /**
- * Next.js API Route for Automation Orchestration.
+ * Asynchronous delay helper for API pacing.
+ */
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+const TARGET_BASE_URL = "https://api.rswallet-api.com";
+
+const BROWSER_HEADERS = {
+  "Accept": "application/json, text/plain, */*",
+  "Content-Type": "application/json;charset=UTF-8",
+  "User-Agent": "Mozilla/5.0 (Linux; Android 10; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  "Origin": "https://api.rswallet-api.com",
+  "Referer": "https://api.rswallet-api.com/"
+};
+
+/**
+ * Senior Orchestrator for Multi-Step API Workflow.
  */
 export async function POST(request: Request) {
+  const logs: any[] = [];
+  
   try {
     const body = await request.json();
     const targetPhone = body.phone;
     const accountType = body.accountType || "1";
 
     if (!targetPhone) {
-      return NextResponse.json({ code: 400, message: "Phone number is required", logs: [] });
+      return NextResponse.json({ 
+        code: 400, 
+        message: "Identification required (Phone Number Missing)", 
+        logs: [] 
+      });
     }
 
-    // Generate Bot Identity
+    // 1. Generate Deterministic Bot Profile
     const firstDigit = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)];
     const remainingDigits = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
     const botPhone = firstDigit + remainingDigits;
-
+    
     const password = "Ritik@123";
-    const pinCode = "954073";
+    const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
     const referralCode = "0ealuckpayvp";
-    const targetBaseUrl = "https://api.rswallet-api.com";
 
-    const baseHeaders = {
-      "Accept": "application/json, text/plain, */*",
-      "Content-Type": "application/json;charset=UTF-8",
-      "User-Agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-    };
-
-    const logs: any[] = [];
-
-    // 1. Register Bot
-    const regRes = await fetch(`${targetBaseUrl}/app/auth/register`, {
+    // --- STEP 1: BOT REGISTRATION ---
+    await sleep(2000);
+    const regRes = await fetch(`${TARGET_BASE_URL}/app/auth/register`, {
       method: 'POST',
-      headers: baseHeaders,
+      headers: BROWSER_HEADERS,
       body: JSON.stringify({ phone: botPhone, password, referralCode })
     });
     const regJson = await regRes.json();
-    logs.push({ "Register (Bot)": regJson });
+    logs.push({ "Step 1: Bot Registration": regJson });
 
     if (regJson.code !== 200) {
-      return NextResponse.json({ code: 400, message: "Rate limit hit", logs });
+      return NextResponse.json({ code: 429, message: "Gateway Rate Limit or Registration Failure", logs });
     }
 
-    await new Promise(res => setTimeout(res, 1000));
-
-    // 2. Login Bot
-    const loginRes = await fetch(`${targetBaseUrl}/app/auth/login`, {
+    // --- STEP 2: AUTHENTICATION & TOKEN EXTRACTION ---
+    await sleep(2000);
+    const loginRes = await fetch(`${TARGET_BASE_URL}/app/auth/login`, {
       method: 'POST',
-      headers: baseHeaders,
+      headers: BROWSER_HEADERS,
       body: JSON.stringify({ phone: botPhone, password })
     });
     const loginJson = await loginRes.json();
-    logs.push({ "Login (Bot)": loginJson });
+    logs.push({ "Step 2: Bot Authentication": loginJson });
 
     if (loginJson.code !== 200) {
-      return NextResponse.json({ code: 400, message: "Login failed", logs });
+      return NextResponse.json({ code: 401, message: "Authentication Failed (Invalid Bot Session)", logs });
     }
 
-    const userId = loginJson.data.userId;
-    const token = loginJson.data.loginToken;
-    const sessionKey = loginJson.data.sessionKey || "";
-
+    const { userId, loginToken: token, sessionKey } = loginJson.data;
     const authHeaders: Record<string, string> = {
-      ...baseHeaders,
+      ...BROWSER_HEADERS,
       "Authorization": token,
       "token": token
     };
 
-    await new Promise(res => setTimeout(res, 1000));
-
-    // 3. Pin Bind
+    // --- STEP 3: SECURE PIN BINDING ---
+    await sleep(2000);
     let ts = Date.now();
     let pinPayload = { pinCode, ts, userId };
     authHeaders["Signature"] = generateSignature(pinPayload, sessionKey);
 
-    const bindRes = await fetch(`${targetBaseUrl}/app/secure/pin/bind`, {
+    const bindRes = await fetch(`${TARGET_BASE_URL}/app/secure/pin/bind`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
     });
     const bindJson = await bindRes.json();
-    logs.push({ "Pin Bind": bindJson });
+    logs.push({ "Step 3: Secure PIN Bind": bindJson });
 
-    await new Promise(res => setTimeout(res, 1000));
-
-    // 4. Pin Verify
+    // --- STEP 4: PIN VERIFICATION ---
+    await sleep(2000);
     ts = Date.now();
     pinPayload = { pinCode, ts, userId };
     authHeaders["Signature"] = generateSignature(pinPayload, sessionKey);
 
-    const verifyRes = await fetch(`${targetBaseUrl}/app/secure/pin/verify`, {
+    const verifyRes = await fetch(`${TARGET_BASE_URL}/app/secure/pin/verify`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
     });
     const verifyJson = await verifyRes.json();
-    logs.push({ "Pin Verify": verifyJson });
+    logs.push({ "Step 4: PIN Verification": verifyJson });
 
-    await new Promise(res => setTimeout(res, 1000));
-
-    // 5. Pre Check
+    // --- STEP 5: PRE-DISPATCH INTEGRITY CHECK ---
+    await sleep(2000);
     ts = Date.now();
     const prePayload = { mobile: targetPhone, type: 13, appPinCode: pinCode, ts, userId };
     authHeaders["Signature"] = generateSignature(prePayload, sessionKey);
 
-    const preRes = await fetch(`${targetBaseUrl}/app/bind/pre/check`, {
+    const preRes = await fetch(`${TARGET_BASE_URL}/app/bind/pre/check`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(prePayload)
     });
     const preJson = await preRes.json();
-    logs.push({ "Pre Check": preJson });
+    logs.push({ "Step 5: Pre-Check Integrity": preJson });
 
-    await new Promise(res => setTimeout(res, 1000));
-
-    // 6. Send OTP
+    // --- STEP 6: FINAL ACTION DISPATCH (OTP) ---
+    await sleep(2000);
     ts = Date.now();
     const otpPayload = { mobile: targetPhone, type: 13, accountType: String(accountType), ts, userId };
     authHeaders["Signature"] = generateSignature(otpPayload, sessionKey);
 
-    const otpRes = await fetch(`${targetBaseUrl}/app/bind/send/otp`, {
+    const otpRes = await fetch(`${TARGET_BASE_URL}/app/bind/send/otp`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(otpPayload)
     });
     const otpJson = await otpRes.json();
-    logs.push({ "Send OTP to Target": otpJson });
+    logs.push({ "Step 6: OTP Action Dispatch": otpJson });
 
-    return NextResponse.json({ code: 200, message: "Automation executed successfully", logs });
+    return NextResponse.json({ 
+      code: 200, 
+      message: "Orchestration sequence completed successfully", 
+      logs 
+    });
 
   } catch (err: any) {
-    return NextResponse.json({ code: 500, message: err.message, logs: [] });
+    console.error("[AUTOMATION_CRITICAL_FAULT]:", err);
+    return NextResponse.json({ 
+      code: 500, 
+      message: `System Fault: ${err.message}`, 
+      logs 
+    });
   }
 }
