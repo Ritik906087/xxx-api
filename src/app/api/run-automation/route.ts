@@ -43,6 +43,7 @@ const BROWSER_HEADERS = {
 
 /**
  * Handles CORS Preflight requests.
+ * This prevents the "Invalid CORS request" plain-text error in Next.js.
  */
 export async function OPTIONS() {
   return new NextResponse(null, {
