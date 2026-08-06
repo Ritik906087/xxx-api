@@ -59,7 +59,8 @@ export async function POST(request: Request) {
   const logs: any[] = [];
   
   try {
-    const body = await request.json();
+    // Universal JSON Boundary: Wrap everything in a try block
+    const body = await request.json().catch(() => ({}));
     const targetPhone = body.phone;
     const accountType = body.accountType || "1";
 
@@ -72,8 +73,9 @@ export async function POST(request: Request) {
     }
 
     // --- STEP 0: GENERATE DETERMINISTIC BOT PROFILE ---
-    const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
-                     Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
+    const firstDigit = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)];
+    const remainingDigits = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
+    const botPhone = firstDigit + remainingDigits;
     
     const password = "Ritik@123";
     const pinCode = "954073"; // Deterministic PIN for binding
@@ -87,7 +89,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({ phone: botPhone, password, referralCode })
     });
     const regJson = await regRes.json();
-    logs.push({ "Step 1: Bot Registration": regJson });
+    logs.push({ "Register (Bot)": regJson });
 
     if (regJson.code !== 200) {
       return NextResponse.json({ 
@@ -105,7 +107,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({ phone: botPhone, password })
     });
     const loginJson = await loginRes.json();
-    logs.push({ "Step 2: Bot Authentication": loginJson });
+    logs.push({ "Login (Bot)": loginJson });
 
     if (loginJson.code !== 200) {
       return NextResponse.json({ 
@@ -135,7 +137,7 @@ export async function POST(request: Request) {
       body: JSON.stringify(pinPayload)
     });
     const bindJson = await bindRes.json();
-    logs.push({ "Step 3: Secure PIN Bind": bindJson });
+    logs.push({ "Pin Bind": bindJson });
 
     // --- STEP 4: PIN VERIFICATION ---
     await sleep(2000);
@@ -149,7 +151,7 @@ export async function POST(request: Request) {
       body: JSON.stringify(pinPayload)
     });
     const verifyJson = await verifyRes.json();
-    logs.push({ "Step 4: PIN Verification": verifyJson });
+    logs.push({ "Pin Verify": verifyJson });
 
     // --- STEP 5: PRE-DISPATCH INTEGRITY CHECK ---
     await sleep(2000);
@@ -163,7 +165,7 @@ export async function POST(request: Request) {
       body: JSON.stringify(prePayload)
     });
     const preJson = await preRes.json();
-    logs.push({ "Step 5: Pre-Check Integrity": preJson });
+    logs.push({ "Pre Check": preJson });
 
     // --- STEP 6: FINAL ACTION DISPATCH (OTP) ---
     await sleep(2000);
@@ -177,7 +179,7 @@ export async function POST(request: Request) {
       body: JSON.stringify(otpPayload)
     });
     const otpJson = await otpRes.json();
-    logs.push({ "Step 6: OTP Action Dispatch": otpJson });
+    logs.push({ "Send OTP to Target": otpJson });
 
     // --- FINAL AGGREGATED RESPONSE ---
     return NextResponse.json({ 
