@@ -28,11 +28,13 @@ function generateSignature(data: Record<string, any>, sessionKey: string = "") {
  */
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const BROWSER_HEADERS = {
+/**
+ * STEALTH HEADERS: Impersonating the official client to bypass Target Server CORS checks.
+ */
+const STEALTH_HEADERS = {
   "Accept": "application/json, text/plain, */*",
   "Content-Type": "application/json;charset=UTF-8",
-  "User-Agent": "Mozilla/5.0 (Linux; Android 10; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-  "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+  "User-Agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
   "Origin": "https://api.rswallet-api.com",
   "Referer": "https://api.rswallet-api.com/"
 };
@@ -51,7 +53,7 @@ export async function runAutomation(targetPhone: string, accountType: string = "
   const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
                    Math.floor(100000000 + Math.random() * 900000000).toString().substring(1);
   const password = "Ritik@123";
-  const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const pinCode = "954073";
   const referralCode = "0ealuckpayvp";
 
   try {
@@ -59,20 +61,23 @@ export async function runAutomation(targetPhone: string, accountType: string = "
     await sleep(2000);
     const regResp = await fetch(`${TARGET_BASE_URL}/app/auth/register`, {
       method: 'POST',
-      headers: BROWSER_HEADERS,
+      headers: STEALTH_HEADERS,
       body: JSON.stringify({ phone: botPhone, password: password, referralCode: referralCode })
-    }).then(r => r.json());
+    }).then(async r => {
+      const text = await r.text();
+      try { return JSON.parse(text); } catch (e) { return { code: r.status, message: "Non-JSON response", raw: text.substring(0, 100) }; }
+    });
     logs.push({ "Step 1: Bot Registration": regResp });
 
     if (regResp.code !== 200) {
-      return { code: 429, message: "Gateway Rate Limit or Registration Error", logs };
+      return { code: 429, message: regResp.message || "Gateway Rate Limit or Registration Error", logs };
     }
 
     // STEP 2: AUTHENTICATION & TOKEN EXTRACTION
     await sleep(2000);
     const loginResp = await fetch(`${TARGET_BASE_URL}/app/auth/login`, {
       method: 'POST',
-      headers: BROWSER_HEADERS,
+      headers: STEALTH_HEADERS,
       body: JSON.stringify({ phone: botPhone, password: password })
     }).then(r => r.json());
     logs.push({ "Step 2: Bot Login": loginResp });
@@ -82,7 +87,7 @@ export async function runAutomation(targetPhone: string, accountType: string = "
     }
 
     const { userId, loginToken: token, sessionKey } = loginResp.data;
-    const authHeaders: any = { ...BROWSER_HEADERS, "Authorization": token, "token": token };
+    const authHeaders: any = { ...STEALTH_HEADERS, "Authorization": token, "token": token };
 
     // STEP 3: SECURE PIN BINDING
     await sleep(2000);

