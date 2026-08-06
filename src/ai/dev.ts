@@ -1,4 +1,6 @@
+
 import { config } from 'dotenv';
 config();
 
-import '@/ai/flows/ai-fraud-detection-for-transactions.ts';
+// Automation engine requires no Genkit flows for now
+console.log('Automation Environment Initialized');

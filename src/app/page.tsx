@@ -1,202 +1,167 @@
+
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { Shield, Server, Zap, Globe, Terminal, Activity, CheckCircle2, AlertCircle, RefreshCcw, Send, Lock, KeyRound, Loader2, Play, ExternalLink } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Loader2, Play, Terminal, Shield, Zap } from 'lucide-react';
+import { runAutomation } from '@/app/actions/vantage-actions';
 import { useToast } from '@/hooks/use-toast';
-import { requestOTP, verifyOTP } from '@/app/actions/vantage-actions';
-import { DashboardView } from '@/components/vantage/dashboard-view';
 
-export default function ArchitectDashboard() {
-  const [phone, setPhone] = useState('919060873927');
-  const [otp, setOtp] = useState('');
+export default function AutomationDashboard() {
+  const [phone, setPhone] = useState('');
+  const [accountType, setAccountType] = useState('1');
   const [isLoading, setIsLoading] = useState(false);
-  const [lastSentOtp, setLastSentOtp] = useState<string | null>(null);
-  const [authenticatedUser, setAuthenticatedUser] = useState<any>(null);
+  const [logs, setLogs] = useState<any[]>([]);
   const { toast } = useToast();
 
-  // Clear stale tokens on mount for fresh session simulation
-  useEffect(() => {
-    const savedUser = localStorage.getItem('vantage_session_user');
-    if (savedUser) {
-      setAuthenticatedUser(JSON.parse(savedUser));
-    }
-  }, []);
-
-  const handleTriggerOTP = async () => {
+  const handleRunAutomation = async () => {
     if (!phone) {
-      toast({ variant: 'destructive', title: "Error", description: "Mobile number is required" });
+      toast({ variant: 'destructive', title: "Error", description: "Target phone is required" });
       return;
     }
-    setIsLoading(true);
-    try {
-      const res = await requestOTP(phone);
-      if (res.success) {
-        setLastSentOtp(res.dev_otp || null);
-        toast({
-          title: "OTP Sent Successfully",
-          description: `API: Monexo | Status: 200 OK | Sent to: ${phone}`,
-        });
-      } else {
-        toast({
-          variant: 'destructive',
-          title: "SMS Gateway Error",
-          description: res.message,
-        });
-      }
-    } catch (e) {
-      toast({ variant: 'destructive', title: "Network Error", description: "Could not connect to SMS route" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const handleVerifyOTP = async () => {
     setIsLoading(true);
+    setLogs([]);
+    
     try {
-      // 1. Internal Validation
-      const verifyRes = await verifyOTP("user@example.com", otp);
+      const result = await runAutomation(phone, accountType);
+      setLogs(result.logs || []);
       
-      if (verifyRes.success) {
-        // 2. Critical: Establish Identity Mapping with Backend and get naya token
-        const loginRes = await fetch('/api/xxapi/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mobileNo: phone })
-        });
-        
-        const loginData = await loginRes.json();
-        
-        if (loginRes.ok && loginData.data) {
-          const newToken = loginData.data;
-          const userData = { ...verifyRes.user, mobileNo: phone, token: newToken };
-          
-          // 3. Save new token and user data
-          localStorage.setItem('vantage_session_token', newToken);
-          localStorage.setItem('vantage_session_user', JSON.stringify(userData));
-          
-          setAuthenticatedUser(userData);
-          
-          toast({
-            title: "Session Authorized",
-            description: `Token: ${newToken} | Identity Linked`,
-          });
-        } else {
-          throw new Error("Identity Mapping Failed");
-        }
+      if (result.code === 200) {
+        toast({ title: "Success", description: result.message });
       } else {
-        toast({
-          variant: 'destructive',
-          title: "Auth Failed",
-          description: verifyRes.message,
-        });
+        toast({ variant: 'destructive', title: "Automation Failed", description: result.message });
       }
     } catch (e: any) {
-      toast({ variant: 'destructive', title: "Critical Auth Error", description: e.message });
+      toast({ variant: 'destructive', title: "Critical Error", description: e.message });
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (authenticatedUser) {
-    return <DashboardView user={authenticatedUser} />;
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-code selection:bg-blue-600 selection:text-white">
-      {/* Top Header */}
-      <header className="border-b border-slate-200 bg-white/90 backdrop-blur-md sticky top-0 z-50 px-6 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white text-xl shadow-sm">M</div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-headline font-bold text-lg tracking-tight text-slate-900">Monexo Hybrid API Gateway</h1>
-              <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] uppercase animate-pulse">Live Status</Badge>
+    <div className="min-h-screen bg-slate-950 text-slate-50 font-code p-6 md:p-12 selection:bg-blue-600 selection:text-white">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-8">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-blue-600/20">
+              <Zap className="w-8 h-8 fill-current" />
             </div>
-            <p className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold">MongoDB Atlas & Supabase Core</p>
+            <div>
+              <h1 className="text-4xl font-headline font-black tracking-tight">VANTAGE AUTOMATION</h1>
+              <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.3em] mt-1">RS-WALLET MULTI-STEP ENGINE v3.0</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <Button 
-            asChild
-            className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold px-6 h-10 shadow-md shadow-blue-500/20 flex gap-2"
-          >
-            <Link href="/get">
-              <ExternalLink className="w-4 h-4" />
-              GET RESULTS
-            </Link>
-          </Button>
-        </div>
-      </header>
+          <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-4 py-2 text-[10px] uppercase font-black">System Ready</Badge>
+        </header>
 
-      <main className="max-w-7xl mx-auto p-6 space-y-8">
-        <section className="space-y-4">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold ml-1 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Monexo SMS Gateway (MeraOTP.in)
-          </div>
-          <Card className="bg-white border-slate-200 p-8 space-y-6 shadow-sm">
-            <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Phase 1: OTP Initiation</label>
-              <div className="flex gap-4">
-                <div className="relative flex-1">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Controls */}
+          <div className="lg:col-span-4 space-y-6">
+            <Card className="bg-slate-900 border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
+              <CardHeader className="p-8 border-b border-slate-800">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400">Target Configuration</CardTitle>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Target Phone</label>
                   <Input 
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. 919060873927"
-                    className="bg-slate-50 border-slate-200 text-sm font-code h-12 pl-4 focus:border-blue-500 transition-all"
+                    placeholder="e.g. 9060873927"
+                    className="bg-slate-950 border-slate-800 text-blue-400 h-14 rounded-2xl focus:ring-blue-600 focus:border-blue-600 transition-all font-bold text-lg"
                   />
-                  <div className="absolute right-3 top-3.5 text-[10px] text-slate-400 font-bold">MOBILE_NO</div>
                 </div>
-                <Button 
-                  onClick={handleTriggerOTP}
-                  disabled={isLoading}
-                  className="bg-slate-900 text-white hover:bg-slate-800 text-[10px] uppercase font-bold h-12 px-8 min-w-[200px] shadow-sm"
-                >
-                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send SMS Request"}
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Phase 2: Validation</label>
-              <div className="flex gap-4">
-                <div className="relative flex-1">
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Account Type</label>
                   <Input 
-                    placeholder="Enter 4-digit code"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    maxLength={4}
-                    className="bg-slate-50 border-slate-200 text-sm font-code h-12 pl-4 focus:border-blue-500 transition-all tracking-[0.5em]"
+                    value={accountType}
+                    onChange={(e) => setAccountType(e.target.value)}
+                    placeholder="1"
+                    className="bg-slate-950 border-slate-800 text-slate-400 h-14 rounded-2xl"
                   />
-                  <div className="absolute right-3 top-3.5 text-[10px] text-slate-400 font-bold uppercase">TOKEN</div>
                 </div>
                 <Button 
-                  onClick={handleVerifyOTP}
-                  disabled={isLoading || otp.length < 4}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] uppercase font-bold h-12 px-8 shadow-md shadow-blue-500/20"
+                  onClick={handleRunAutomation}
+                  disabled={isLoading}
+                  className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-600/20 transition-all active:scale-95 flex gap-3"
                 >
-                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Authenticate Session"}
+                  {isLoading ? <Loader2 className="animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                  Execute Automation
                 </Button>
-              </div>
-              {lastSentOtp && (
-                <div className="bg-blue-50 border border-blue-100 p-2 rounded mt-2">
-                  <p className="text-[10px] text-blue-600 font-bold">DEBUG_OTP_RECOVERY: {lastSentOtp}</p>
-                </div>
-              )}
-            </div>
-          </Card>
-        </section>
+              </CardContent>
+            </Card>
 
-        <footer className="pt-8 pb-12 text-center border-t border-slate-200">
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.3em]">
-            Monexo Enterprise Backend • Optimized for High Scale
-          </p>
+            <Card className="bg-slate-900 border-slate-800 rounded-[2.5rem] p-8">
+              <div className="flex items-center gap-4 text-emerald-500 mb-4">
+                <Shield className="w-5 h-5" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Security Protocol</span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-bold leading-relaxed">
+                MD5 Signatures are automatically generated for each packet. Session keys are derived from real-time bot login responses.
+              </p>
+            </Card>
+          </div>
+
+          {/* Logs */}
+          <div className="lg:col-span-8">
+            <Card className="bg-slate-900 border-slate-800 rounded-[2.5rem] overflow-hidden h-full flex flex-col shadow-2xl">
+              <CardHeader className="p-8 border-b border-slate-800 flex flex-row items-center justify-between">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-3">
+                  <Terminal className="w-5 h-5 text-blue-500" />
+                  Execution Ledger
+                </CardTitle>
+                {isLoading && <Badge className="bg-blue-600 animate-pulse text-[8px]">Processing Step {logs.length + 1}...</Badge>}
+              </CardHeader>
+              <CardContent className="flex-1 p-0 overflow-hidden bg-slate-950/50">
+                <div className="h-[600px] overflow-y-auto p-8 terminal-scroll font-mono text-sm">
+                  {logs.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-700 space-y-4">
+                      <Terminal className="w-12 h-12 opacity-20" />
+                      <p className="text-[10px] uppercase font-black tracking-widest">Waiting for execution command...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {logs.map((log, idx) => {
+                        const stepName = Object.keys(log)[0];
+                        const stepData = log[stepName];
+                        return (
+                          <div key={idx} className="border-l-2 border-blue-600/30 pl-6 py-2 group hover:border-blue-500 transition-all">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-[10px] font-black text-blue-500">STEP_{idx + 1}</span>
+                              <span className="text-[10px] font-black uppercase text-slate-300">{stepName}</span>
+                              <Badge variant="outline" className={`text-[8px] border-slate-800 ${stepData.code === 200 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                STATUS_{stepData.code}
+                              </Badge>
+                            </div>
+                            <pre className="text-[12px] text-slate-500 bg-slate-900/50 p-4 rounded-xl overflow-x-auto border border-slate-800/50">
+                              {JSON.stringify(stepData, null, 2)}
+                            </pre>
+                          </div>
+                        );
+                      })}
+                      {isLoading && (
+                        <div className="flex items-center gap-3 text-blue-500 animate-pulse pl-6">
+                          <span className="text-xs">_</span>
+                          <span className="text-[10px] font-black uppercase">Sequencing next packet...</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <footer className="text-center pt-8 border-t border-slate-900">
+          <p className="text-[10px] text-slate-700 font-black uppercase tracking-[0.5em]">Institutional Data Bypass Protocol • Secure Node US-EAST</p>
         </footer>
-      </main>
+      </div>
     </div>
   );
 }
