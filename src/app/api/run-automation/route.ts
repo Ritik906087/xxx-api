@@ -18,7 +18,6 @@ const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 /**
  * Platform URL Mapping
- * Map platform ID to its specific named Auth path
  */
 const PLATFORM_PATH_MAP: Record<number, string> = {
   1: "freechargeAuth",
@@ -66,8 +65,10 @@ export async function POST(request: Request) {
   
   try {
     const body = await request.json().catch(() => ({}));
+    const action = body.action || "send-otp"; // "send-otp" or "verify-otp"
     const targetPhone = body.phone;
-    const platformId = body.platform || 2; // Default to MobiKwik
+    const platformId = body.platform || 2;
+    const otp = body.otp;
 
     if (!targetPhone || targetPhone.length < 10) {
       return NextResponse.json({ 
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
 
     const platformPath = PLATFORM_PATH_MAP[platformId] || "mobikwikAuth";
 
-    // Step 1: Login to JCoinPay
+    // Step 1: Login to JCoinPay (Required for all actions)
     const loginPayload = { phone: "7870873927", pwd: "Ritik123" };
     const loginJson = await jFetch(`${TARGET_BASE_URL}/app/user/login/pwd`, 'POST', {}, loginPayload);
     logs.push({ "Step 1: Identity Auth (Login)": loginJson });
@@ -91,37 +92,73 @@ export async function POST(request: Request) {
     const payToken = loginJson.data.tokenValue;
     const authHeaders = { 'PAY': payToken };
 
-    // Step 2: Sync Home Environment
-    await sleep(1500);
-    const homeJson = await jFetch(`${TARGET_BASE_URL}/app/home`, 'GET', authHeaders);
-    logs.push({ "Step 2: Environment Sync (Home)": homeJson });
+    if (action === "send-otp") {
+      // Step 2: Sync Home Environment
+      await sleep(1500);
+      const homeJson = await jFetch(`${TARGET_BASE_URL}/app/home`, 'GET', authHeaders);
+      logs.push({ "Step 2: Environment Sync (Home)": homeJson });
 
-    // Step 3: Check Tool Support
-    await sleep(1500);
-    const supportJson = await jFetch(`${TARGET_BASE_URL}/app/tool/support`, 'GET', authHeaders);
-    logs.push({ "Step 3: Tool Integrity Check": supportJson });
+      // Step 3: Check Tool Support
+      await sleep(1500);
+      const supportJson = await jFetch(`${TARGET_BASE_URL}/app/tool/support`, 'GET', authHeaders);
+      logs.push({ "Step 3: Tool Integrity Check": supportJson });
 
-    // Step 4: Verify Security PIN
-    await sleep(1500);
-    const pinPayload = { pin: "954073" };
-    const pinJson = await jFetch(`${TARGET_BASE_URL}/app/user/checkPin`, 'POST', authHeaders, pinPayload);
-    logs.push({ "Step 4: PIN Verification": pinJson });
+      // Step 4: Verify Security PIN
+      await sleep(1500);
+      const pinPayload = { pin: "954073" };
+      const pinJson = await jFetch(`${TARGET_BASE_URL}/app/user/checkPin`, 'POST', authHeaders, pinPayload);
+      logs.push({ "Step 4: PIN Verification": pinJson });
 
-    if (pinJson.code !== "200") {
-      return NextResponse.json({ code: 400, message: "Security Fault: PIN rejected by upstream", logs }, { status: 200, headers: CORS_HEADERS });
+      if (pinJson.code !== "200") {
+        return NextResponse.json({ code: 400, message: "Security Fault: PIN rejected by upstream", logs }, { status: 200, headers: CORS_HEADERS });
+      }
+
+      // Step 5: Final OTP Dispatch
+      await sleep(1500);
+      const otpPayload = { phone: targetPhone, platform: platformId };
+      const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
+      logs.push({ [`Step 5: ${platformPath.replace('Auth', '')} Action Trigger`]: otpJson });
+
+      return NextResponse.json({ 
+        code: 200, 
+        message: "OTP Dispatch sequence processed.", 
+        logs 
+      }, { status: 200, headers: CORS_HEADERS });
+
+    } else if (action === "verify-otp") {
+      if (!otp) {
+        return NextResponse.json({ code: 400, message: "OTP required for verification", logs }, { status: 200, headers: CORS_HEADERS });
+      }
+
+      // Step 2: OTP Verification
+      await sleep(1500);
+      const verifyPayload = { 
+        phone: targetPhone, 
+        cookie: otp, 
+        txnParams: null, 
+        platform: platformId 
+      };
+      
+      const verifyJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step2/2`, 'POST', authHeaders, verifyPayload);
+      logs.push({ [`Step 2: ${platformPath.replace('Auth', '')} Verification Result`]: verifyJson });
+
+      if (verifyJson.code === "200") {
+        return NextResponse.json({ 
+          code: 200, 
+          message: "Verification successful", 
+          upis: verifyJson.data?.upis,
+          logs 
+        }, { status: 200, headers: CORS_HEADERS });
+      } else {
+        return NextResponse.json({ 
+          code: 400, 
+          message: verifyJson.msg || "Verification failed", 
+          logs 
+        }, { status: 200, headers: CORS_HEADERS });
+      }
     }
 
-    // Step 5: Final OTP Dispatch (Dynamic Platform)
-    await sleep(1500);
-    const otpPayload = { phone: targetPhone, platform: platformId };
-    const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
-    logs.push({ [`Step 5: ${platformPath.replace('Auth', '')} Action Trigger`]: otpJson });
-
-    return NextResponse.json({ 
-      code: 200, 
-      message: "JCoinPay Orchestration processed.", 
-      logs 
-    }, { status: 200, headers: CORS_HEADERS });
+    return NextResponse.json({ code: 400, message: "Invalid Action", logs }, { status: 200, headers: CORS_HEADERS });
 
   } catch (err: any) {
     return NextResponse.json({ 

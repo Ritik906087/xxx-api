@@ -25,7 +25,9 @@ import {
   History,
   Lock,
   Smartphone,
-  Wallet
+  Wallet,
+  CheckCircle2,
+  KeyRound
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -41,8 +43,11 @@ const PLATFORMS = [
 
 export default function AutomationDashboard() {
   const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
   const [platform, setPlatform] = useState('2');
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -65,12 +70,13 @@ export default function AutomationDashboard() {
 
     setIsLoading(true);
     setLogs([]);
+    setOtpSent(false);
     
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, platform: parseInt(platform) })
+        body: JSON.stringify({ action: 'send-otp', phone, platform: parseInt(platform) })
       });
       
       const result = await res.json();
@@ -78,9 +84,10 @@ export default function AutomationDashboard() {
       
       if (result.code === 200) {
         const platformName = PLATFORMS.find(p => p.id === platform)?.name || 'Platform';
+        setOtpSent(true);
         toast({ 
-          title: "Sequence Success", 
-          description: `${platformName} OTP flow completed successfully.` 
+          title: "OTP Dispatched", 
+          description: `Code sent to ${phone} via ${platformName}.` 
         });
       } else {
         toast({ 
@@ -100,6 +107,51 @@ export default function AutomationDashboard() {
     }
   };
 
+  const handleVerifyOtp = async () => {
+    if (!otp || otp.length < 4) {
+      toast({ 
+        variant: 'destructive', 
+        title: "Validation Error", 
+        description: "Valid OTP code is required." 
+      });
+      return;
+    }
+
+    setIsVerifying(true);
+    
+    try {
+      const res = await fetch('/api/run-automation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify-otp', phone, platform: parseInt(platform), otp })
+      });
+      
+      const result = await res.json();
+      setLogs(prev => [...prev, ...result.logs]);
+      
+      if (result.code === 200) {
+        toast({ 
+          title: "Identity Verified", 
+          description: `UPI ID Extracted: ${result.upis || 'Pending'}` 
+        });
+      } else {
+        toast({ 
+          variant: 'destructive', 
+          title: "Verification Failed", 
+          description: result.message || "Invalid OTP code." 
+        });
+      }
+    } catch (e: any) {
+      toast({ 
+        variant: 'destructive', 
+        title: "Network Boundary Error", 
+        description: "Could not reach the verification controller." 
+      });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#020617] text-slate-50 font-code p-6 md:p-12 selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -112,7 +164,7 @@ export default function AutomationDashboard() {
             <div>
               <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">JCoinPay Engine</h1>
               <div className="flex items-center gap-3 mt-1.5">
-                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Multi-Provider V3</Badge>
+                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Multi-Step Verification V3</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
                   Gateway: jcoinpay.vip
@@ -166,42 +218,64 @@ export default function AutomationDashboard() {
                       placeholder="Enter 10-digit mobile"
                       className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl focus:ring-blue-600 font-black text-lg pl-6 transition-all group-hover:border-blue-500/50"
                     />
-                    <Zap className="absolute right-6 top-5 w-5 h-5 text-slate-700 group-hover:text-blue-500 transition-colors" />
+                    <Smartphone className="absolute right-6 top-5 w-5 h-5 text-slate-700 group-hover:text-blue-500 transition-colors" />
                   </div>
                 </div>
 
-                <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 space-y-4">
-                   <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                      <span className="text-slate-500">Security PIN</span>
-                      <span className="text-emerald-400">954073 (AUTH)</span>
-                   </div>
-                   <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                      <span className="text-slate-500">Identity Mode</span>
-                      <span className="text-blue-400">Enterprise Payload</span>
-                   </div>
-                </div>
+                {otpSent && (
+                  <div className="space-y-3 animate-in slide-in-from-top-4 duration-500">
+                    <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1 flex items-center gap-2">
+                      <KeyRound className="w-3 h-3" />
+                      Verification Code (OTP)
+                    </label>
+                    <div className="relative group">
+                      <Input 
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        placeholder="Enter OTP Received"
+                        className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl focus:ring-emerald-500 font-black text-lg pl-6 transition-all group-hover:border-emerald-500/50"
+                      />
+                      <Zap className="absolute right-6 top-5 w-5 h-5 text-emerald-900 group-hover:text-emerald-500 transition-colors" />
+                    </div>
+                  </div>
+                )}
 
-                <Button 
-                  onClick={handleRunAutomation}
-                  disabled={isLoading}
-                  className={cn(
-                    "w-full h-20 rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl",
-                    isLoading ? "bg-slate-800 text-slate-600" : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 active:scale-95"
+                <div className="grid grid-cols-1 gap-4">
+                  <Button 
+                    onClick={handleRunAutomation}
+                    disabled={isLoading || isVerifying}
+                    className={cn(
+                      "w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl",
+                      isLoading ? "bg-slate-800 text-slate-600" : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 active:scale-95"
+                    )}
+                  >
+                    {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                    {isLoading ? "Dispatching..." : otpSent ? "Resend OTP" : "Step 1: Get OTP"}
+                  </Button>
+
+                  {otpSent && (
+                    <Button 
+                      onClick={handleVerifyOtp}
+                      disabled={isLoading || isVerifying}
+                      className={cn(
+                        "w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 active:scale-95"
+                      )}
+                    >
+                      {isVerifying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      {isVerifying ? "Verifying..." : "Step 2: Verify & Extract"}
+                    </Button>
                   )}
-                >
-                  {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-                  {isLoading ? "Executing Packets..." : "Trigger OTP Sequence"}
-                </Button>
+                </div>
               </CardContent>
             </Card>
 
             <div className="bg-slate-900/30 border border-slate-800 rounded-3xl p-8 space-y-4">
               <div className="flex items-center gap-3 text-emerald-500">
                 <Lock className="w-4 h-4" />
-                <span className="text-[9px] font-black uppercase tracking-widest">Security Advisory</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">Verification Advisory</span>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-                Automation utilizes a secure background worker to handle Login PWD {'->'} PAY token extraction {'->'} Multi-platform OTP dispatch. This session is cryptographically signed.
+                Automation workflow handles Login PWD {'->'} PAY token extraction {'->'} Multi-platform OTP dispatch {'->'} Verification Step 2 with cookie-based handshake.
               </p>
             </div>
           </div>
@@ -250,7 +324,7 @@ export default function AutomationDashboard() {
                           </div>
                         );
                       })}
-                      {isLoading && (
+                      {(isLoading || isVerifying) && (
                         <div className="flex items-center gap-4 text-emerald-500 animate-pulse pl-6">
                           <RefreshCw className="w-3 h-3 animate-spin" />
                           <span className="text-[9px] font-black uppercase tracking-widest">Synchronizing Upstream Handshake...</span>
