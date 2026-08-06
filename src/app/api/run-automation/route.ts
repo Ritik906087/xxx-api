@@ -2,6 +2,16 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 
 /**
+ * Standardized CORS Headers for Cross-Origin compatibility.
+ */
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE, PUT',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, token',
+  'Access-Control-Max-Age': '86400',
+};
+
+/**
  * Helper to generate MD5 signature based on alphabetical sorting of keys.
  * This ensures compatibility with the target server's verification engine.
  */
@@ -31,7 +41,17 @@ const BROWSER_HEADERS = {
 };
 
 /**
- * Senior Orchestrator for Multi-Step API Workflow.
+ * Handles OPTIONS preflight requests for CORS.
+ */
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
+/**
+ * Senior Orchestrator for Multi-Step API Workflow with JSON Boundary.
  */
 export async function POST(request: Request) {
   const logs: any[] = [];
@@ -46,7 +66,7 @@ export async function POST(request: Request) {
         code: 400, 
         message: "Identification required (Phone Number Missing)", 
         logs: [] 
-      });
+      }, { status: 200, headers: CORS_HEADERS });
     }
 
     // 1. Generate Deterministic Bot Profile
@@ -69,7 +89,11 @@ export async function POST(request: Request) {
     logs.push({ "Step 1: Bot Registration": regJson });
 
     if (regJson.code !== 200) {
-      return NextResponse.json({ code: 429, message: "Gateway Rate Limit or Registration Failure", logs });
+      return NextResponse.json({ 
+        code: 429, 
+        message: "Gateway Rate Limit or Registration Failure", 
+        logs 
+      }, { status: 200, headers: CORS_HEADERS });
     }
 
     // --- STEP 2: AUTHENTICATION & TOKEN EXTRACTION ---
@@ -83,7 +107,11 @@ export async function POST(request: Request) {
     logs.push({ "Step 2: Bot Authentication": loginJson });
 
     if (loginJson.code !== 200) {
-      return NextResponse.json({ code: 401, message: "Authentication Failed (Invalid Bot Session)", logs });
+      return NextResponse.json({ 
+        code: 401, 
+        message: "Authentication Failed (Invalid Bot Session)", 
+        logs 
+      }, { status: 200, headers: CORS_HEADERS });
     }
 
     const { userId, loginToken: token, sessionKey } = loginJson.data;
@@ -153,14 +181,14 @@ export async function POST(request: Request) {
       code: 200, 
       message: "Orchestration sequence completed successfully", 
       logs 
-    });
+    }, { status: 200, headers: CORS_HEADERS });
 
   } catch (err: any) {
     console.error("[AUTOMATION_CRITICAL_FAULT]:", err);
     return NextResponse.json({ 
       code: 500, 
       message: `System Fault: ${err.message}`, 
-      logs 
-    });
+      logs: logs.length > 0 ? logs : [] 
+    }, { status: 200, headers: CORS_HEADERS });
   }
 }
