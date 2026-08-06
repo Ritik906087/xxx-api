@@ -1,18 +1,17 @@
-
 'use server';
 
 import crypto from 'crypto';
 
 /**
- * @fileOverview Core Automation Engine for Vantage Suite.
- * Handles cryptographic signing, bot lifecycle management, and secure API orchestration.
+ * @fileOverview Senior Automation Engine for Vantage Suite.
+ * Handles cryptographic signing, multi-step REST orchestration, and anti-bot mitigation.
  */
 
 const TARGET_BASE_URL = "https://api.rswallet-api.com";
 
 /**
+ * Cryptographic Signature Engine
  * Generates an MD5 signature based on alphabetical sorting of keys.
- * Matches the exact cryptographic pattern required by the target gateway.
  */
 function generateSignature(data: Record<string, any>, sessionKey: string = "") {
   const sortedKeys = Object.keys(data).sort();
@@ -25,25 +24,21 @@ function generateSignature(data: Record<string, any>, sessionKey: string = "") {
 }
 
 /**
- * Throttling helper to mitigate rate-limiting and mimic human behavior.
+ * Async Pacing Helper (Throttling)
  */
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Realistic browser headers to bypass basic anti-bot detection.
- */
-const SECURE_HEADERS = {
+const BROWSER_HEADERS = {
   "Accept": "application/json, text/plain, */*",
   "Content-Type": "application/json;charset=UTF-8",
-  "User-Agent": "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36",
-  "Accept-Language": "en-US,en;q=0.9",
+  "User-Agent": "Mozilla/5.0 (Linux; Android 10; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
   "Origin": "https://api.rswallet-api.com",
-  "Referer": "https://api.rswallet-api.com/",
-  "Connection": "keep-alive"
+  "Referer": "https://api.rswallet-api.com/"
 };
 
 /**
- * Main Automation Workflow: Executes a multi-step sequence to trigger target OTP.
+ * Multi-Step Sequential Orchestrator
  */
 export async function runAutomation(targetPhone: string, accountType: string = "1") {
   const logs: any[] = [];
@@ -53,126 +48,101 @@ export async function runAutomation(targetPhone: string, accountType: string = "
   }
 
   // Generate Deterministic Bot Profile
-  const firstDigit = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)];
-  const remainingDigits = Math.floor(100000000 + Math.random() * 900000000).toString().substring(1);
-  const botPhone = firstDigit + remainingDigits;
+  const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
+                   Math.floor(100000000 + Math.random() * 900000000).toString().substring(1);
   const password = "Ritik@123";
   const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
   const referralCode = "0ealuckpayvp";
 
   try {
     // STEP 1: BOT REGISTRATION
-    await sleep(2000 + Math.random() * 1000);
+    await sleep(2000);
     const regResp = await fetch(`${TARGET_BASE_URL}/app/auth/register`, {
       method: 'POST',
-      headers: SECURE_HEADERS,
-      body: JSON.stringify({
-        phone: botPhone,
-        password: password,
-        referralCode: referralCode,
-      })
+      headers: BROWSER_HEADERS,
+      body: JSON.stringify({ phone: botPhone, password: password, referralCode: referralCode })
     }).then(r => r.json());
-    logs.push({ "REGISTRATION_BOT": regResp });
+    logs.push({ "Step 1: Bot Registration": regResp });
 
     if (regResp.code !== 200) {
-      return { code: 429, message: "Gateway Rate Limit Detected (Bot Registration)", logs };
+      return { code: 429, message: "Gateway Rate Limit or Registration Error", logs };
     }
 
-    // STEP 2: BOT AUTHORIZATION (SESSION ESTABLISHMENT)
-    await sleep(2000 + Math.random() * 1000);
+    // STEP 2: AUTHENTICATION & TOKEN EXTRACTION
+    await sleep(2000);
     const loginResp = await fetch(`${TARGET_BASE_URL}/app/auth/login`, {
       method: 'POST',
-      headers: SECURE_HEADERS,
+      headers: BROWSER_HEADERS,
       body: JSON.stringify({ phone: botPhone, password: password })
     }).then(r => r.json());
-    logs.push({ "AUTHORIZATION_BOT": loginResp });
+    logs.push({ "Step 2: Bot Login": loginResp });
 
     if (loginResp.code !== 200) {
-      return { code: 401, message: "Session Establishment Failed", logs };
+      return { code: 401, message: "Authentication Failed", logs };
     }
 
-    const loginData = loginResp.data || {};
-    const userId = loginData.userId;
-    const token = loginData.loginToken;
-    const sessionKey = loginData.sessionKey || "";
-
-    const authHeaders: any = { 
-      ...SECURE_HEADERS,
-      "Authorization": token,
-      "token": token
-    };
+    const { userId, loginToken: token, sessionKey } = loginResp.data;
+    const authHeaders: any = { ...BROWSER_HEADERS, "Authorization": token, "token": token };
 
     // STEP 3: SECURE PIN BINDING
     await sleep(2000);
     let ts = Date.now();
-    const pinPayload = { pinCode: pinCode, ts: ts, userId: userId };
-    authHeaders["Signature"] = generate_signature(pinPayload, sessionKey);
+    let pinPayload = { pinCode, ts, userId };
+    authHeaders["Signature"] = generateSignature(pinPayload, sessionKey);
 
     const pinBindResp = await fetch(`${TARGET_BASE_URL}/app/secure/pin/bind`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
     }).then(r => r.json());
-    logs.push({ "PIN_BIND_HANDSHAKE": pinBindResp });
+    logs.push({ "Step 3: Secure PIN Bind": pinBindResp });
 
     // STEP 4: PIN VERIFICATION
     await sleep(2000);
     ts = Date.now();
-    const pinVerifyPayload = { pinCode: pinCode, ts: ts, userId: userId };
-    authHeaders["Signature"] = generate_signature(pinVerifyPayload, sessionKey);
+    pinPayload = { pinCode, ts, userId };
+    authHeaders["Signature"] = generateSignature(pinPayload, sessionKey);
 
     const pinVerifyResp = await fetch(`${TARGET_BASE_URL}/app/secure/pin/verify`, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify(pinVerifyPayload)
+      body: JSON.stringify(pinPayload)
     }).then(r => r.json());
-    logs.push({ "PIN_VERIFICATION": pinVerifyResp });
+    logs.push({ "Step 4: PIN Verification": pinVerifyResp });
 
-    // STEP 5: PRE-BINDING INTEGRITY CHECK
+    // STEP 5: PRE-DISPATCH INTEGRITY CHECK
     await sleep(2000);
     ts = Date.now();
-    const prePayload = {
-      mobile: targetPhone,
-      type: 13,
-      appPinCode: pinCode,
-      ts: ts,
-      userId: userId,
-    };
-    authHeaders["Signature"] = generate_signature(prePayload, sessionKey);
+    const prePayload = { mobile: targetPhone, type: 13, appPinCode: pinCode, ts, userId };
+    authHeaders["Signature"] = generateSignature(prePayload, sessionKey);
 
     const preResp = await fetch(`${TARGET_BASE_URL}/app/bind/pre/check`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(prePayload)
     }).then(r => r.json());
-    logs.push({ "INTEGRITY_PRE_CHECK": preResp });
+    logs.push({ "Step 5: Pre-Check Integrity": preResp });
 
-    // STEP 6: DISPATCH OTP TO TARGET
+    // STEP 6: FINAL OTP DISPATCH
     await sleep(2000);
     ts = Date.now();
-    const otpPayload = {
-      mobile: targetPhone,
-      type: 13,
-      accountType: accountType,
-      ts: ts,
-      userId: userId,
-    };
-    authHeaders["Signature"] = generate_signature(otpPayload, sessionKey);
+    const otpPayload = { mobile: targetPhone, type: 13, accountType: String(accountType), ts, userId };
+    authHeaders["Signature"] = generateSignature(otpPayload, sessionKey);
 
     const otpResp = await fetch(`${TARGET_BASE_URL}/app/bind/send/otp`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(otpPayload)
     }).then(r => r.json());
-    logs.push({ "OTP_DISPATCH": otpResp });
+    logs.push({ "Step 6: OTP Action Dispatch": otpResp });
 
     return {
       code: 200,
-      message: "Automation Sequence Completed Successfully",
+      message: "Automation sequence completed successfully",
       logs: logs,
     };
 
   } catch (error: any) {
-    return { code: 500, message: `System Fault: ${error.message}`, logs };
+    return { code: 500, message: `Orchestration Fault: ${error.message}`, logs };
   }
 }

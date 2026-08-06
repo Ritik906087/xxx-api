@@ -1,19 +1,23 @@
-
-import { NextResponse } from 'next/server';
+import { jsonResponse, errorResponse, handleOptions } from '@/lib/api-response';
 import { runAutomation } from '@/app/actions/vantage-actions';
 
+/**
+ * REST API Endpoint for Automation.
+ * Handles sequential API integration with global error catching.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { phone, accountType } = body;
     
     const result = await runAutomation(phone, accountType);
-    return NextResponse.json(result);
+    return jsonResponse(result);
   } catch (error: any) {
-    return NextResponse.json({ 
-      code: 500, 
-      message: error.message, 
-      logs: [] 
-    }, { status: 500 });
+    console.error('[GLOBAL ERROR HANDLER]:', error);
+    return errorResponse(error.message || "Endpoint Execution Failed", 500);
   }
+}
+
+export async function OPTIONS() {
+  return handleOptions();
 }
