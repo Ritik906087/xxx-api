@@ -6,6 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
   Loader2, 
   Play, 
   Terminal, 
@@ -17,13 +24,24 @@ import {
   Activity,
   History,
   Lock,
-  Smartphone
+  Smartphone,
+  Wallet
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
+const PLATFORMS = [
+  { id: "2", name: "MobiKwik", icon: "https://download.kspay.shop/icon/mobc.webp" },
+  { id: "4", name: "Paytm", icon: "https://download.kspay.shop/icon/paytmct.png" },
+  { id: "3", name: "PhonePe", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
+  { id: "1", name: "FreeCharge", icon: "https://download.kspay.shop/img/freecharge.webp" },
+  { id: "8", name: "Navi", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
+  { id: "7", name: "AmazonPay", icon: "https://file.ipay.news/img/amazon/amazon.webp" },
+];
+
 export default function AutomationDashboard() {
   const [phone, setPhone] = useState('');
+  const [platform, setPlatform] = useState('2');
   const [isLoading, setIsLoading] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -52,16 +70,17 @@ export default function AutomationDashboard() {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone })
+        body: JSON.stringify({ phone, platform: parseInt(platform) })
       });
       
       const result = await res.json();
       setLogs(result.logs || []);
       
       if (result.code === 200) {
+        const platformName = PLATFORMS.find(p => p.id === platform)?.name || 'Platform';
         toast({ 
           title: "Sequence Success", 
-          description: "Mobikwik OTP flow completed successfully." 
+          description: `${platformName} OTP flow completed successfully.` 
         });
       } else {
         toast({ 
@@ -91,9 +110,9 @@ export default function AutomationDashboard() {
               <Smartphone className="w-8 h-8" />
             </div>
             <div>
-              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase">JCoinPay Engine</h1>
+              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">JCoinPay Engine</h1>
               <div className="flex items-center gap-3 mt-1.5">
-                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Mobikwik Automation V2</Badge>
+                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Multi-Provider V3</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
                   Gateway: jcoinpay.vip
@@ -103,7 +122,7 @@ export default function AutomationDashboard() {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Active Identity</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Master Identity</p>
               <p className="text-xs font-bold text-blue-400 uppercase">7870873927</p>
             </div>
             <div className="h-10 w-px bg-slate-800" />
@@ -120,12 +139,31 @@ export default function AutomationDashboard() {
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-3">
-                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Mobikwik Target Number</label>
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Target Platform</label>
+                  <Select value={platform} onValueChange={setPlatform}>
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-300 h-14 rounded-2xl focus:ring-blue-600 font-bold">
+                      <SelectValue placeholder="Select Platform" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-800 text-slate-300 rounded-xl">
+                      {PLATFORMS.map((p) => (
+                        <SelectItem key={p.id} value={p.id} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
+                          <div className="flex items-center gap-3">
+                            <img src={p.icon} alt={p.name} className="w-5 h-5 rounded-sm object-contain" />
+                            <span className="font-bold">{p.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Target Phone Number</label>
                   <div className="relative group">
                     <Input 
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Enter Number"
+                      placeholder="Enter 10-digit mobile"
                       className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl focus:ring-blue-600 font-black text-lg pl-6 transition-all group-hover:border-blue-500/50"
                     />
                     <Zap className="absolute right-6 top-5 w-5 h-5 text-slate-700 group-hover:text-blue-500 transition-colors" />
@@ -134,12 +172,12 @@ export default function AutomationDashboard() {
 
                 <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 space-y-4">
                    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                      <span className="text-slate-500">KYC Method</span>
-                      <span className="text-emerald-400">Mobikwik (P2)</span>
+                      <span className="text-slate-500">Security PIN</span>
+                      <span className="text-emerald-400">954073 (AUTH)</span>
                    </div>
                    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                      <span className="text-slate-500">Security PIN</span>
-                      <span className="text-emerald-400">Verified</span>
+                      <span className="text-slate-500">Identity Mode</span>
+                      <span className="text-blue-400">Enterprise Payload</span>
                    </div>
                 </div>
 
@@ -160,10 +198,10 @@ export default function AutomationDashboard() {
             <div className="bg-slate-900/30 border border-slate-800 rounded-3xl p-8 space-y-4">
               <div className="flex items-center gap-3 text-emerald-500">
                 <Lock className="w-4 h-4" />
-                <span className="text-[9px] font-black uppercase tracking-widest">JWT Persistence</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">Security Advisory</span>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-                Automation utilizes a secure background worker to handle Login PWD {"->"} PAY token extraction {"->"} Multi-platform OTP dispatch.
+                Automation utilizes a secure background worker to handle Login PWD {'->'} PAY token extraction {'->'} Multi-platform OTP dispatch. This session is cryptographically signed.
               </p>
             </div>
           </div>
@@ -178,7 +216,7 @@ export default function AutomationDashboard() {
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Gateway Connected</span>
+                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Gateway Ready</span>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 p-0 overflow-hidden bg-slate-950/40">

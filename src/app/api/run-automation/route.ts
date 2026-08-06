@@ -17,6 +17,19 @@ const TARGET_BASE_URL = "https://jcoinpay.vip";
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 /**
+ * Platform URL Mapping
+ * Map platform ID to its specific named Auth path
+ */
+const PLATFORM_PATH_MAP: Record<number, string> = {
+  1: "freechargeAuth",
+  2: "mobikwikAuth",
+  3: "phonepeAuth",
+  4: "paytmAuth",
+  7: "amazonpayAuth",
+  8: "naviAuth"
+};
+
+/**
  * Safe Fetch Helper for JCoinPay
  */
 async function jFetch(url: string, method: string, headers: any, body?: any) {
@@ -54,6 +67,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const targetPhone = body.phone;
+    const platformId = body.platform || 2; // Default to MobiKwik
 
     if (!targetPhone || targetPhone.length < 10) {
       return NextResponse.json({ 
@@ -62,6 +76,8 @@ export async function POST(request: Request) {
         logs: [] 
       }, { status: 200, headers: CORS_HEADERS });
     }
+
+    const platformPath = PLATFORM_PATH_MAP[platformId] || "mobikwikAuth";
 
     // Step 1: Login to JCoinPay
     const loginPayload = { phone: "7870873927", pwd: "Ritik123" };
@@ -95,11 +111,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ code: 400, message: "Security Fault: PIN rejected by upstream", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // Step 5: Final Mobikwik OTP Dispatch
+    // Step 5: Final OTP Dispatch (Dynamic Platform)
     await sleep(1500);
-    const otpPayload = { phone: targetPhone, platform: 2 }; // Platform 2 = Mobikwik
-    const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/mobikwikAuth/step1/sendOtp`, 'POST', authHeaders, otpPayload);
-    logs.push({ "Step 5: Mobikwik Action Trigger": otpJson });
+    const otpPayload = { phone: targetPhone, platform: platformId };
+    const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
+    logs.push({ [`Step 5: ${platformPath.replace('Auth', '')} Action Trigger`]: otpJson });
 
     return NextResponse.json({ 
       code: 200, 
