@@ -3,18 +3,36 @@ import { NextResponse } from 'next/server';
 
 /**
  * Standardized CORS Headers for Cross-Origin compatibility.
- * Prevents environment-level blockades and plain-text origin errors.
  */
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE, PUT',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, token, Signature, Origin, Referer',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, token, Signature, Origin, Referer, Sec-Ch-Ua, Sec-Ch-Ua-Mobile, Sec-Ch-Ua-Platform',
   'Access-Control-Max-Age': '86400',
 };
 
 /**
+ * ADVANCED STEALTH HEADERS: Comprehensive mobile browser fingerprinting.
+ * Spoofs a legitimate Android Chrome client to bypass WAF/CORS filters.
+ */
+const STEALTH_HEADERS = {
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Content-Type": "application/json;charset=UTF-8",
+  "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  "Origin": "https://api.rswallet-api.com",
+  "Referer": "https://api.rswallet-api.com/",
+  "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+  "Sec-Ch-Ua-Mobile": "?1",
+  "Sec-Ch-Ua-Platform": '"Android"',
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-origin",
+  "Priority": "u=1, i"
+};
+
+/**
  * Senior Cryptographic Signature Engine.
- * Sorts keys alphabetically and appends session salt for MD5 verification.
  */
 function generateSignature(dataDict: Record<string, any>, sessionKey: string = "") {
   const sortedKeys = Object.keys(dataDict).sort();
@@ -34,45 +52,21 @@ const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 const TARGET_BASE_URL = "https://api.rswallet-api.com";
 
 /**
- * STEALTH HEADERS: Manually injecting Origin and Referer to bypass Target Server WAF.
- */
-const STEALTH_HEADERS = {
-  "Accept": "application/json, text/plain, */*",
-  "Content-Type": "application/json;charset=UTF-8",
-  "User-Agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-  "Origin": "https://api.rswallet-api.com",
-  "Referer": "https://api.rswallet-api.com/"
-};
-
-/**
- * Handles CORS Preflight requests to satisfy Next.js origin security.
- */
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: CORS_HEADERS,
-  });
-}
-
-/**
- * Safe Fetch Helper to prevent "Unexpected token" crashes.
- * Reads text first, checks for CORS/WAF block messages, then parses.
+ * Safe Fetch Helper to prevent JSON parsing crashes.
  */
 async function safeFetch(url: string, options: any) {
   try {
     const res = await fetch(url, options);
     const rawText = await res.text();
     
-    // Log upstream activity for debugging
     console.log(`[UPSTREAM] URL: ${url} | STATUS: ${res.status}`);
 
-    if (!rawText) {
-      return { code: res.status, message: "Empty upstream response" };
-    }
-
-    // Check if the body contains a plain text CORS error instead of JSON
-    if (rawText.includes("Invalid CORS request") || rawText.includes("Forbidden")) {
-      return { code: res.status, message: "Target Server CORS Block detected", raw: rawText.substring(0, 100) };
+    if (!rawText || rawText.startsWith('<') || rawText.includes("Invalid CORS request") || rawText.includes("Forbidden")) {
+      return { 
+        code: res.status, 
+        message: "Target Server Security Block detected", 
+        raw: rawText.substring(0, 200) || "Empty response"
+      };
     }
 
     try {
@@ -85,14 +79,17 @@ async function safeFetch(url: string, options: any) {
   }
 }
 
-/**
- * Robust Backend Orchestrator for Multi-Step Sequential Workflow.
- */
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
 export async function POST(request: Request) {
   const logs: any[] = [];
   
   try {
-    // Universal JSON Boundary: Always catch errors to prevent plain-text leak
     const body = await request.json().catch(() => ({}));
     const targetPhone = body.phone;
     const accountType = body.accountType || "1";
@@ -124,8 +121,8 @@ export async function POST(request: Request) {
 
     if (regJson.code !== 200) {
       return NextResponse.json({ 
-        code: 429, 
-        message: regJson.message || "Gateway rejection", 
+        code: 400, 
+        message: regJson.message || "Gateway rejection during registration", 
         logs 
       }, { status: 200, headers: CORS_HEADERS });
     }
@@ -140,10 +137,14 @@ export async function POST(request: Request) {
     logs.push({ "Step 2: Bot Login": loginJson });
 
     if (loginJson.code !== 200) {
-      return NextResponse.json({ code: 401, message: "Auth Sequence Failed", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: "Auth Sequence Failed: Login rejected", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
-    const { userId, loginToken: token, sessionKey } = loginJson.data;
+    const { userId, loginToken: token, sessionKey } = loginJson.data || {};
+    if (!token) {
+      return NextResponse.json({ code: 400, message: "Identity Linkage Error: Token missing", logs }, { status: 200, headers: CORS_HEADERS });
+    }
+
     const authHeaders: Record<string, string> = {
       ...STEALTH_HEADERS,
       "Authorization": token,

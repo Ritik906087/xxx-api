@@ -4,7 +4,7 @@ import crypto from 'crypto';
 
 /**
  * @fileOverview Senior Automation Engine for Vantage Suite.
- * Handles cryptographic signing, multi-step REST orchestration, and anti-bot mitigation.
+ * Handles cryptographic signing, multi-step REST orchestration, and advanced stealth spoofing.
  */
 
 const TARGET_BASE_URL = "https://api.rswallet-api.com";
@@ -29,14 +29,22 @@ function generateSignature(data: Record<string, any>, sessionKey: string = "") {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * STEALTH HEADERS: Impersonating the official client to bypass Target Server CORS checks.
+ * STEALTH HEADERS: Advanced Mobile Browser Fingerprinting.
+ * Spoofs a legitimate Android Chrome client to bypass target server CORS and WAF blocks.
  */
 const STEALTH_HEADERS = {
   "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
   "Content-Type": "application/json;charset=UTF-8",
-  "User-Agent": "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
   "Origin": "https://api.rswallet-api.com",
-  "Referer": "https://api.rswallet-api.com/"
+  "Referer": "https://api.rswallet-api.com/",
+  "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+  "Sec-Ch-Ua-Mobile": "?1",
+  "Sec-Ch-Ua-Platform": '"Android"',
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-origin"
 };
 
 /**
@@ -62,15 +70,22 @@ export async function runAutomation(targetPhone: string, accountType: string = "
     const regResp = await fetch(`${TARGET_BASE_URL}/app/auth/register`, {
       method: 'POST',
       headers: STEALTH_HEADERS,
-      body: JSON.stringify({ phone: botPhone, password: password, referralCode: referralCode })
+      body: JSON.stringify({ phone: botPhone, password, referralCode })
     }).then(async r => {
       const text = await r.text();
-      try { return JSON.parse(text); } catch (e) { return { code: r.status, message: "Non-JSON response", raw: text.substring(0, 100) }; }
+      try { 
+        if (text.includes("Invalid CORS request") || text.includes("Forbidden")) {
+          return { code: r.status, message: "Upstream Blocked (CORS/WAF)", raw: text.substring(0, 100) };
+        }
+        return JSON.parse(text); 
+      } catch (e) { 
+        return { code: r.status, message: "Upstream returned non-JSON", raw: text.substring(0, 100) }; 
+      }
     });
     logs.push({ "Step 1: Bot Registration": regResp });
 
     if (regResp.code !== 200) {
-      return { code: 429, message: regResp.message || "Gateway Rate Limit or Registration Error", logs };
+      return { code: 400, message: regResp.message || "Gateway rejection during registration", logs };
     }
 
     // STEP 2: AUTHENTICATION & TOKEN EXTRACTION
@@ -78,16 +93,24 @@ export async function runAutomation(targetPhone: string, accountType: string = "
     const loginResp = await fetch(`${TARGET_BASE_URL}/app/auth/login`, {
       method: 'POST',
       headers: STEALTH_HEADERS,
-      body: JSON.stringify({ phone: botPhone, password: password })
-    }).then(r => r.json());
+      body: JSON.stringify({ phone: botPhone, password })
+    }).then(r => r.json()).catch(err => ({ code: 500, message: "Login Parse Error" }));
     logs.push({ "Step 2: Bot Login": loginResp });
 
     if (loginResp.code !== 200) {
-      return { code: 401, message: "Authentication Failed", logs };
+      return { code: 400, message: "Authentication Failed", logs };
     }
 
-    const { userId, loginToken: token, sessionKey } = loginResp.data;
-    const authHeaders: any = { ...STEALTH_HEADERS, "Authorization": token, "token": token };
+    const { userId, loginToken: token, sessionKey } = loginResp.data || {};
+    if (!token) {
+      return { code: 400, message: "Missing Identity Token", logs };
+    }
+
+    const authHeaders: any = { 
+      ...STEALTH_HEADERS, 
+      "Authorization": token, 
+      "token": token 
+    };
 
     // STEP 3: SECURE PIN BINDING
     await sleep(2000);
@@ -99,7 +122,7 @@ export async function runAutomation(targetPhone: string, accountType: string = "
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
-    }).then(r => r.json());
+    }).then(r => r.json()).catch(() => ({ message: "PIN Bind Error" }));
     logs.push({ "Step 3: Secure PIN Bind": pinBindResp });
 
     // STEP 4: PIN VERIFICATION
@@ -112,7 +135,7 @@ export async function runAutomation(targetPhone: string, accountType: string = "
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
-    }).then(r => r.json());
+    }).then(r => r.json()).catch(() => ({ message: "PIN Verify Error" }));
     logs.push({ "Step 4: PIN Verification": pinVerifyResp });
 
     // STEP 5: PRE-DISPATCH INTEGRITY CHECK
@@ -125,7 +148,7 @@ export async function runAutomation(targetPhone: string, accountType: string = "
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(prePayload)
-    }).then(r => r.json());
+    }).then(r => r.json()).catch(() => ({ message: "Pre-Check Error" }));
     logs.push({ "Step 5: Pre-Check Integrity": preResp });
 
     // STEP 6: FINAL OTP DISPATCH
@@ -138,7 +161,7 @@ export async function runAutomation(targetPhone: string, accountType: string = "
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(otpPayload)
-    }).then(r => r.json());
+    }).then(r => r.json()).catch(() => ({ message: "OTP Dispatch Error" }));
     logs.push({ "Step 6: OTP Action Dispatch": otpResp });
 
     return {
