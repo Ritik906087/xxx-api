@@ -3,17 +3,18 @@ import { NextResponse } from 'next/server';
 
 /**
  * Standardized CORS Headers for Cross-Origin compatibility.
+ * Prevents environment-level blockades and plain-text origin errors.
  */
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE, PUT',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, token',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, token, Signature',
   'Access-Control-Max-Age': '86400',
 };
 
 /**
- * Helper to generate MD5 signature based on alphabetical sorting of keys.
- * This ensures compatibility with the target server's verification engine.
+ * Senior Cryptographic Signature Engine.
+ * Sorts keys alphabetically and appends session salt for MD5 verification.
  */
 function generateSignature(dataDict: Record<string, any>, sessionKey: string = "") {
   const sortedKeys = Object.keys(dataDict).sort();
@@ -26,12 +27,12 @@ function generateSignature(dataDict: Record<string, any>, sessionKey: string = "
 }
 
 /**
- * Asynchronous delay helper for API pacing.
+ * Asynchronous Throttling Helper.
+ * Simulates realistic client pacing between sequential API calls.
  */
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 const TARGET_BASE_URL = "https://api.rswallet-api.com";
-
 const BROWSER_HEADERS = {
   "Accept": "application/json, text/plain, */*",
   "Content-Type": "application/json;charset=UTF-8",
@@ -41,7 +42,7 @@ const BROWSER_HEADERS = {
 };
 
 /**
- * Handles OPTIONS preflight requests for CORS.
+ * Handles CORS Preflight requests.
  */
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -51,7 +52,8 @@ export async function OPTIONS() {
 }
 
 /**
- * Senior Orchestrator for Multi-Step API Workflow with JSON Boundary.
+ * Robust Backend Orchestrator for Multi-Step Sequential Workflow.
+ * Implements a Universal JSON Boundary to prevent frontend parsing crashes.
  */
 export async function POST(request: Request) {
   const logs: any[] = [];
@@ -64,18 +66,17 @@ export async function POST(request: Request) {
     if (!targetPhone) {
       return NextResponse.json({ 
         code: 400, 
-        message: "Identification required (Phone Number Missing)", 
+        message: "Identification Required: Phone number missing in payload.", 
         logs: [] 
       }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // 1. Generate Deterministic Bot Profile
-    const firstDigit = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)];
-    const remainingDigits = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
-    const botPhone = firstDigit + remainingDigits;
+    // --- STEP 0: GENERATE DETERMINISTIC BOT PROFILE ---
+    const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
+                     Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
     
     const password = "Ritik@123";
-    const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const pinCode = "954073"; // Deterministic PIN for binding
     const referralCode = "0ealuckpayvp";
 
     // --- STEP 1: BOT REGISTRATION ---
@@ -91,12 +92,12 @@ export async function POST(request: Request) {
     if (regJson.code !== 200) {
       return NextResponse.json({ 
         code: 429, 
-        message: "Gateway Rate Limit or Registration Failure", 
+        message: "Gateway Throttling: Registration limit reached. Try later.", 
         logs 
       }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // --- STEP 2: AUTHENTICATION & TOKEN EXTRACTION ---
+    // --- STEP 2: BOT AUTHENTICATION ---
     await sleep(2000);
     const loginRes = await fetch(`${TARGET_BASE_URL}/app/auth/login`, {
       method: 'POST',
@@ -109,11 +110,12 @@ export async function POST(request: Request) {
     if (loginJson.code !== 200) {
       return NextResponse.json({ 
         code: 401, 
-        message: "Authentication Failed (Invalid Bot Session)", 
+        message: "Auth Failure: Bot session could not be established.", 
         logs 
       }, { status: 200, headers: CORS_HEADERS });
     }
 
+    // --- EXTRACT SESSION METADATA ---
     const { userId, loginToken: token, sessionKey } = loginJson.data;
     const authHeaders: Record<string, string> = {
       ...BROWSER_HEADERS,
@@ -177,17 +179,19 @@ export async function POST(request: Request) {
     const otpJson = await otpRes.json();
     logs.push({ "Step 6: OTP Action Dispatch": otpJson });
 
+    // --- FINAL AGGREGATED RESPONSE ---
     return NextResponse.json({ 
       code: 200, 
-      message: "Orchestration sequence completed successfully", 
+      message: "Sequence Executed: All protocol steps finalized successfully.", 
       logs 
     }, { status: 200, headers: CORS_HEADERS });
 
   } catch (err: any) {
-    console.error("[AUTOMATION_CRITICAL_FAULT]:", err);
+    console.error("[CRITICAL_SYSTEM_FAULT]:", err);
+    // Universal JSON Boundary: Always return valid JSON, even on crash.
     return NextResponse.json({ 
       code: 500, 
-      message: `System Fault: ${err.message}`, 
+      message: `System Integrity Violation: ${err.message}`, 
       logs: logs.length > 0 ? logs : [] 
     }, { status: 200, headers: CORS_HEADERS });
   }
