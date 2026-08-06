@@ -28,7 +28,6 @@ function generateSignature(dataDict: Record<string, any>, sessionKey: string = "
 
 /**
  * Asynchronous Throttling Helper.
- * Simulates realistic client pacing between sequential API calls.
  */
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -42,8 +41,7 @@ const BROWSER_HEADERS = {
 };
 
 /**
- * Handles CORS Preflight requests.
- * This prevents the "Invalid CORS request" plain-text error in Next.js.
+ * Handles CORS Preflight requests to satisfy Next.js origin security.
  */
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -53,14 +51,32 @@ export async function OPTIONS() {
 }
 
 /**
+ * Safe Fetch Helper to prevent "Unexpected token" crashes.
+ * Reads text first, then attempts to parse JSON.
+ */
+async function safeFetch(url: string, options: any) {
+  const res = await fetch(url, options);
+  const rawText = await res.text();
+  
+  try {
+    // Check if body exists and looks like JSON
+    if (rawText && (rawText.startsWith('{') || rawText.startsWith('['))) {
+      return JSON.parse(rawText);
+    }
+    return { code: res.status, message: "Non-JSON response received", raw: rawText.substring(0, 200) };
+  } catch (e) {
+    return { code: 500, message: "JSON Parse Failure", raw: rawText.substring(0, 200) };
+  }
+}
+
+/**
  * Robust Backend Orchestrator for Multi-Step Sequential Workflow.
- * Implements a Universal JSON Boundary to prevent frontend parsing crashes.
  */
 export async function POST(request: Request) {
   const logs: any[] = [];
   
   try {
-    // Universal JSON Boundary: Wrap everything in a try block
+    // Universal JSON Boundary: Use try-catch for all parsing
     const body = await request.json().catch(() => ({}));
     const targetPhone = body.phone;
     const accountType = body.accountType || "1";
@@ -68,57 +84,45 @@ export async function POST(request: Request) {
     if (!targetPhone) {
       return NextResponse.json({ 
         code: 400, 
-        message: "Identification Required: Phone number missing in payload.", 
+        message: "Identification Required: Phone number missing.", 
         logs: [] 
       }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // --- STEP 0: GENERATE DETERMINISTIC BOT PROFILE ---
-    const firstDigit = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)];
-    const remainingDigits = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
-    const botPhone = firstDigit + remainingDigits;
+    // Step 0: Bot Profile Generation
+    const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
+                     Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
     
     const password = "Ritik@123";
-    const pinCode = "954073"; // Deterministic PIN for binding
+    const pinCode = "954073";
     const referralCode = "0ealuckpayvp";
 
-    // --- STEP 1: BOT REGISTRATION ---
+    // 1. Bot Registration
     await sleep(2000);
-    const regRes = await fetch(`${TARGET_BASE_URL}/app/auth/register`, {
+    const regJson = await safeFetch(`${TARGET_BASE_URL}/app/auth/register`, {
       method: 'POST',
       headers: BROWSER_HEADERS,
       body: JSON.stringify({ phone: botPhone, password, referralCode })
     });
-    const regJson = await regRes.json();
     logs.push({ "Register (Bot)": regJson });
 
     if (regJson.code !== 200) {
-      return NextResponse.json({ 
-        code: 429, 
-        message: "Gateway Throttling: Registration limit reached. Try later.", 
-        logs 
-      }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 429, message: "Gateway Throttling", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // --- STEP 2: BOT AUTHENTICATION ---
+    // 2. Bot Login
     await sleep(2000);
-    const loginRes = await fetch(`${TARGET_BASE_URL}/app/auth/login`, {
+    const loginJson = await safeFetch(`${TARGET_BASE_URL}/app/auth/login`, {
       method: 'POST',
       headers: BROWSER_HEADERS,
       body: JSON.stringify({ phone: botPhone, password })
     });
-    const loginJson = await loginRes.json();
     logs.push({ "Login (Bot)": loginJson });
 
     if (loginJson.code !== 200) {
-      return NextResponse.json({ 
-        code: 401, 
-        message: "Auth Failure: Bot session could not be established.", 
-        logs 
-      }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 401, message: "Auth Failure", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // --- EXTRACT SESSION METADATA ---
     const { userId, loginToken: token, sessionKey } = loginJson.data;
     const authHeaders: Record<string, string> = {
       ...BROWSER_HEADERS,
@@ -126,76 +130,65 @@ export async function POST(request: Request) {
       "token": token
     };
 
-    // --- STEP 3: SECURE PIN BINDING ---
+    // 3. Pin Bind
     await sleep(2000);
     let ts = Date.now();
     let pinPayload = { pinCode, ts, userId };
     authHeaders["Signature"] = generateSignature(pinPayload, sessionKey);
-
-    const bindRes = await fetch(`${TARGET_BASE_URL}/app/secure/pin/bind`, {
+    const bindJson = await safeFetch(`${TARGET_BASE_URL}/app/secure/pin/bind`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
     });
-    const bindJson = await bindRes.json();
     logs.push({ "Pin Bind": bindJson });
 
-    // --- STEP 4: PIN VERIFICATION ---
+    // 4. Pin Verify
     await sleep(2000);
     ts = Date.now();
     pinPayload = { pinCode, ts, userId };
     authHeaders["Signature"] = generateSignature(pinPayload, sessionKey);
-
-    const verifyRes = await fetch(`${TARGET_BASE_URL}/app/secure/pin/verify`, {
+    const verifyJson = await safeFetch(`${TARGET_BASE_URL}/app/secure/pin/verify`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
     });
-    const verifyJson = await verifyRes.json();
     logs.push({ "Pin Verify": verifyJson });
 
-    // --- STEP 5: PRE-DISPATCH INTEGRITY CHECK ---
+    // 5. Pre Check
     await sleep(2000);
     ts = Date.now();
     const prePayload = { mobile: targetPhone, type: 13, appPinCode: pinCode, ts, userId };
     authHeaders["Signature"] = generateSignature(prePayload, sessionKey);
-
-    const preRes = await fetch(`${TARGET_BASE_URL}/app/bind/pre/check`, {
+    const preJson = await safeFetch(`${TARGET_BASE_URL}/app/bind/pre/check`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(prePayload)
     });
-    const preJson = await preRes.json();
     logs.push({ "Pre Check": preJson });
 
-    // --- STEP 6: FINAL ACTION DISPATCH (OTP) ---
+    // 6. OTP Dispatch
     await sleep(2000);
     ts = Date.now();
     const otpPayload = { mobile: targetPhone, type: 13, accountType: String(accountType), ts, userId };
     authHeaders["Signature"] = generateSignature(otpPayload, sessionKey);
-
-    const otpRes = await fetch(`${TARGET_BASE_URL}/app/bind/send/otp`, {
+    const otpJson = await safeFetch(`${TARGET_BASE_URL}/app/bind/send/otp`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(otpPayload)
     });
-    const otpJson = await otpRes.json();
     logs.push({ "Send OTP to Target": otpJson });
 
-    // --- FINAL AGGREGATED RESPONSE ---
     return NextResponse.json({ 
       code: 200, 
-      message: "Sequence Executed: All protocol steps finalized successfully.", 
+      message: "Sequence Executed successfully.", 
       logs 
     }, { status: 200, headers: CORS_HEADERS });
 
   } catch (err: any) {
-    console.error("[CRITICAL_SYSTEM_FAULT]:", err);
-    // Universal JSON Boundary: Always return valid JSON, even on crash.
     return NextResponse.json({ 
       code: 500, 
       message: `System Integrity Violation: ${err.message}`, 
-      logs: logs.length > 0 ? logs : [] 
+      logs: logs 
     }, { status: 200, headers: CORS_HEADERS });
   }
 }
