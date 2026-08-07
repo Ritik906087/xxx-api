@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getDb } from '@/lib/mongodb';
 
 /**
  * Standardized CORS Headers
@@ -16,6 +17,7 @@ const TARGET_BASE_URL = "https://jcoinpay.vip";
  */
 const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
   "7870873927": { pwd: "Ritik123", pin: "954073" },
+  "9060873927": { pwd: "Ritik123", pin: "954073" }, // Added as per user instruction
   "8431549953": { pwd: "Ritik123", pin: "954073" },
   "9579390488": { pwd: "Ritik123", pin: "954073" },
   "7892941854": { pwd: "Ritik123", pin: "954073" },
@@ -77,13 +79,11 @@ export async function POST(request: Request) {
   
   try {
     const body = await request.json().catch(() => ({}));
-    const action = body.action || "send-otp"; // "send-otp" or "verify-otp"
+    const action = body.action || "send-otp";
     const targetPhone = body.phone;
     const platformId = body.platform || 2;
     const otp = body.otp;
-    const masterPhone = body.masterPhone || "7870873927";
-
-    const masterCreds = MASTER_DB[masterPhone] || MASTER_DB["7870873927"];
+    let masterPhone = body.masterPhone || "7870873927";
 
     if (!targetPhone || targetPhone.length < 10) {
       return NextResponse.json({ 
@@ -93,15 +93,37 @@ export async function POST(request: Request) {
       }, { status: 200, headers: CORS_HEADERS });
     }
 
+    // --- STICKY IDENTITY LOGIC ---
+    const db = await getDb();
+    const mappingsCollection = db.collection('identity_mappings');
+    
+    // Check if this target phone already has a mapped Master ID
+    const existingMapping = await mappingsCollection.findOne({ targetPhone });
+    if (existingMapping) {
+      masterPhone = existingMapping.masterPhone;
+      logs.push({ "Identity Policy": `Sticky identity detected. Forcing Master ID: ${masterPhone}` });
+    }
+
+    const masterCreds = MASTER_DB[masterPhone] || MASTER_DB["7870873927"];
     const platformPath = PLATFORM_PATH_MAP[platformId] || "mobikwikAuth";
 
-    // Step 1: Login to JCoinPay (Required for all actions)
+    // Step 1: Login to JCoinPay
     const loginPayload = { phone: masterPhone, pwd: masterCreds.pwd };
     const loginJson = await jFetch(`${TARGET_BASE_URL}/app/user/login/pwd`, 'POST', {}, loginPayload);
     logs.push({ [`Step 1: Identity Auth (Login: ${masterPhone})`]: loginJson });
 
     if (loginJson.code !== "200" || !loginJson.data?.tokenValue) {
       return NextResponse.json({ code: 400, message: "Auth Sequence Failed: Invalid Identity Credentials", logs }, { status: 200, headers: CORS_HEADERS });
+    }
+
+    // If login is successful and no mapping exists, save it now
+    if (!existingMapping) {
+      await mappingsCollection.insertOne({
+        targetPhone,
+        masterPhone,
+        createdAt: new Date().toISOString()
+      });
+      logs.push({ "Identity Policy": `New mapping established: ${targetPhone} -> ${masterPhone}` });
     }
 
     const payToken = loginJson.data.tokenValue;

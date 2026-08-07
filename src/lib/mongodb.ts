@@ -1,13 +1,10 @@
 import { MongoClient } from 'mongodb';
 
-const uri = process.env.MONGODB_URI || "mongodb+srv://Ritik:Ritik9060@tdm.uwkxmdo.mongodb.net/?appName=TDM";
+const uri = process.env.MONGODB_URI || "mongodb+srv://guruarning_db_user:XgmcHOGP4ZeJr297@upi-db.x5eombm.mongodb.net";
 const options = {};
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
-
-// Removed the build-time throw error to fix Vercel/Cloudflare deployment.
-// The URI will fallback to the hardcoded connection string if env is missing.
 
 if (process.env.NODE_ENV === 'development') {
   let globalWithMongo = global as typeof globalThis & {
@@ -31,5 +28,5 @@ export default clientPromise;
  */
 export async function getDb() {
   const client = await clientPromise;
-  return client.db(process.env.MONGODB_DB_NAME || "TDM");
+  return client.db(process.env.MONGODB_DB_NAME || "upi-db");
 }
