@@ -34,11 +34,10 @@ const STEALTH_HEADERS = {
 };
 
 /**
- * Master Identities Registry
+ * Master Identities Registry - Removed demo account 9060873927
  */
 const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
   "7870873927": { pwd: "Ritik123", pin: "954073" },
-  "9060873927": { pwd: "Ritik123", pin: "954073" },
   "8431549953": { pwd: "Ritik123", pin: "954073" },
   "9579390488": { pwd: "Ritik123", pin: "954073" },
   "7892941854": { pwd: "Ritik123", pin: "954073" },
@@ -105,31 +104,29 @@ export async function POST(request: Request) {
     }
 
     // --- NORMALIZATION ---
-    // Extract last 10 digits to ensure consistency between 91XXXX and XXXX
     const targetPhone = String(rawPhone).replace(/\D/g, '').slice(-10);
 
     const db = await getDb();
     const mappingsCollection = db.collection('identity_mappings');
 
     // --- STICKY IDENTITY ENFORCEMENT ---
-    // Check if this target is already linked to a Master ID to avoid 'phone repeat bind' (50008)
     let masterPhone = "";
     const existingMapping = await mappingsCollection.findOne({ targetPhone });
     
-    if (existingMapping) {
+    if (existingMapping && MASTER_DB[existingMapping.masterPhone]) {
       masterPhone = existingMapping.masterPhone;
-      logs.push({ "Identity Protection": `Sticky Match Found: Target ${targetPhone} is locked to Master ${masterPhone} (Preventing 50008 Error)` });
+      logs.push({ "Identity Protection": `Sticky Match Found: Target ${targetPhone} is locked to Master ${masterPhone}` });
     } else {
-      // Rotation Policy: Pick randomly from available pool to balance load for new targets
+      // Rotation Policy from real accounts only
       const masterKeys = Object.keys(MASTER_DB);
       masterPhone = masterKeys[Math.floor(Math.random() * masterKeys.length)];
       
-      // Persist mapping immediately
-      await mappingsCollection.insertOne({ 
-        targetPhone, 
-        masterPhone, 
-        createdAt: new Date().toISOString() 
-      });
+      // Update or insert mapping
+      await mappingsCollection.updateOne(
+        { targetPhone },
+        { $set: { masterPhone, updatedAt: new Date().toISOString() } },
+        { upsert: true }
+      );
       logs.push({ "Identity Initialization": `Rotation Policy: New target ${targetPhone} assigned to Master ${masterPhone}` });
     }
 
@@ -160,7 +157,6 @@ export async function POST(request: Request) {
       const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
       logs.push({ [`Step 3: OTP Dispatch (${platformPath.replace('Auth', '')})`]: otpJson });
 
-      // Handle specific repeat bind error if still occurring
       if (otpJson.code === "50008") {
         return NextResponse.json({ 
           code: 50008, 

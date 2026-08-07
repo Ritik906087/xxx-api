@@ -326,7 +326,7 @@ export default function AutomationDashboard() {
                 <span className="text-[9px] font-black uppercase tracking-widest">Verification Advisory</span>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-                Automation utilizes a secure background worker to handle Login PWD {'->'} PAY token extraction {'->'} Multi-platform OTP dispatch.
+                Automation utilizes a secure background worker to handle Login PWD {'>'} PAY token extraction {'>'} Multi-platform OTP dispatch.
               </p>
             </div>
           </div>
