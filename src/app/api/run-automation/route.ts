@@ -34,7 +34,7 @@ const STEALTH_HEADERS = {
 };
 
 /**
- * Master Identities Registry - Only Real IDs
+ * Master Identities Registry - Only Real IDs (Demo 9060873927 removed)
  */
 const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
   "7870873927": { pwd: "Ritik123", pin: "954073" },
@@ -46,13 +46,13 @@ const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
 };
 
 /**
- * Platform Path Mapping
- * Fixed case-sensitivity for PhonePe, Paytm and others to prevent 404.
+ * Platform Path Mapping - STRICT CASE SENSITIVITY FIXED
+ * PhonePe requires 'phonePeAuth' with capital 'P'
  */
 const PLATFORM_PATH_MAP: Record<number, string> = {
   1: "freechargeAuth",
   2: "mobikwikAuth",
-  3: "phonepeAuth", // Reverted to lowercase if MobiKwik works with lowercase
+  3: "phonePeAuth", // Fixed Case: phonePeAuth
   4: "paytmAuth",
   7: "amazonpayAuth",
   8: "naviAuth"
@@ -81,7 +81,7 @@ async function jFetch(url: string, method: string, headers: any, body?: any) {
       // Return raw HTML/Text error if JSON parsing fails (e.g., 404 or 403)
       return { 
         code: res.status, 
-        msg: res.status === 404 ? "Endpoint Not Found (404)" : "Upstream Response Error", 
+        msg: res.status === 404 ? `Endpoint Not Found (404): ${url}` : "Upstream Response Error", 
         raw: text.substring(0, 500),
         url: url
       };
@@ -189,7 +189,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
           code: 200, 
           message: "Session Authorized", 
-          upis: verifyJson.data?.upis, // Raw UPI extracted from upstream
+          upis: verifyJson.data?.upis, // Raw UPI extracted from upstream only
           masterUsed: masterPhone,
           logs: logs 
         }, { status: 200, headers: CORS_HEADERS });
