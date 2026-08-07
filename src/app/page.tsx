@@ -100,11 +100,10 @@ export default function AutomationDashboard() {
       setLogs(result.logs || []);
       
       if (result.code === 200) {
-        const platformName = PLATFORMS.find(p => p.id === platform)?.name || 'Platform';
         setOtpSent(true);
         toast({ 
           title: "OTP Dispatched", 
-          description: `Code sent to ${phone} via ${platformName}.` 
+          description: `Code sent to ${phone}.` 
         });
       } else {
         toast({ 
@@ -155,7 +154,7 @@ export default function AutomationDashboard() {
       if (result.code === 200) {
         toast({ 
           title: "Identity Verified", 
-          description: `UPI ID Extracted: ${result.upis || 'Pending'}` 
+          description: `UPI ID Extracted: ${result.upis || 'Not Found'}` 
         });
       } else {
         toast({ 
@@ -187,7 +186,7 @@ export default function AutomationDashboard() {
             <div>
               <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">JCoinPay Engine</h1>
               <div className="flex items-center gap-3 mt-1.5">
-                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Multi-Identity Mode V4</Badge>
+                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Master Identity Mode V6</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
                   Gateway: jcoinpay.vip
@@ -197,8 +196,8 @@ export default function AutomationDashboard() {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Active Identity</p>
-              <p className="text-xs font-bold text-blue-400 uppercase">{masterId}</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sticky Engine</p>
+              <p className="text-xs font-bold text-blue-400 uppercase">MongoDB Persistent</p>
             </div>
             <div className="h-10 w-px bg-slate-800" />
             <Shield className="w-6 h-6 text-emerald-500/50" />
@@ -216,7 +215,7 @@ export default function AutomationDashboard() {
                 <div className="space-y-3">
                   <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1 flex items-center gap-2">
                     <UserCheck className="w-3 h-3" />
-                    Master Identity
+                    Master Account Pool
                   </label>
                   <Select value={masterId} onValueChange={setMasterId}>
                     <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-300 h-14 rounded-2xl focus:ring-blue-600 font-bold">
@@ -260,33 +259,33 @@ export default function AutomationDashboard() {
                 <div className="space-y-3">
                   <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1 flex items-center gap-2">
                     <Smartphone className="w-3 h-3" />
-                    Target Phone Number
+                    Target Mobile
                   </label>
                   <div className="relative group">
                     <Input 
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="Enter 10-digit mobile"
-                      className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl focus:ring-blue-600 font-black text-lg pl-6 transition-all group-hover:border-blue-500/50"
+                      className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl focus:ring-blue-600 font-black text-lg pl-6"
                     />
-                    <Smartphone className="absolute right-6 top-5 w-5 h-5 text-slate-700 group-hover:text-blue-500 transition-colors" />
+                    <Smartphone className="absolute right-6 top-5 w-5 h-5 text-slate-700" />
                   </div>
                 </div>
 
                 {otpSent && (
-                  <div className="space-y-3 animate-in slide-in-from-top-4 duration-500">
+                  <div className="space-y-3 animate-in slide-in-from-top-4">
                     <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1 flex items-center gap-2">
                       <KeyRound className="w-3 h-3" />
-                      Verification Code (OTP)
+                      Verification OTP
                     </label>
                     <div className="relative group">
                       <Input 
                         value={otp}
                         onChange={(e) => setOtp(e.target.value)}
                         placeholder="Enter OTP Received"
-                        className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl focus:ring-emerald-500 font-black text-lg pl-6 transition-all group-hover:border-emerald-500/50"
+                        className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl focus:ring-emerald-500 font-black text-lg pl-6"
                       />
-                      <Zap className="absolute right-6 top-5 w-5 h-5 text-emerald-900 group-hover:text-emerald-500 transition-colors" />
+                      <Zap className="absolute right-6 top-5 w-5 h-5 text-emerald-900" />
                     </div>
                   </div>
                 )}
@@ -301,16 +300,14 @@ export default function AutomationDashboard() {
                     )}
                   >
                     {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-                    {isLoading ? "Dispatching..." : otpSent ? "Resend OTP" : "Step 1: Get OTP"}
+                    {isLoading ? "Executing..." : otpSent ? "Resend Step 1" : "Step 1: Send OTP"}
                   </Button>
 
                   {otpSent && (
                     <Button 
                       onClick={handleVerifyOtp}
                       disabled={isLoading || isVerifying}
-                      className={cn(
-                        "w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 active:scale-95"
-                      )}
+                      className="w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 active:scale-95"
                     >
                       {isVerifying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                       {isVerifying ? "Verifying..." : "Step 2: Verify & Extract"}
@@ -323,10 +320,10 @@ export default function AutomationDashboard() {
             <div className="bg-slate-900/30 border border-slate-800 rounded-3xl p-8 space-y-4">
               <div className="flex items-center gap-3 text-emerald-500">
                 <Lock className="w-4 h-4" />
-                <span className="text-[9px] font-black uppercase tracking-widest">Verification Advisory</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">Advanced Integrity Protocol</span>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-                Automation utilizes a secure background worker to handle Login PWD {'>'} PAY token extraction {'>'} Multi-platform OTP dispatch.
+                Automation utilizes a secure background worker to handle Login PWD {'->'} PAY token extraction {'->'} Multi-platform OTP dispatch.
               </p>
             </div>
           </div>
@@ -337,48 +334,46 @@ export default function AutomationDashboard() {
               <CardHeader className="p-8 border-b border-slate-800 flex flex-row items-center justify-between">
                 <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-4">
                   <Terminal className="w-5 h-5 text-emerald-500" />
-                  Live Packet Ledger
+                  Audit Stream Ledger
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Gateway Ready</span>
+                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Gateway Connected</span>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 p-0 overflow-hidden bg-slate-950/40">
-                <div ref={scrollRef} className="h-[600px] overflow-y-auto p-8 terminal-scroll font-code text-[11px]">
+                <div ref={scrollRef} className="h-[650px] overflow-y-auto p-8 terminal-scroll font-code text-[11px]">
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 space-y-6">
                       <Database className="w-12 h-12 opacity-10" />
-                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">Waiting for manual trigger...</p>
+                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Idle: Ready for Dispatch</p>
                     </div>
                   ) : (
                     <div className="space-y-8">
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
-                        const isOk = data.code === "200" || data.code === 200 || data.msg === 'success';
+                        const isOk = String(data.code) === "200" || data.msg === 'success';
                         return (
-                          <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative group">
-                            <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] rounded-full bg-slate-800 group-hover:bg-emerald-500 transition-colors" />
+                          <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">
+                            <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] rounded-full bg-slate-800" />
                             <div className="flex items-center gap-3">
                               <span className="text-[9px] font-black text-slate-600">{String(idx + 1).padStart(2, '0')}</span>
                               <span className="text-[10px] font-black uppercase text-emerald-400">{step}</span>
                               <Badge variant="outline" className={cn("text-[8px] font-black border-slate-800", isOk ? "text-emerald-500" : "text-rose-500")}>
-                                {isOk ? "HTTP_200_OK" : `FAIL_${data.code || 400}`}
+                                {isOk ? "HTTP_200_OK" : `ERROR_${data.code || 400}`}
                               </Badge>
                             </div>
-                            <div className="relative">
-                              <pre className="text-slate-500 bg-slate-900/80 p-5 rounded-2xl overflow-x-auto border border-slate-800/30 terminal-scroll leading-relaxed shadow-inner max-h-48">
-                                {JSON.stringify(data, null, 2)}
-                              </pre>
-                            </div>
+                            <pre className="text-slate-500 bg-slate-900/80 p-5 rounded-2xl overflow-x-auto border border-slate-800/30 terminal-scroll max-h-56">
+                              {JSON.stringify(data, null, 2)}
+                            </pre>
                           </div>
                         );
                       })}
                       {(isLoading || isVerifying) && (
                         <div className="flex items-center gap-4 text-emerald-500 animate-pulse pl-6">
                           <RefreshCw className="w-3 h-3 animate-spin" />
-                          <span className="text-[9px] font-black uppercase tracking-widest">Synchronizing Upstream Handshake...</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest">Syncing Upstream Packets...</span>
                         </div>
                       )}
                     </div>

