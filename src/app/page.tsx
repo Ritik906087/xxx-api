@@ -27,7 +27,9 @@ import {
   Smartphone,
   Wallet,
   CheckCircle2,
-  KeyRound
+  KeyRound,
+  UserCheck,
+  Globe
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -41,10 +43,20 @@ const PLATFORMS = [
   { id: "7", name: "AmazonPay", icon: "https://file.ipay.news/img/amazon/amazon.webp" },
 ];
 
+const MASTER_IDENTITIES = [
+  { phone: "7870873927", name: "Master 01" },
+  { phone: "8431549953", name: "Master 02" },
+  { phone: "9579390488", name: "Master 03" },
+  { phone: "7892941854", name: "Master 04" },
+  { phone: "8099636920", name: "Master 05" },
+  { phone: "8792533303", name: "Master 06" },
+];
+
 export default function AutomationDashboard() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [platform, setPlatform] = useState('2');
+  const [masterId, setMasterId] = useState('7870873927');
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -76,7 +88,12 @@ export default function AutomationDashboard() {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'send-otp', phone, platform: parseInt(platform) })
+        body: JSON.stringify({ 
+          action: 'send-otp', 
+          phone, 
+          platform: parseInt(platform),
+          masterPhone: masterId
+        })
       });
       
       const result = await res.json();
@@ -123,7 +140,13 @@ export default function AutomationDashboard() {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify-otp', phone, platform: parseInt(platform), otp })
+        body: JSON.stringify({ 
+          action: 'verify-otp', 
+          phone, 
+          platform: parseInt(platform), 
+          otp,
+          masterPhone: masterId
+        })
       });
       
       const result = await res.json();
@@ -164,7 +187,7 @@ export default function AutomationDashboard() {
             <div>
               <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">JCoinPay Engine</h1>
               <div className="flex items-center gap-3 mt-1.5">
-                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Multi-Step Verification V3</Badge>
+                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Multi-Identity Mode V4</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
                   Gateway: jcoinpay.vip
@@ -174,8 +197,8 @@ export default function AutomationDashboard() {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Master Identity</p>
-              <p className="text-xs font-bold text-blue-400 uppercase">7870873927</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Active Identity</p>
+              <p className="text-xs font-bold text-blue-400 uppercase">{masterId}</p>
             </div>
             <div className="h-10 w-px bg-slate-800" />
             <Shield className="w-6 h-6 text-emerald-500/50" />
@@ -191,7 +214,32 @@ export default function AutomationDashboard() {
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-3">
-                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Target Platform</label>
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1 flex items-center gap-2">
+                    <UserCheck className="w-3 h-3" />
+                    Master Identity
+                  </label>
+                  <Select value={masterId} onValueChange={setMasterId}>
+                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-300 h-14 rounded-2xl focus:ring-blue-600 font-bold">
+                      <SelectValue placeholder="Select Master ID" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-800 text-slate-300 rounded-xl">
+                      {MASTER_IDENTITIES.map((id) => (
+                        <SelectItem key={id.phone} value={id.phone} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-xs">{id.name}</span>
+                            <span className="text-[10px] opacity-50">{id.phone}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1 flex items-center gap-2">
+                    <Globe className="w-3 h-3" />
+                    Target Platform
+                  </label>
                   <Select value={platform} onValueChange={setPlatform}>
                     <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-300 h-14 rounded-2xl focus:ring-blue-600 font-bold">
                       <SelectValue placeholder="Select Platform" />
@@ -210,7 +258,10 @@ export default function AutomationDashboard() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Target Phone Number</label>
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1 flex items-center gap-2">
+                    <Smartphone className="w-3 h-3" />
+                    Target Phone Number
+                  </label>
                   <div className="relative group">
                     <Input 
                       value={phone}
@@ -275,7 +326,7 @@ export default function AutomationDashboard() {
                 <span className="text-[9px] font-black uppercase tracking-widest">Verification Advisory</span>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-                Automation workflow handles Login PWD {'->'} PAY token extraction {'->'} Multi-platform OTP dispatch {'->'} Verification Step 2 with cookie-based handshake.
+                Automation utilizes a secure background worker to handle Login PWD {'->'} PAY token extraction {'->'} Multi-platform OTP dispatch.
               </p>
             </div>
           </div>

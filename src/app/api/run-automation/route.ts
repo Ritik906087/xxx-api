@@ -12,6 +12,18 @@ const CORS_HEADERS = {
 const TARGET_BASE_URL = "https://jcoinpay.vip";
 
 /**
+ * Master Identities Registry
+ */
+const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
+  "7870873927": { pwd: "Ritik123", pin: "954073" },
+  "8431549953": { pwd: "Ritik123", pin: "954073" },
+  "9579390488": { pwd: "Ritik123", pin: "954073" },
+  "7892941854": { pwd: "Ritik123", pin: "954073" },
+  "8099636920": { pwd: "Ritik123", pin: "954073" },
+  "8792533303": { pwd: "Ritik123", pin: "954073" },
+};
+
+/**
  * Throttling Helper
  */
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -69,6 +81,9 @@ export async function POST(request: Request) {
     const targetPhone = body.phone;
     const platformId = body.platform || 2;
     const otp = body.otp;
+    const masterPhone = body.masterPhone || "7870873927";
+
+    const masterCreds = MASTER_DB[masterPhone] || MASTER_DB["7870873927"];
 
     if (!targetPhone || targetPhone.length < 10) {
       return NextResponse.json({ 
@@ -81,9 +96,9 @@ export async function POST(request: Request) {
     const platformPath = PLATFORM_PATH_MAP[platformId] || "mobikwikAuth";
 
     // Step 1: Login to JCoinPay (Required for all actions)
-    const loginPayload = { phone: "7870873927", pwd: "Ritik123" };
+    const loginPayload = { phone: masterPhone, pwd: masterCreds.pwd };
     const loginJson = await jFetch(`${TARGET_BASE_URL}/app/user/login/pwd`, 'POST', {}, loginPayload);
-    logs.push({ "Step 1: Identity Auth (Login)": loginJson });
+    logs.push({ [`Step 1: Identity Auth (Login: ${masterPhone})`]: loginJson });
 
     if (loginJson.code !== "200" || !loginJson.data?.tokenValue) {
       return NextResponse.json({ code: 400, message: "Auth Sequence Failed: Invalid Identity Credentials", logs }, { status: 200, headers: CORS_HEADERS });
@@ -105,7 +120,7 @@ export async function POST(request: Request) {
 
       // Step 4: Verify Security PIN
       await sleep(1500);
-      const pinPayload = { pin: "954073" };
+      const pinPayload = { pin: masterCreds.pin };
       const pinJson = await jFetch(`${TARGET_BASE_URL}/app/user/checkPin`, 'POST', authHeaders, pinPayload);
       logs.push({ "Step 4: PIN Verification": pinJson });
 
