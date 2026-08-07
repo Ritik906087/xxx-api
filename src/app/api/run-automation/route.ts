@@ -35,6 +35,7 @@ const STEALTH_HEADERS = {
 
 /**
  * Master Identities Registry - Production Verified
+ * Removed demo account 9060873927 as requested.
  */
 const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
   "7870873927": { pwd: "Ritik123", pin: "954073" },
@@ -46,15 +47,15 @@ const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
 };
 
 /**
- * Platform Path Mapping - STRICT CASE SENSITIVITY
+ * Platform Path Mapping - STRICT CASE SENSITIVITY as per Official JCoinPay API
  */
 const PLATFORM_PATH_MAP: Record<number, string> = {
-  1: "freeChargeAuth", // Updated for FreeCharge
-  2: "mobikwikAuth",   // Working
-  3: "phonePeAuth",    // Working (Capital P)
-  4: "paytmAuth",      // Working
-  7: "amazonpayAuth",  // Working
-  8: "naviAuth"        // Working
+  1: "freeChargeAuth", // Capital 'C' required
+  2: "mobikwikAuth",   // Standard
+  3: "phonePeAuth",    // Capital 'P' required (Verified)
+  4: "paytmAuth",      // Standard
+  7: "amazonpayAuth",  // Standard
+  8: "naviAuth"        // Standard
 };
 
 /**
@@ -123,6 +124,7 @@ export async function POST(request: Request) {
       masterPhone = existingMapping.masterPhone;
       logs.push({ "Identity Protection": `Sticky Match: Target ${targetPhone} locked to Master ${masterPhone}` });
     } else {
+      // Rotation Logic: Assign random master from pool for new target
       const masterKeys = Object.keys(MASTER_DB);
       masterPhone = masterKeys[Math.floor(Math.random() * masterKeys.length)];
       
@@ -163,7 +165,7 @@ export async function POST(request: Request) {
       const otpStepPath = platformId === 1 ? "step2/sendOtp" : "step1/sendOtp";
       
       const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/${otpStepPath}`, 'POST', authHeaders, otpPayload);
-      logs.push({ [`Step 3: OTP Dispatch (${platformPath.replace('Auth', '')})`]: otpJson });
+      logs.push({ [`Step 3: OTP Dispatch (${platformPath})`]: otpJson });
 
       if (String(otpJson.code) === "50008") {
         return NextResponse.json({ 
@@ -185,7 +187,7 @@ export async function POST(request: Request) {
       await sleep(1000);
       const verifyPayload = { phone: targetPhone, cookie: otp, txnParams: null, platform: platformId };
       const verifyJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step2/2`, 'POST', authHeaders, verifyPayload);
-      logs.push({ [`Step 2: ${platformPath.replace('Auth', '')} Verification`]: verifyJson });
+      logs.push({ [`Step 2: ${platformPath} Verification`]: verifyJson });
 
       if (String(verifyJson.code) === "200") {
         return NextResponse.json({ 
