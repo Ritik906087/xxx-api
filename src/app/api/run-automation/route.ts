@@ -34,7 +34,7 @@ const STEALTH_HEADERS = {
 };
 
 /**
- * Master Identities Registry (Securely managed)
+ * Master Identities Registry
  */
 const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
   "7870873927": { pwd: "Ritik123", pin: "954073" },
@@ -51,9 +51,6 @@ const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
  */
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-/**
- * Dynamic Platform Mapping
- */
 const PLATFORM_PATH_MAP: Record<number, string> = {
   1: "freechargeAuth",
   2: "mobikwikAuth",
@@ -63,9 +60,6 @@ const PLATFORM_PATH_MAP: Record<number, string> = {
   8: "naviAuth"
 };
 
-/**
- * Safe Fetch Helper with Stealth Injection
- */
 async function jFetch(url: string, method: string, headers: any, body?: any) {
   try {
     const res = await fetch(url, {
@@ -114,79 +108,66 @@ export async function POST(request: Request) {
     const db = await getDb();
     const mappingsCollection = db.collection('identity_mappings');
 
-    // --- SMART IDENTITY DISCOVERY & ROTATION ---
+    // --- SMART IDENTITY DISCOVERY (Sticky & Rotation) ---
     const existingMapping = await mappingsCollection.findOne({ targetPhone });
     
     if (existingMapping) {
       masterPhone = existingMapping.masterPhone;
-      logs.push({ "Identity Policy": `Sticky identity detected. Identity Locked to mapped Master ID: ${masterPhone}` });
+      logs.push({ "Identity Policy": `Sticky Identity: Target ${targetPhone} locked to Master ${masterPhone}` });
     } else {
-      // Rotation Logic: Pick a random ID from the pool to avoid over-using ID #1
+      // Rotation Policy: Pick randomly from available pool to balance load
       const masterKeys = Object.keys(MASTER_DB);
       masterPhone = masterKeys[Math.floor(Math.random() * masterKeys.length)];
-      logs.push({ "Identity Policy": `New target. Rotation algorithm selected Master ID: ${masterPhone}` });
       
-      // Save mapping immediately to lock this target to this ID
+      // Persist mapping immediately
       await mappingsCollection.insertOne({ 
         targetPhone, 
         masterPhone, 
         createdAt: new Date().toISOString() 
       });
-      logs.push({ "Identity Policy": "Mapping established and cached in MongoDB." });
+      logs.push({ "Identity Policy": `Rotation Policy: New target assigned to Master ${masterPhone}` });
     }
 
     const masterCreds = MASTER_DB[masterPhone];
     const platformPath = PLATFORM_PATH_MAP[platformId] || "mobikwikAuth";
 
-    // STEP 1: AUTHENTICATE SELECTED MASTER IDENTITY
+    // STEP 1: AUTHENTICATE SELECTED MASTER
     const loginPayload = { phone: masterPhone, pwd: masterCreds.pwd };
     const loginJson = await jFetch(`${TARGET_BASE_URL}/app/user/login/pwd`, 'POST', {}, loginPayload);
-    logs.push({ [`Step 1: Master Auth (ID: ${masterPhone})`]: loginJson });
+    logs.push({ [`Step 1: Master Auth (${masterPhone})`]: loginJson });
 
     if (loginJson.code !== "200" || !loginJson.data?.tokenValue) {
-      return NextResponse.json({ code: 400, message: `Handshake Failed: Master ID ${masterPhone} rejected credentials.`, logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: "Handshake Failed: Master credentials rejected.", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
     const payToken = loginJson.data.tokenValue;
     const authHeaders = { 'PAY': payToken };
 
     if (action === "send-otp") {
-      // STEP 2: ENVIRONMENT SYNC
+      // STEP 2: PIN VERIFICATION
       await sleep(1000);
-      const homeJson = await jFetch(`${TARGET_BASE_URL}/app/home`, 'GET', authHeaders);
-      logs.push({ "Step 2: Environment Sync": homeJson });
+      const pinJson = await jFetch(`${TARGET_BASE_URL}/app/user/checkPin`, 'POST', authHeaders, { pin: masterCreds.pin });
+      logs.push({ "Step 2: Security PIN Check": pinJson });
 
-      // STEP 3: SECURITY PIN VERIFICATION
-      await sleep(1000);
-      const pinPayload = { pin: masterCreds.pin };
-      const pinJson = await jFetch(`${TARGET_BASE_URL}/app/user/checkPin`, 'POST', authHeaders, pinPayload);
-      logs.push({ "Step 3: Security PIN Check": pinJson });
-
-      if (pinJson.code !== "200") {
-        return NextResponse.json({ code: 400, message: "Security Block: PIN rejection on selected Master ID.", logs }, { status: 200, headers: CORS_HEADERS });
-      }
-
-      // STEP 4: OTP DISPATCH (THE TRIGGER)
+      // STEP 3: OTP DISPATCH
       await sleep(1000);
       const otpPayload = { phone: targetPhone, platform: platformId };
       const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
-      logs.push({ [`Step 4: ${platformPath.replace('Auth', '')} OTP Trigger (Target: ${targetPhone})`]: otpJson });
+      logs.push({ [`Step 3: OTP Dispatch (${platformPath.replace('Auth', '')})`]: otpJson });
 
       return NextResponse.json({ 
         code: 200, 
-        message: `OTP Dispatch Sequence Processed via Master ID: ${masterPhone}`, 
+        message: `OTP dispatched via Master ID: ${masterPhone}`, 
         masterUsed: masterPhone,
         logs: logs 
       }, { status: 200, headers: CORS_HEADERS });
 
     } else if (action === "verify-otp") {
-      if (!otp) return NextResponse.json({ code: 400, message: "Verification Code Required", logs }, { status: 200, headers: CORS_HEADERS });
-
-      // STEP 2: OTP VERIFICATION & EXTRACTION
+      // STEP 2: VERIFICATION
       await sleep(1000);
       const verifyPayload = { phone: targetPhone, cookie: otp, txnParams: null, platform: platformId };
       const verifyJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step2/2`, 'POST', authHeaders, verifyPayload);
-      logs.push({ [`Step 2: ${platformPath.replace('Auth', '')} Verification Result`]: verifyJson });
+      logs.push({ [`Step 2: ${platformPath.replace('Auth', '')} Verification`]: verifyJson });
 
       if (verifyJson.code === "200") {
         return NextResponse.json({ 

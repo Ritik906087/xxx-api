@@ -1,51 +1,38 @@
 #!/bin/bash
 
-# Configuration
+# Configuration - Update to your actual domain
 API_URL="http://localhost:9002/api/run-automation"
-# If testing on live deployment, change to your domain:
-# API_URL="https://your-domain.com/api/run-automation"
 
 TARGET_PHONE="919060873927"
-MASTER_ID="7870873927"
-PLATFORM=2 # 2=MobiKwik, 4=Paytm, 3=PhonePe, 1=FreeCharge
+PLATFORM=2 # 2=MobiKwik, 4=Paytm, 1=FreeCharge
 
-echo "------------------------------------------------"
-echo "VANTAGE ENGINE: Termux Automation Controller"
-echo "------------------------------------------------"
+echo "================================================"
+echo "    VANTAGE SYSTEM: TERMUX MASTER CONTROL       "
+echo "================================================"
 
 function send_otp() {
-    echo -e "\n[ACTION] Dispatching OTP to $TARGET_PHONE via Platform $PLATFORM..."
+    echo -e "\n[LOG] Triggering OTP Sequence for $TARGET_PHONE..."
     curl -s -X POST "$API_URL" \
          -H "Content-Type: application/json" \
-         -d "{
-               \"action\": \"send-otp\",
-               \"phone\": \"$TARGET_PHONE\",
-               \"platform\": $PLATFORM,
-               \"masterPhone\": \"$MASTER_ID\"
-             }" | jq .
+         -d "{\"action\": \"send-otp\", \"phone\": \"$TARGET_PHONE\", \"platform\": $PLATFORM}" | jq .
 }
 
 function verify_otp() {
-    echo -n -e "\n[INPUT] Enter the 6-digit OTP received on $TARGET_PHONE: "
+    echo -n -e "\n[INPUT] Enter OTP Code: "
     read OTP_CODE
     
-    echo -e "\n[ACTION] Verifying OTP: $OTP_CODE..."
+    echo -e "\n[LOG] Verifying Packet: $OTP_CODE..."
     curl -s -X POST "$API_URL" \
          -H "Content-Type: application/json" \
-         -d "{
-               \"action\": \"verify-otp\",
-               \"phone\": \"$TARGET_PHONE\",
-               \"platform\": $PLATFORM,
-               \"otp\": \"$OTP_CODE\",
-               \"masterPhone\": \"$MASTER_ID\"
-             }" | jq .
+         -d "{\"action\": \"verify-otp\", \"phone\": \"$TARGET_PHONE\", \"platform\": $PLATFORM, \"otp\": \"$OTP_CODE\"}" | jq .
 }
 
-# Execution
+# Run the flow
 send_otp
-echo -e "\nWait for SMS... then proceed to verification."
+echo -e "\nWaiting for SMS... (Press Enter once received)"
+read
 verify_otp
 
-echo -e "\n------------------------------------------------"
-echo "Sequence Finished."
-echo "------------------------------------------------"
+echo -e "\n================================================"
+echo "          PROCESS SEQUENCE TERMINATED           "
+echo "================================================"
