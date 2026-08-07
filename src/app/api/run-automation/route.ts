@@ -92,12 +92,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const action = body.action || "send-otp";
-    const targetPhone = body.phone;
+    const rawPhone = body.phone;
     const platformId = body.platform || 2;
     const otp = body.otp;
-    let masterPhone = "";
-
-    if (!targetPhone || targetPhone.length < 10) {
+    
+    if (!rawPhone || String(rawPhone).length < 10) {
       return NextResponse.json({ 
         code: 400, 
         message: "Identification Required: Valid target phone missing.", 
@@ -105,17 +104,23 @@ export async function POST(request: Request) {
       }, { status: 200, headers: CORS_HEADERS });
     }
 
+    // --- NORMALIZATION ---
+    // Extract last 10 digits to ensure consistency between 91XXXX and XXXX
+    const targetPhone = String(rawPhone).replace(/\D/g, '').slice(-10);
+
     const db = await getDb();
     const mappingsCollection = db.collection('identity_mappings');
 
-    // --- SMART IDENTITY DISCOVERY (Sticky & Rotation) ---
+    // --- STICKY IDENTITY ENFORCEMENT ---
+    // Check if this target is already linked to a Master ID to avoid 'phone repeat bind' (50008)
+    let masterPhone = "";
     const existingMapping = await mappingsCollection.findOne({ targetPhone });
     
     if (existingMapping) {
       masterPhone = existingMapping.masterPhone;
-      logs.push({ "Identity Policy": `Sticky Identity: Target ${targetPhone} locked to Master ${masterPhone}` });
+      logs.push({ "Identity Protection": `Sticky Match Found: Target ${targetPhone} is locked to Master ${masterPhone} (Preventing 50008 Error)` });
     } else {
-      // Rotation Policy: Pick randomly from available pool to balance load
+      // Rotation Policy: Pick randomly from available pool to balance load for new targets
       const masterKeys = Object.keys(MASTER_DB);
       masterPhone = masterKeys[Math.floor(Math.random() * masterKeys.length)];
       
@@ -125,7 +130,7 @@ export async function POST(request: Request) {
         masterPhone, 
         createdAt: new Date().toISOString() 
       });
-      logs.push({ "Identity Policy": `Rotation Policy: New target assigned to Master ${masterPhone}` });
+      logs.push({ "Identity Initialization": `Rotation Policy: New target ${targetPhone} assigned to Master ${masterPhone}` });
     }
 
     const masterCreds = MASTER_DB[masterPhone];
@@ -154,6 +159,15 @@ export async function POST(request: Request) {
       const otpPayload = { phone: targetPhone, platform: platformId };
       const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
       logs.push({ [`Step 3: OTP Dispatch (${platformPath.replace('Auth', '')})`]: otpJson });
+
+      // Handle specific repeat bind error if still occurring
+      if (otpJson.code === "50008") {
+        return NextResponse.json({ 
+          code: 50008, 
+          message: "Phone Repeat Bind: This number is already linked elsewhere.", 
+          logs: logs 
+        }, { status: 200, headers: CORS_HEADERS });
+      }
 
       return NextResponse.json({ 
         code: 200, 
