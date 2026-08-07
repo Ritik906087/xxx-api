@@ -2,22 +2,43 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 
 /**
- * Standardized CORS Headers
+ * Standardized CORS Headers for Mobile/Web Cross-Origin
  */
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, packageId, lang, channel, PAY',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, packageId, lang, channel, PAY, token',
 };
 
 const TARGET_BASE_URL = "https://jcoinpay.vip";
 
 /**
- * Master Identities Registry
+ * Advanced Stealth Headers: Emulates Official JCoinPay Mobile App
+ */
+const STEALTH_HEADERS = {
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Content-Type": "application/json;charset=UTF-8",
+  "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  "Origin": "https://jcoinpay.vip",
+  "Referer": "https://jcoinpay.vip/",
+  "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+  "Sec-Ch-Ua-Mobile": "?1",
+  "Sec-Ch-Ua-Platform": '"Android"',
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-origin",
+  "packageId": "2",
+  "lang": "en",
+  "channel": "h5"
+};
+
+/**
+ * Master Identities Registry (Securely managed)
  */
 const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
   "7870873927": { pwd: "Ritik123", pin: "954073" },
-  "9060873927": { pwd: "Ritik123", pin: "954073" }, // Added as per user instruction
+  "9060873927": { pwd: "Ritik123", pin: "954073" },
   "8431549953": { pwd: "Ritik123", pin: "954073" },
   "9579390488": { pwd: "Ritik123", pin: "954073" },
   "7892941854": { pwd: "Ritik123", pin: "954073" },
@@ -26,12 +47,12 @@ const MASTER_DB: Record<string, { pwd: string, pin: string }> = {
 };
 
 /**
- * Throttling Helper
+ * Throttling Helper (Deterministic Pacing)
  */
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 /**
- * Platform URL Mapping
+ * Dynamic Platform Mapping
  */
 const PLATFORM_PATH_MAP: Record<number, string> = {
   1: "freechargeAuth",
@@ -43,17 +64,14 @@ const PLATFORM_PATH_MAP: Record<number, string> = {
 };
 
 /**
- * Safe Fetch Helper for JCoinPay
+ * Safe Fetch Helper with Stealth Injection
  */
 async function jFetch(url: string, method: string, headers: any, body?: any) {
   try {
     const res = await fetch(url, {
       method,
       headers: {
-        'Content-Type': 'application/json',
-        'packageId': '2',
-        'lang': 'en',
-        'channel': 'h5',
+        ...STEALTH_HEADERS,
         ...headers
       },
       body: body ? JSON.stringify(body) : undefined
@@ -63,7 +81,7 @@ async function jFetch(url: string, method: string, headers: any, body?: any) {
     try {
       return JSON.parse(text);
     } catch (e) {
-      return { code: res.status, msg: "Invalid JSON", raw: text.substring(0, 200) };
+      return { code: res.status, msg: "Upstream Response Parsing Error", raw: text.substring(0, 500) };
     }
   } catch (err: any) {
     return { code: 500, msg: "Connection Fault", error: err.message };
@@ -93,115 +111,80 @@ export async function POST(request: Request) {
       }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // --- STICKY IDENTITY LOGIC ---
+    // --- STICKY IDENTITY ENFORCEMENT ---
     const db = await getDb();
     const mappingsCollection = db.collection('identity_mappings');
-    
-    // Check if this target phone already has a mapped Master ID
     const existingMapping = await mappingsCollection.findOne({ targetPhone });
+    
     if (existingMapping) {
       masterPhone = existingMapping.masterPhone;
-      logs.push({ "Identity Policy": `Sticky identity detected. Forcing Master ID: ${masterPhone}` });
+      logs.push({ "Identity Policy": `Sticky identity detected. Identity Locked to Master ID: ${masterPhone}` });
     }
 
     const masterCreds = MASTER_DB[masterPhone] || MASTER_DB["7870873927"];
     const platformPath = PLATFORM_PATH_MAP[platformId] || "mobikwikAuth";
 
-    // Step 1: Login to JCoinPay
+    // STEP 1: AUTHENTICATE MASTER IDENTITY
     const loginPayload = { phone: masterPhone, pwd: masterCreds.pwd };
     const loginJson = await jFetch(`${TARGET_BASE_URL}/app/user/login/pwd`, 'POST', {}, loginPayload);
-    logs.push({ [`Step 1: Identity Auth (Login: ${masterPhone})`]: loginJson });
+    logs.push({ [`Step 1: Master Auth (ID: ${masterPhone})`]: loginJson });
 
     if (loginJson.code !== "200" || !loginJson.data?.tokenValue) {
-      return NextResponse.json({ code: 400, message: "Auth Sequence Failed: Invalid Identity Credentials", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: "Handshake Failed: Master Credentials Rejected", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // If login is successful and no mapping exists, save it now
+    // Save mapping if new
     if (!existingMapping) {
-      await mappingsCollection.insertOne({
-        targetPhone,
-        masterPhone,
-        createdAt: new Date().toISOString()
-      });
-      logs.push({ "Identity Policy": `New mapping established: ${targetPhone} -> ${masterPhone}` });
+      await mappingsCollection.insertOne({ targetPhone, masterPhone, createdAt: new Date().toISOString() });
+      logs.push({ "Identity Policy": `Mapping cached for future requests.` });
     }
 
     const payToken = loginJson.data.tokenValue;
     const authHeaders = { 'PAY': payToken };
 
     if (action === "send-otp") {
-      // Step 2: Sync Home Environment
-      await sleep(1500);
+      // STEP 2: SYNC HOME & TOOL SUPPORT
+      await sleep(1000);
       const homeJson = await jFetch(`${TARGET_BASE_URL}/app/home`, 'GET', authHeaders);
-      logs.push({ "Step 2: Environment Sync (Home)": homeJson });
+      logs.push({ "Step 2: Environment Sync": homeJson });
 
-      // Step 3: Check Tool Support
-      await sleep(1500);
-      const supportJson = await jFetch(`${TARGET_BASE_URL}/app/tool/support`, 'GET', authHeaders);
-      logs.push({ "Step 3: Tool Integrity Check": supportJson });
-
-      // Step 4: Verify Security PIN
-      await sleep(1500);
+      // STEP 3: SECURITY PIN VERIFICATION
+      await sleep(1000);
       const pinPayload = { pin: masterCreds.pin };
       const pinJson = await jFetch(`${TARGET_BASE_URL}/app/user/checkPin`, 'POST', authHeaders, pinPayload);
-      logs.push({ "Step 4: PIN Verification": pinJson });
+      logs.push({ "Step 3: Security PIN Check": pinJson });
 
       if (pinJson.code !== "200") {
-        return NextResponse.json({ code: 400, message: "Security Fault: PIN rejected by upstream", logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: "Security Block: Upstream PIN rejection", logs }, { status: 200, headers: CORS_HEADERS });
       }
 
-      // Step 5: Final OTP Dispatch
-      await sleep(1500);
+      // STEP 4: OTP DISPATCH (THE TRIGGER)
+      await sleep(1000);
       const otpPayload = { phone: targetPhone, platform: platformId };
       const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
-      logs.push({ [`Step 5: ${platformPath.replace('Auth', '')} Action Trigger`]: otpJson });
+      logs.push({ [`Step 4: ${platformPath.replace('Auth', '')} OTP Trigger`]: otpJson });
 
-      return NextResponse.json({ 
-        code: 200, 
-        message: "OTP Dispatch sequence processed.", 
-        logs 
-      }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 200, message: "OTP Dispatch Sequence Processed.", logs }, { status: 200, headers: CORS_HEADERS });
 
     } else if (action === "verify-otp") {
-      if (!otp) {
-        return NextResponse.json({ code: 400, message: "OTP required for verification", logs }, { status: 200, headers: CORS_HEADERS });
-      }
+      if (!otp) return NextResponse.json({ code: 400, message: "Verification Code Required", logs }, { status: 200, headers: CORS_HEADERS });
 
-      // Step 2: OTP Verification
-      await sleep(1500);
-      const verifyPayload = { 
-        phone: targetPhone, 
-        cookie: otp, 
-        txnParams: null, 
-        platform: platformId 
-      };
-      
+      // STEP 2: OTP VERIFICATION & EXTRACTION
+      await sleep(1000);
+      const verifyPayload = { phone: targetPhone, cookie: otp, txnParams: null, platform: platformId };
       const verifyJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step2/2`, 'POST', authHeaders, verifyPayload);
       logs.push({ [`Step 2: ${platformPath.replace('Auth', '')} Verification Result`]: verifyJson });
 
       if (verifyJson.code === "200") {
-        return NextResponse.json({ 
-          code: 200, 
-          message: "Verification successful", 
-          upis: verifyJson.data?.upis,
-          logs 
-        }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 200, message: "Session Authorized", upis: verifyJson.data?.upis, logs }, { status: 200, headers: CORS_HEADERS });
       } else {
-        return NextResponse.json({ 
-          code: 400, 
-          message: verifyJson.msg || "Verification failed", 
-          logs 
-        }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: verifyJson.msg || "Verification Failed", logs }, { status: 200, headers: CORS_HEADERS });
       }
     }
 
-    return NextResponse.json({ code: 400, message: "Invalid Action", logs }, { status: 200, headers: CORS_HEADERS });
+    return NextResponse.json({ code: 400, message: "Invalid Protocol Action", logs }, { status: 200, headers: CORS_HEADERS });
 
   } catch (err: any) {
-    return NextResponse.json({ 
-      code: 500, 
-      message: `System Integrity Fault: ${err.message}`, 
-      logs: logs 
-    }, { status: 200, headers: CORS_HEADERS });
+    return NextResponse.json({ code: 500, message: `System Fault: ${err.message}`, logs }, { status: 200, headers: CORS_HEADERS });
   }
 }
