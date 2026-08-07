@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     const targetPhone = body.phone;
     const platformId = body.platform || 2;
     const otp = body.otp;
-    let masterPhone = body.masterPhone || "7870873927";
+    let masterPhone = "";
 
     if (!targetPhone || targetPhone.length < 10) {
       return NextResponse.json({ 
@@ -111,39 +111,47 @@ export async function POST(request: Request) {
       }, { status: 200, headers: CORS_HEADERS });
     }
 
-    // --- STICKY IDENTITY ENFORCEMENT ---
     const db = await getDb();
     const mappingsCollection = db.collection('identity_mappings');
+
+    // --- SMART IDENTITY DISCOVERY & ROTATION ---
     const existingMapping = await mappingsCollection.findOne({ targetPhone });
     
     if (existingMapping) {
       masterPhone = existingMapping.masterPhone;
-      logs.push({ "Identity Policy": `Sticky identity detected. Identity Locked to Master ID: ${masterPhone}` });
+      logs.push({ "Identity Policy": `Sticky identity detected. Identity Locked to mapped Master ID: ${masterPhone}` });
+    } else {
+      // Rotation Logic: Pick a random ID from the pool to avoid over-using ID #1
+      const masterKeys = Object.keys(MASTER_DB);
+      masterPhone = masterKeys[Math.floor(Math.random() * masterKeys.length)];
+      logs.push({ "Identity Policy": `New target. Rotation algorithm selected Master ID: ${masterPhone}` });
+      
+      // Save mapping immediately to lock this target to this ID
+      await mappingsCollection.insertOne({ 
+        targetPhone, 
+        masterPhone, 
+        createdAt: new Date().toISOString() 
+      });
+      logs.push({ "Identity Policy": "Mapping established and cached in MongoDB." });
     }
 
-    const masterCreds = MASTER_DB[masterPhone] || MASTER_DB["7870873927"];
+    const masterCreds = MASTER_DB[masterPhone];
     const platformPath = PLATFORM_PATH_MAP[platformId] || "mobikwikAuth";
 
-    // STEP 1: AUTHENTICATE MASTER IDENTITY
+    // STEP 1: AUTHENTICATE SELECTED MASTER IDENTITY
     const loginPayload = { phone: masterPhone, pwd: masterCreds.pwd };
     const loginJson = await jFetch(`${TARGET_BASE_URL}/app/user/login/pwd`, 'POST', {}, loginPayload);
     logs.push({ [`Step 1: Master Auth (ID: ${masterPhone})`]: loginJson });
 
     if (loginJson.code !== "200" || !loginJson.data?.tokenValue) {
-      return NextResponse.json({ code: 400, message: "Handshake Failed: Master Credentials Rejected", logs }, { status: 200, headers: CORS_HEADERS });
-    }
-
-    // Save mapping if new
-    if (!existingMapping) {
-      await mappingsCollection.insertOne({ targetPhone, masterPhone, createdAt: new Date().toISOString() });
-      logs.push({ "Identity Policy": `Mapping cached for future requests.` });
+      return NextResponse.json({ code: 400, message: `Handshake Failed: Master ID ${masterPhone} rejected credentials.`, logs }, { status: 200, headers: CORS_HEADERS });
     }
 
     const payToken = loginJson.data.tokenValue;
     const authHeaders = { 'PAY': payToken };
 
     if (action === "send-otp") {
-      // STEP 2: SYNC HOME & TOOL SUPPORT
+      // STEP 2: ENVIRONMENT SYNC
       await sleep(1000);
       const homeJson = await jFetch(`${TARGET_BASE_URL}/app/home`, 'GET', authHeaders);
       logs.push({ "Step 2: Environment Sync": homeJson });
@@ -155,16 +163,21 @@ export async function POST(request: Request) {
       logs.push({ "Step 3: Security PIN Check": pinJson });
 
       if (pinJson.code !== "200") {
-        return NextResponse.json({ code: 400, message: "Security Block: Upstream PIN rejection", logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: "Security Block: PIN rejection on selected Master ID.", logs }, { status: 200, headers: CORS_HEADERS });
       }
 
       // STEP 4: OTP DISPATCH (THE TRIGGER)
       await sleep(1000);
       const otpPayload = { phone: targetPhone, platform: platformId };
       const otpJson = await jFetch(`${TARGET_BASE_URL}/app/tool/${platformPath}/step1/sendOtp`, 'POST', authHeaders, otpPayload);
-      logs.push({ [`Step 4: ${platformPath.replace('Auth', '')} OTP Trigger`]: otpJson });
+      logs.push({ [`Step 4: ${platformPath.replace('Auth', '')} OTP Trigger (Target: ${targetPhone})`]: otpJson });
 
-      return NextResponse.json({ code: 200, message: "OTP Dispatch Sequence Processed.", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ 
+        code: 200, 
+        message: `OTP Dispatch Sequence Processed via Master ID: ${masterPhone}`, 
+        masterUsed: masterPhone,
+        logs: logs 
+      }, { status: 200, headers: CORS_HEADERS });
 
     } else if (action === "verify-otp") {
       if (!otp) return NextResponse.json({ code: 400, message: "Verification Code Required", logs }, { status: 200, headers: CORS_HEADERS });
@@ -176,7 +189,13 @@ export async function POST(request: Request) {
       logs.push({ [`Step 2: ${platformPath.replace('Auth', '')} Verification Result`]: verifyJson });
 
       if (verifyJson.code === "200") {
-        return NextResponse.json({ code: 200, message: "Session Authorized", upis: verifyJson.data?.upis, logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ 
+          code: 200, 
+          message: "Session Authorized", 
+          upis: verifyJson.data?.upis, 
+          masterUsed: masterPhone,
+          logs: logs 
+        }, { status: 200, headers: CORS_HEADERS });
       } else {
         return NextResponse.json({ code: 400, message: verifyJson.msg || "Verification Failed", logs }, { status: 200, headers: CORS_HEADERS });
       }
