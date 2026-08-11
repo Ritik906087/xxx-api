@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -29,38 +30,34 @@ import {
   CheckCircle2,
   KeyRound,
   UserCheck,
-  Globe
+  Globe,
+  ArrowRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-const PLATFORMS = [
-  { id: "2", name: "MobiKwik", icon: "https://download.kspay.shop/icon/mobc.webp" },
-  { id: "4", name: "Paytm", icon: "https://download.kspay.shop/icon/paytmct.png" },
-  { id: "3", name: "PhonePe", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
-  { id: "1", name: "FreeCharge", icon: "https://download.kspay.shop/img/freecharge.webp" },
-  { id: "8", name: "Navi", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
-  { id: "7", name: "AmazonPay", icon: "https://file.ipay.news/img/amazon/amazon.webp" },
-];
-
-const MASTER_IDENTITIES = [
-  { phone: "7870873927", name: "Master 01" },
-  { phone: "8431549953", name: "Master 02" },
-  { phone: "9579390488", name: "Master 03" },
-  { phone: "7892941854", name: "Master 04" },
-  { phone: "8099636920", name: "Master 05" },
-  { phone: "8792533303", name: "Master 06" },
+const CHANNELS = [
+  { id: "8", name: "Paytm", type: 8, accountType: "1", icon: "https://download.kspay.shop/icon/paytmct.png" },
+  { id: "1", name: "PhonePe", type: 1, accountType: "1", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
+  { id: "2", name: "Freecharge", type: 2, accountType: "2", icon: "https://download.kspay.shop/img/freecharge.webp" },
+  { id: "4", name: "Mobikwik", type: 4, accountType: "1", icon: "https://download.kspay.shop/icon/mobc.webp" },
+  { id: "13", name: "Navi", type: 13, accountType: "1", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
+  { id: "14", name: "PhonePe Business", type: 14, accountType: "1", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
+  { id: "16", name: "Paytm Business", type: 16, accountType: "1", icon: "https://download.kspay.shop/icon/paytmct.png" },
+  { id: "17", name: "SuperMoney", type: 17, accountType: "1", icon: "https://picsum.photos/seed/sm/32/32" },
+  { id: "18", name: "BharatPe Business", type: 18, accountType: "1", icon: "https://picsum.photos/seed/bp/32/32" },
 ];
 
 export default function AutomationDashboard() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [platform, setPlatform] = useState('2');
-  const [masterId, setMasterId] = useState('7870873927');
+  const [selectedChannelId, setSelectedChannelId] = useState('8');
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [sessionId, setSessionId] = useState('');
   const [logs, setLogs] = useState<any[]>([]);
+  const [vpaList, setVpaList] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -70,18 +67,17 @@ export default function AutomationDashboard() {
     }
   }, [logs]);
 
+  const activeChannel = CHANNELS.find(c => c.id === selectedChannelId);
+
   const handleRunAutomation = async () => {
     if (!phone || phone.length < 10) {
-      toast({ 
-        variant: 'destructive', 
-        title: "Validation Error", 
-        description: "Valid 10-digit target phone is required." 
-      });
+      toast({ variant: 'destructive', title: "Validation Error", description: "Valid 10-digit phone is required." });
       return;
     }
 
     setIsLoading(true);
     setLogs([]);
+    setVpaList([]);
     setOtpSent(false);
     
     try {
@@ -91,8 +87,8 @@ export default function AutomationDashboard() {
         body: JSON.stringify({ 
           action: 'send-otp', 
           phone, 
-          platform: parseInt(platform),
-          masterPhone: masterId
+          channelType: activeChannel?.type,
+          accountType: activeChannel?.accountType
         })
       });
       
@@ -101,23 +97,13 @@ export default function AutomationDashboard() {
       
       if (result.code === 200) {
         setOtpSent(true);
-        toast({ 
-          title: "OTP Dispatched", 
-          description: `Code sent to ${phone}.` 
-        });
+        setSessionId(result.sessionId);
+        toast({ title: "OTP Dispatched", description: `Sequence started for ${activeChannel?.name}.` });
       } else {
-        toast({ 
-          variant: 'destructive', 
-          title: "Sequence Halted", 
-          description: result.message || "Upstream gateway error." 
-        });
+        toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Upstream Error" });
       }
     } catch (e: any) {
-      toast({ 
-        variant: 'destructive', 
-        title: "Network Boundary Error", 
-        description: "Could not reach the automation controller." 
-      });
+      toast({ variant: 'destructive', title: "System Fault", description: "Network connection lost." });
     } finally {
       setIsLoading(false);
     }
@@ -125,11 +111,7 @@ export default function AutomationDashboard() {
 
   const handleVerifyOtp = async () => {
     if (!otp || otp.length < 4) {
-      toast({ 
-        variant: 'destructive', 
-        title: "Validation Error", 
-        description: "Valid OTP code is required." 
-      });
+      toast({ variant: 'destructive', title: "Validation Error", description: "OTP is too short." });
       return;
     }
 
@@ -142,9 +124,9 @@ export default function AutomationDashboard() {
         body: JSON.stringify({ 
           action: 'verify-otp', 
           phone, 
-          platform: parseInt(platform), 
+          channelType: activeChannel?.type,
           otp,
-          masterPhone: masterId
+          sessionId
         })
       });
       
@@ -152,23 +134,13 @@ export default function AutomationDashboard() {
       setLogs(prev => [...prev, ...result.logs]);
       
       if (result.code === 200) {
-        toast({ 
-          title: "Identity Verified", 
-          description: `UPI ID Extracted: ${result.upis || 'Not Found'}` 
-        });
+        setVpaList(result.vpaList || []);
+        toast({ title: "Identity Verified", description: `${result.vpaList?.length || 0} VPAs extracted.` });
       } else {
-        toast({ 
-          variant: 'destructive', 
-          title: "Verification Failed", 
-          description: result.message || "Invalid OTP code." 
-        });
+        toast({ variant: 'destructive', title: "Verification Failed", description: result.message || "Invalid OTP" });
       }
     } catch (e: any) {
-      toast({ 
-        variant: 'destructive', 
-        title: "Network Boundary Error", 
-        description: "Could not reach the verification controller." 
-      });
+      toast({ variant: 'destructive', title: "System Fault", description: "Network connection lost." });
     } finally {
       setIsVerifying(false);
     }
@@ -181,74 +153,44 @@ export default function AutomationDashboard() {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-10">
           <div className="flex items-center gap-6">
             <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center text-white shadow-2xl shadow-blue-600/30 rotate-3 transition-transform hover:rotate-0">
-              <Smartphone className="w-8 h-8" />
+              <Zap className="w-8 h-8 fill-current" />
             </div>
             <div>
-              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">JCoinPay Engine</h1>
+              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">RS Wallet Auto System</h1>
               <div className="flex items-center gap-3 mt-1.5">
-                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Master Identity Mode V6</Badge>
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Automatic Identity Engine v2.0</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
-                  Gateway: jcoinpay.vip
+                  Status: Atlas Persistent
                 </div>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-right hidden md:block">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sticky Engine</p>
-              <p className="text-xs font-bold text-blue-400 uppercase">MongoDB Persistent</p>
-            </div>
-            <div className="h-10 w-px bg-slate-800" />
-            <Shield className="w-6 h-6 text-emerald-500/50" />
+            <Shield className="w-6 h-6 text-blue-500/50" />
           </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           {/* Controls */}
           <div className="lg:col-span-4 space-y-8">
-            <Card className="bg-slate-900/50 backdrop-blur-xl border-slate-800 rounded-[2rem] overflow-hidden shadow-2xl">
+            <Card className="bg-slate-900/50 backdrop-blur-xl border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
               <CardHeader className="p-8 border-b border-slate-800">
-                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Execution Nexus</CardTitle>
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Dispatch Nexus</CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-3">
-                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1 flex items-center gap-2">
-                    <UserCheck className="w-3 h-3" />
-                    Master Account Pool
-                  </label>
-                  <Select value={masterId} onValueChange={setMasterId}>
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Target Channel</label>
+                  <Select value={selectedChannelId} onValueChange={setSelectedChannelId}>
                     <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-300 h-14 rounded-2xl focus:ring-blue-600 font-bold">
-                      <SelectValue placeholder="Select Master ID" />
+                      <SelectValue placeholder="Select App" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800 text-slate-300 rounded-xl">
-                      {MASTER_IDENTITIES.map((id) => (
-                        <SelectItem key={id.phone} value={id.phone} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-xs">{id.name}</span>
-                            <span className="text-[10px] opacity-50">{id.phone}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1 flex items-center gap-2">
-                    <Globe className="w-3 h-3" />
-                    Target Platform
-                  </label>
-                  <Select value={platform} onValueChange={setPlatform}>
-                    <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-300 h-14 rounded-2xl focus:ring-blue-600 font-bold">
-                      <SelectValue placeholder="Select Platform" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-800 text-slate-300 rounded-xl">
-                      {PLATFORMS.map((p) => (
-                        <SelectItem key={p.id} value={p.id} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
+                      {CHANNELS.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
                           <div className="flex items-center gap-3">
-                            <img src={p.icon} alt={p.name} className="w-5 h-5 rounded-sm object-contain" />
-                            <span className="font-bold">{p.name}</span>
+                            <img src={c.icon} alt={c.name} className="w-5 h-5 rounded-sm object-contain" />
+                            <span className="font-bold">{c.name}</span>
                           </div>
                         </SelectItem>
                       ))}
@@ -257,15 +199,12 @@ export default function AutomationDashboard() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1 flex items-center gap-2">
-                    <Smartphone className="w-3 h-3" />
-                    Target Mobile
-                  </label>
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Target Mobile</label>
                   <div className="relative group">
                     <Input 
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Enter 10-digit mobile"
+                      placeholder="Enter 10 digit number"
                       className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl focus:ring-blue-600 font-black text-lg pl-6"
                     />
                     <Smartphone className="absolute right-6 top-5 w-5 h-5 text-slate-700" />
@@ -274,18 +213,15 @@ export default function AutomationDashboard() {
 
                 {otpSent && (
                   <div className="space-y-3 animate-in slide-in-from-top-4">
-                    <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1 flex items-center gap-2">
-                      <KeyRound className="w-3 h-3" />
-                      Verification OTP
-                    </label>
+                    <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1">Received OTP</label>
                     <div className="relative group">
                       <Input 
                         value={otp}
                         onChange={(e) => setOtp(e.target.value)}
-                        placeholder="Enter OTP Received"
+                        placeholder="Enter 6 digit OTP"
                         className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl focus:ring-emerald-500 font-black text-lg pl-6"
                       />
-                      <Zap className="absolute right-6 top-5 w-5 h-5 text-emerald-900" />
+                      <KeyRound className="absolute right-6 top-5 w-5 h-5 text-emerald-900" />
                     </div>
                   </div>
                 )}
@@ -299,8 +235,8 @@ export default function AutomationDashboard() {
                       isLoading ? "bg-slate-800 text-slate-600" : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 active:scale-95"
                     )}
                   >
-                    {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-                    {isLoading ? "Executing..." : otpSent ? "Resend Step 1" : "Step 1: Send OTP"}
+                    {isLoading ? <Loader2 className="animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                    {isLoading ? "Provisioning..." : otpSent ? "Resend Trigger" : "Step 1: Send OTP"}
                   </Button>
 
                   {otpSent && (
@@ -309,36 +245,43 @@ export default function AutomationDashboard() {
                       disabled={isLoading || isVerifying}
                       className="w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 active:scale-95"
                     >
-                      {isVerifying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      {isVerifying ? "Verifying..." : "Step 2: Verify & Extract"}
+                      {isVerifying ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      {isVerifying ? "Verifying..." : "Step 2: Get VPA"}
                     </Button>
                   )}
                 </div>
               </CardContent>
             </Card>
 
-            <div className="bg-slate-900/30 border border-slate-800 rounded-3xl p-8 space-y-4">
-              <div className="flex items-center gap-3 text-emerald-500">
-                <Lock className="w-4 h-4" />
-                <span className="text-[9px] font-black uppercase tracking-widest">Advanced Integrity Protocol</span>
-              </div>
-              <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-                Automation utilizes a secure background worker to handle Login PWD {'->'} PAY token extraction {'->'} Multi-platform OTP dispatch.
-              </p>
-            </div>
+            {vpaList.length > 0 && (
+              <Card className="bg-emerald-500/5 border-emerald-500/20 rounded-3xl p-6 space-y-4 border animate-in zoom-in-95">
+                <div className="flex items-center gap-3 text-emerald-400">
+                  <UserCheck className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Extracted VPA Profiles</span>
+                </div>
+                <div className="space-y-2">
+                  {vpaList.map((v, i) => (
+                    <div key={i} className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                      <span className="text-xs font-black text-white">{v.vpa}</span>
+                      <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] px-2">{v.status || 'Active'}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
           </div>
 
           {/* Ledger / Terminal */}
           <div className="lg:col-span-8">
-            <Card className="bg-slate-900/50 backdrop-blur-xl border-slate-800 rounded-[2rem] overflow-hidden h-full flex flex-col shadow-2xl">
+            <Card className="bg-slate-900/50 backdrop-blur-xl border-slate-800 rounded-[2.5rem] overflow-hidden h-full flex flex-col shadow-2xl">
               <CardHeader className="p-8 border-b border-slate-800 flex flex-row items-center justify-between">
                 <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-4">
-                  <Terminal className="w-5 h-5 text-emerald-500" />
-                  Audit Stream Ledger
+                  <Terminal className="w-5 h-5 text-blue-500" />
+                  Execution Ledger Registry
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Gateway Connected</span>
+                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Master Cloud Sync</span>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 p-0 overflow-hidden bg-slate-950/40">
@@ -346,20 +289,20 @@ export default function AutomationDashboard() {
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 space-y-6">
                       <Database className="w-12 h-12 opacity-10" />
-                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Idle: Ready for Dispatch</p>
+                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Idle: Identity Engine Ready</p>
                     </div>
                   ) : (
                     <div className="space-y-8">
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
-                        const isOk = String(data.code) === "200" || data.msg === 'success';
+                        const isOk = String(data.code) === "200" || data.success === true || data.msg === 'success';
                         return (
                           <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">
                             <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] rounded-full bg-slate-800" />
                             <div className="flex items-center gap-3">
                               <span className="text-[9px] font-black text-slate-600">{String(idx + 1).padStart(2, '0')}</span>
-                              <span className="text-[10px] font-black uppercase text-emerald-400">{step}</span>
+                              <span className="text-[10px] font-black uppercase text-blue-400">{step}</span>
                               <Badge variant="outline" className={cn("text-[8px] font-black border-slate-800", isOk ? "text-emerald-500" : "text-rose-500")}>
                                 {isOk ? "HTTP_200_OK" : `ERROR_${data.code || 400}`}
                               </Badge>
@@ -371,9 +314,9 @@ export default function AutomationDashboard() {
                         );
                       })}
                       {(isLoading || isVerifying) && (
-                        <div className="flex items-center gap-4 text-emerald-500 animate-pulse pl-6">
+                        <div className="flex items-center gap-4 text-blue-500 animate-pulse pl-6">
                           <RefreshCw className="w-3 h-3 animate-spin" />
-                          <span className="text-[9px] font-black uppercase tracking-widest">Syncing Upstream Packets...</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest">Provisioning Cloud Identity...</span>
                         </div>
                       )}
                     </div>
