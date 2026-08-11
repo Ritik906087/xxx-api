@@ -34,6 +34,14 @@ function getRandomUserAgent() {
 }
 
 /**
+ * Sanitize phone to exactly 10 digits
+ */
+function sanitizePhone(phone: string): string {
+  const cleaned = String(phone).replace(/\D/g, '');
+  return cleaned.length > 10 ? cleaned.slice(-10) : cleaned;
+}
+
+/**
  * Cryptographic Signature Engine
  * Sorted keys + session key -> MD5
  */
@@ -75,23 +83,48 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const action = body.action || "send-otp";
-    const targetMobile = body.phone;
+    const rawMobile = body.phone;
+    
+    if (!rawMobile) {
+      return NextResponse.json({ code: 400, message: "Target Identity Required" }, { status: 200, headers: CORS_HEADERS });
+    }
+
+    const targetMobile = sanitizePhone(rawMobile);
     const channelType = body.channelType || 8;
     const accountType = body.accountType || "1";
     const otpCode = body.otp;
     const sessionId = body.sessionId;
 
-    if (!targetMobile) {
-      return NextResponse.json({ code: 400, message: "Target Identity Required" }, { status: 200, headers: CORS_HEADERS });
-    }
-
     const db = await getDb();
     const accounts = db.collection('automation_accounts');
 
     if (action === "send-otp") {
-      // 1. SMART ACCOUNT REUSE LOGIC
+      // 1. SMART ACCOUNT REUSE & RECOVERY LOGIC
       let account = await accounts.findOne({ phone: targetMobile });
       let password = account?.password || `Ritik${Math.random().toString(36).substring(7)}@1`;
+
+      const performLogin = async (phone: string, pwd: string) => {
+        return fetch(`${BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: getStealthHeaders(),
+          body: JSON.stringify({ phone, password: pwd })
+        }).then(r => r.json());
+      };
+
+      let loginResp = null;
+
+      if (account) {
+        logs.push({ "Step 0: Identity Manager": "Smart Reuse: Account Found in MongoDB" });
+        loginResp = await performLogin(targetMobile, password);
+        
+        // If login fails due to incorrect password, clear the stale account and re-register
+        if (loginResp.code !== 200 && loginResp.message?.toLowerCase().includes("password")) {
+          logs.push({ "Step 0: Recovery": "Stale Password Detected. Purging local record." });
+          await accounts.deleteOne({ phone: targetMobile });
+          account = null; // Force registration flow
+          password = `Ritik${Math.random().toString(36).substring(7)}@1`;
+        }
+      }
 
       if (!account) {
         // REGISTRATION STEP
@@ -110,21 +143,15 @@ export async function POST(request: Request) {
           { $set: { phone: targetMobile, password, pin: DEFAULT_PIN, createdAt: new Date() } },
           { upsert: true }
         );
-      } else {
-        logs.push({ "Step 1: Identity Manager": "Smart Reuse: Account Found in MongoDB" });
+
+        // Retry Login after fresh registration
+        loginResp = await performLogin(targetMobile, password);
       }
 
-      // 2. AUTHENTICATED LOGIN
-      const loginResp = await fetch(`${BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: getStealthHeaders(),
-        body: JSON.stringify({ phone: targetMobile, password })
-      }).then(r => r.json());
-      
       logs.push({ "Step 2: Automated Login": loginResp });
 
       if (loginResp.code !== 200) {
-        return NextResponse.json({ code: 400, message: "Authentication Failed", logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: loginResp.message || "Authentication Failed", logs }, { status: 200, headers: CORS_HEADERS });
       }
 
       const { userId, loginToken, sessionKey } = loginResp.data;
