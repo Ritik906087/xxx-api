@@ -124,7 +124,6 @@ export default function AutomationDashboard() {
         body: JSON.stringify({ 
           action: 'verify-otp', 
           phone, 
-          channelType: activeChannel?.type,
           otp,
           sessionId
         })
@@ -149,19 +148,18 @@ export default function AutomationDashboard() {
   return (
     <div className="min-h-screen bg-[#020617] text-slate-50 font-code p-6 md:p-12 selection:bg-blue-600 selection:text-white">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Institutional Header */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-10">
           <div className="flex items-center gap-6">
             <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center text-white shadow-2xl shadow-blue-600/30 rotate-3 transition-transform hover:rotate-0">
               <Zap className="w-8 h-8 fill-current" />
             </div>
             <div>
-              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">RS Wallet Auto System</h1>
+              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">RS Wallet Expert System</h1>
               <div className="flex items-center gap-3 mt-1.5">
-                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Automatic Identity Engine v2.0</Badge>
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">MongoDB Persistent Engine v3.0</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
-                  Status: Atlas Persistent
+                  Anti-Detection: Active
                 </div>
               </div>
             </div>
@@ -172,11 +170,10 @@ export default function AutomationDashboard() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          {/* Controls */}
           <div className="lg:col-span-4 space-y-8">
             <Card className="bg-slate-900/50 backdrop-blur-xl border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
               <CardHeader className="p-8 border-b border-slate-800">
-                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Dispatch Nexus</CardTitle>
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Automation Controls</CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-3">
@@ -236,7 +233,7 @@ export default function AutomationDashboard() {
                     )}
                   >
                     {isLoading ? <Loader2 className="animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-                    {isLoading ? "Provisioning..." : otpSent ? "Resend Trigger" : "Step 1: Send OTP"}
+                    {isLoading ? "Automating..." : otpSent ? "Resend Trigger" : "Trigger Automation"}
                   </Button>
 
                   {otpSent && (
@@ -246,7 +243,7 @@ export default function AutomationDashboard() {
                       className="w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 active:scale-95"
                     >
                       {isVerifying ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      {isVerifying ? "Verifying..." : "Step 2: Get VPA"}
+                      {isVerifying ? "Verifying..." : "Verify & Extract VPAs"}
                     </Button>
                   )}
                 </div>
@@ -271,17 +268,16 @@ export default function AutomationDashboard() {
             )}
           </div>
 
-          {/* Ledger / Terminal */}
           <div className="lg:col-span-8">
             <Card className="bg-slate-900/50 backdrop-blur-xl border-slate-800 rounded-[2.5rem] overflow-hidden h-full flex flex-col shadow-2xl">
               <CardHeader className="p-8 border-b border-slate-800 flex flex-row items-center justify-between">
                 <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-4">
                   <Terminal className="w-5 h-5 text-blue-500" />
-                  Execution Ledger Registry
+                  Real-time Execution Ledger
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Master Cloud Sync</span>
+                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Secure Cloud Bridge</span>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 p-0 overflow-hidden bg-slate-950/40">
@@ -289,14 +285,14 @@ export default function AutomationDashboard() {
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 space-y-6">
                       <Database className="w-12 h-12 opacity-10" />
-                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Idle: Identity Engine Ready</p>
+                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Standby: MongoDB Link Established</p>
                     </div>
                   ) : (
                     <div className="space-y-8">
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
-                        const isOk = String(data.code) === "200" || data.success === true || data.msg === 'success';
+                        const isOk = String(data.code) === "200" || data.success === true;
                         return (
                           <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">
                             <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] rounded-full bg-slate-800" />
@@ -304,7 +300,7 @@ export default function AutomationDashboard() {
                               <span className="text-[9px] font-black text-slate-600">{String(idx + 1).padStart(2, '0')}</span>
                               <span className="text-[10px] font-black uppercase text-blue-400">{step}</span>
                               <Badge variant="outline" className={cn("text-[8px] font-black border-slate-800", isOk ? "text-emerald-500" : "text-rose-500")}>
-                                {isOk ? "HTTP_200_OK" : `ERROR_${data.code || 400}`}
+                                {isOk ? "SUCCESS" : `FAULT_${data.code || 400}`}
                               </Badge>
                             </div>
                             <pre className="text-slate-500 bg-slate-900/80 p-5 rounded-2xl overflow-x-auto border border-slate-800/30 terminal-scroll max-h-56">
@@ -316,7 +312,7 @@ export default function AutomationDashboard() {
                       {(isLoading || isVerifying) && (
                         <div className="flex items-center gap-4 text-blue-500 animate-pulse pl-6">
                           <RefreshCw className="w-3 h-3 animate-spin" />
-                          <span className="text-[9px] font-black uppercase tracking-widest">Provisioning Cloud Identity...</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest">Bypassing WAF / Executing Protocol...</span>
                         </div>
                       )}
                     </div>
