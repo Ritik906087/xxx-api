@@ -35,7 +35,8 @@ import {
   Info,
   ArrowUpRight,
   ArrowDownLeft,
-  FileText
+  FileText,
+  Clock
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -43,12 +44,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const CHANNELS = [
+  // DTPay Engine Channels (New System)
   { id: "dt_paytm", name: "Paytm (DTPay)", type: 9, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/icon/paytmct.png" },
   { id: "dt_mobikwik", name: "MobiKwik (DTPay)", type: 2, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/icon/mobc.webp" },
-  { id: "dt_freecharge", name: "Freecharge (DTPay)", type: 3, accountType: "2", engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
+  { id: "dt_freecharge", name: "Freecharge (DTPay)", type: 3, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
   { id: "dt_amazon", name: "Amazon Pay (DTPay)", type: 1, accountType: "1", engine: "dtpay", icon: "https://picsum.photos/seed/amazon/32/32" },
-  { id: "leg_phonepe", name: "PhonePe", type: 1, accountType: "1", engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
-  { id: "leg_navi", name: "Navi", type: 13, accountType: "1", engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
+  
+  // Legacy Engine Channels (Old System)
+  { id: "leg_phonepe", name: "PhonePe (Legacy)", type: 1, accountType: "1", engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
+  { id: "leg_navi", name: "Navi (Legacy)", type: 13, accountType: "1", engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
+  { id: "leg_bharatpe", name: "BharatPe Business", type: 18, accountType: "1", engine: "legacy", icon: "https://picsum.photos/seed/bp/32/32" },
+  { id: "leg_phonepe_biz", name: "PhonePe Business", type: 14, accountType: "1", engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
+  { id: "leg_supermoney", name: "SuperMoney", type: 17, accountType: "1", engine: "legacy", icon: "https://picsum.photos/seed/sm/32/32" },
 ];
 
 export default function AutomationDashboard() {
@@ -99,7 +106,7 @@ export default function AutomationDashboard() {
       if (result.code === 200) {
         setOtpSent(true);
         setSessionId(result.sessionId);
-        toast({ title: "OTP Dispatched", description: `Sequence started for ${activeChannel?.name}.` });
+        toast({ title: "OTP Dispatched", description: `Sequence started via ${activeChannel?.engine.toUpperCase()} engine.` });
       } else {
         toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Upstream Error" });
       }
@@ -116,7 +123,7 @@ export default function AutomationDashboard() {
       return;
     }
     setIsVerifying(true);
-    setLogs([{ "Step 0: Ledger Probe": `Scanning ${activeChannel?.name} runner accounts for history...` }]);
+    setLogs([{ "Step 0: Ledger Probe": `Searching ${activeChannel?.name} runner records for history...` }]);
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
@@ -137,7 +144,7 @@ export default function AutomationDashboard() {
         toast({ variant: 'destructive', title: "History Not Found", description: result.message });
       }
     } catch (e) {
-      toast({ variant: 'destructive', title: "Fetch Error", description: "Failed to establish DTPay tunnel." });
+      toast({ variant: 'destructive', title: "Fetch Error", description: "Identity resolve failed." });
     } finally {
       setIsVerifying(false);
     }
@@ -203,12 +210,14 @@ export default function AutomationDashboard() {
               <Zap className="w-8 h-8 fill-current" />
             </div>
             <div>
-              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">Vantage Expert Automation</h1>
+              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">Vantage Hybrid Automation</h1>
               <div className="flex items-center gap-3 mt-1.5">
-                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">DTPay Master Mode</Badge>
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">
+                  {activeChannel?.engine === 'dtpay' ? 'DTPay Runner Mode' : 'Legacy RS Mode'}
+                </Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
-                  Master Session: ONLINE
+                  System Cluster: ONLINE
                 </div>
               </div>
             </div>
@@ -251,7 +260,7 @@ export default function AutomationDashboard() {
                   <div className="space-y-3 animate-in slide-in-from-top-4">
                     <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1">Received OTP</label>
                     <div className="relative group">
-                      <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter 6 digit OTP" className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl focus:ring-emerald-500 font-black text-lg pl-6" />
+                      <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter OTP" className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl focus:ring-emerald-500 font-black text-lg pl-6" />
                       <KeyRound className="absolute right-6 top-5 w-5 h-5 text-emerald-900" />
                     </div>
                   </div>
@@ -262,10 +271,12 @@ export default function AutomationDashboard() {
                     {isLoading ? "Automating..." : "Trigger Automation"}
                   </Button>
                   
-                  <Button onClick={handleFetchHistoryDirect} disabled={isLoading || isVerifying} variant="outline" className="w-full h-16 rounded-2xl border-slate-800 bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-900 font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 active:scale-95">
-                    {isVerifying && !otpSent ? <Loader2 className="animate-spin" /> : <FileText className="w-4 h-4" />}
-                    Fetch Ledger History
-                  </Button>
+                  {activeChannel?.engine === 'dtpay' && (
+                    <Button onClick={handleFetchHistoryDirect} disabled={isLoading || isVerifying} variant="outline" className="w-full h-16 rounded-2xl border-slate-800 bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-900 font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 active:scale-95">
+                      {isVerifying && !otpSent ? <Loader2 className="animate-spin" /> : <FileText className="w-4 h-4" />}
+                      Fetch Ledger History
+                    </Button>
+                  )}
 
                   {otpSent && (
                     <Button onClick={handleVerifyOtp} disabled={isLoading || isVerifying} className="w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 active:scale-95">
@@ -297,7 +308,7 @@ export default function AutomationDashboard() {
                           size="icon" 
                           className="h-8 w-8 text-blue-400 hover:bg-blue-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                         >
-                          <History className="w-4 h-4" />
+                          <Clock className="w-4 h-4" />
                         </Button>
                       )}
                     </div>
@@ -312,7 +323,7 @@ export default function AutomationDashboard() {
               <CardHeader className="p-8 border-b border-slate-800 flex flex-row items-center justify-between">
                 <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-4">
                   <Terminal className="w-5 h-5 text-blue-500" />
-                  Real-time Execution Ledger
+                  Hybrid Execution Ledger
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1 p-0 overflow-hidden bg-slate-950/40">
@@ -320,7 +331,7 @@ export default function AutomationDashboard() {
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 space-y-6">
                       <Database className="w-12 h-12 opacity-10" />
-                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Standby: DTPay Bridge Ready</p>
+                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Standby: Hybrid Engines Loaded</p>
                     </div>
                   ) : (
                     <div className="space-y-8">
