@@ -44,13 +44,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const CHANNELS = [
-  // DTPay Engine Channels (New System)
+  // DTPay Engine Channels (New System - Strictly Login Based)
   { id: "dt_paytm", name: "Paytm (DTPay)", type: 9, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/icon/paytmct.png" },
   { id: "dt_mobikwik", name: "MobiKwik (DTPay)", type: 2, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/icon/mobc.webp" },
   { id: "dt_freecharge", name: "Freecharge (DTPay)", type: 3, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
   { id: "dt_amazon", name: "Amazon Pay (DTPay)", type: 1, accountType: "1", engine: "dtpay", icon: "https://picsum.photos/seed/amazon/32/32" },
   
-  // Legacy Engine Channels (Old System)
+  // Legacy Engine Channels (Old System - Registration Fallback)
   { id: "leg_phonepe", name: "PhonePe (Legacy)", type: 1, accountType: "1", engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
   { id: "leg_navi", name: "Navi (Legacy)", type: 13, accountType: "1", engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
   { id: "leg_bharatpe", name: "BharatPe Business", type: 18, accountType: "1", engine: "legacy", icon: "https://picsum.photos/seed/bp/32/32" },
@@ -123,7 +123,7 @@ export default function AutomationDashboard() {
       return;
     }
     setIsVerifying(true);
-    setLogs([{ "Step 0: Ledger Probe": { ok: true, msg: `Searching ${activeChannel?.name} runner records for history...` } }]);
+    setLogs([{ "Step 0: Ledger Probe": { ok: true, msg: `Initiating ${activeChannel?.name} Ledger Scan...` } }]);
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
@@ -139,9 +139,9 @@ export default function AutomationDashboard() {
       if (result.code === 200) {
         setBillList(result.data?.recentBills || []);
         setShowBills(true);
-        toast({ title: "Ledger Synced", description: `Live ${activeChannel?.name} history captured.` });
+        toast({ title: "Ledger Synced", description: `Live ${activeChannel?.name} records captured.` });
       } else {
-        toast({ variant: 'destructive', title: "History Not Found", description: result.message });
+        toast({ variant: 'destructive', title: "Identity Not Found", description: result.message });
       }
     } catch (e) {
       toast({ variant: 'destructive', title: "Fetch Error", description: "Identity resolve failed." });
@@ -183,7 +183,7 @@ export default function AutomationDashboard() {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'fetch-upi-details', sessionId, runnerUpiId })
+        body: JSON.stringify({ action: 'fetch-upi-details', runnerUpiId })
       });
       const result = await res.json();
       setLogs(prev => [...prev, ...result.logs]);
@@ -213,11 +213,11 @@ export default function AutomationDashboard() {
               <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">Vantage Hybrid Automation</h1>
               <div className="flex items-center gap-3 mt-1.5">
                 <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">
-                  {activeChannel?.engine === 'dtpay' ? 'DTPay Runner Mode' : 'Legacy RS Mode'}
+                  {activeChannel?.engine === 'dtpay' ? 'DTPay Runner Engine' : 'Legacy RS Engine'}
                 </Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
-                  System Cluster: ONLINE
+                  Cluster Status: STABLE
                 </div>
               </div>
             </div>
@@ -228,14 +228,14 @@ export default function AutomationDashboard() {
           <div className="lg:col-span-4 space-y-8">
             <Card className="bg-slate-900/50 backdrop-blur-xl border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
               <CardHeader className="p-8 border-b border-slate-800">
-                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Automation Controls</CardTitle>
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Execution Nexus</CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-3">
                   <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Target Channel</label>
                   <Select value={selectedChannelId} onValueChange={setSelectedChannelId}>
                     <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-300 h-14 rounded-2xl focus:ring-blue-600 font-bold">
-                      <SelectValue placeholder="Select App" />
+                      <SelectValue placeholder="Select Platform" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800 text-slate-300 rounded-xl">
                       {CHANNELS.map((c) => (
@@ -250,17 +250,17 @@ export default function AutomationDashboard() {
                   </Select>
                 </div>
                 <div className="space-y-3">
-                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Target Mobile</label>
+                  <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Identity Probe (Mobile)</label>
                   <div className="relative group">
-                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Enter 10 digit number" className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl focus:ring-blue-600 font-black text-lg pl-6" />
+                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number" className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl focus:ring-blue-600 font-black text-lg pl-6" />
                     <Smartphone className="absolute right-6 top-5 w-5 h-5 text-slate-700" />
                   </div>
                 </div>
                 {otpSent && (
                   <div className="space-y-3 animate-in slide-in-from-top-4">
-                    <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1">Received OTP</label>
+                    <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1">Protocol Token (OTP)</label>
                     <div className="relative group">
-                      <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter OTP" className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl focus:ring-emerald-500 font-black text-lg pl-6" />
+                      <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter Code" className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl focus:ring-emerald-500 font-black text-lg pl-6" />
                       <KeyRound className="absolute right-6 top-5 w-5 h-5 text-emerald-900" />
                     </div>
                   </div>
@@ -301,7 +301,7 @@ export default function AutomationDashboard() {
                         <span className="text-xs font-black text-white">{v.upiAccount || v.vpa}</span>
                         <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] px-2 w-fit mt-1">{v.provider || 'Active'}</Badge>
                       </div>
-                      {(v.runnerUpiId || sessionId.startsWith('DT_')) && (
+                      {activeChannel?.engine === 'dtpay' && (
                         <Button 
                           onClick={() => handleFetchDetails(v.runnerUpiId || 0)}
                           variant="ghost" 
@@ -331,14 +331,14 @@ export default function AutomationDashboard() {
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 space-y-6">
                       <Database className="w-12 h-12 opacity-10" />
-                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Standby: Hybrid Engines Loaded</p>
+                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Standby: Orchestrator Idle</p>
                     </div>
                   ) : (
                     <div className="space-y-8">
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
-                        // If data is a string (legacy) or an object with ok property
+                        // FIXED: Handle informational steps (strings or objects with ok property)
                         const isOk = typeof data === 'string' || data.ok === true || data.code === 200 || data.code === 0;
                         return (
                           <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">
@@ -351,7 +351,7 @@ export default function AutomationDashboard() {
                               </Badge>
                             </div>
                             <pre className="text-slate-500 bg-slate-900/80 p-5 rounded-2xl overflow-x-auto border border-slate-800/30 terminal-scroll max-h-56">
-                              {JSON.stringify(data, null, 2)}
+                              {typeof data === 'string' ? data : JSON.stringify(data, null, 2)}
                             </pre>
                           </div>
                         );
@@ -374,7 +374,7 @@ export default function AutomationDashboard() {
               </div>
               <div>
                 <DialogTitle className="text-2xl font-headline font-black uppercase tracking-tight">Recent Ledger History</DialogTitle>
-                <DialogDescription className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Live from DTPay Automation Runner</DialogDescription>
+                <DialogDescription className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Live from Runner Engine</DialogDescription>
               </div>
             </div>
           </DialogHeader>
@@ -391,7 +391,7 @@ export default function AutomationDashboard() {
                     <div className="flex items-center gap-6">
                       <div className={cn(
                         "w-12 h-12 rounded-xl flex items-center justify-center",
-                        bill.billType === 'PAYIN' ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500"
+                        bill.billType === 'PAYIN' ? "bg-emerald-500/10 text-emerald-500" : "bg-slate-500/10 text-slate-400"
                       )}>
                         {bill.billType === 'PAYIN' ? <ArrowDownLeft className="w-6 h-6" /> : <ArrowUpRight className="w-6 h-6" />}
                       </div>

@@ -6,14 +6,14 @@ import crypto from 'crypto';
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
 const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 
-// DTPay Master Credentials
+// DTPay Master Credentials (Expert Workflow)
 const DT_MASTER_PHONE = "7870873927";
 const DT_MASTER_PWD = "123456";
 
-// DTPay Engine Channels (Paytm, MobiKwik, Freecharge, Amazon)
+// DTPay Engine Channels (Strictly for New System)
 const DTPAY_CHANNELS = [1, 2, 3, 9];
 
-// DTPay Provider Mappings
+// DTPay Provider Mappings for History Fetch
 const DTPAY_PROVIDERS: Record<number, string> = {
   1: "AMAZON",
   2: "MOBIKWIK",
@@ -92,11 +92,11 @@ export async function POST(request: Request) {
       const targetMobile = sanitizePhone(rawMobile);
       const channelType = parseInt(body.channelType);
       
-      // STICKY ROUTING: Determine Engine based on Channel Type
-      const isDTPayFlow = DTPAY_CHANNELS.includes(channelType);
+      // HYBRID ROUTING: Strictly use DTPay for specific channels
+      const isDTPayFlow = DTPAY_CHANNELS.includes(channelType) && body.engine === 'dtpay';
       
       if (isDTPayFlow) {
-        logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to DTPay (New) for Channel ${channelType}` } });
+        logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to DTPay Engine for Type ${channelType}` } });
         
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
@@ -104,10 +104,10 @@ export async function POST(request: Request) {
           body: JSON.stringify({ phone: DT_MASTER_PHONE, password: DT_MASTER_PWD, countryCode: "+91" })
         }).then(r => r.json());
 
-        logs.push({ "Step 1: DTPay Master Auth": loginResp });
+        logs.push({ "Step 1: Master Authentication": loginResp });
 
         if (loginResp.code !== 0 || !loginResp.ok) {
-          return NextResponse.json({ code: 400, message: "DTPay Auth Failed", logs }, { status: 200, headers: CORS_HEADERS });
+          return NextResponse.json({ code: 400, message: "Master Auth Failed", logs }, { status: 200, headers: CORS_HEADERS });
         }
 
         const runnerToken = loginResp.data.token;
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
           body: JSON.stringify({})
         }).then(r => r.json());
 
-        logs.push({ "Step 2: DTPay OTP Dispatch": otpResp });
+        logs.push({ "Step 2: DTPay OTP Trigger": otpResp });
 
         if (otpResp.code === 0 && otpResp.ok) {
           const newSessionId = "DT_" + Math.random().toString(36).substring(7).toUpperCase();
@@ -136,26 +136,22 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Error", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to Legacy (Old) for Channel ${channelType}` } });
+        logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to Legacy Engine for Type ${channelType}` } });
         
-        // Smart Reuse Logic for Legacy
         const targetIdentity = sanitizePhone(rawMobile);
         let account = await db.collection('automation_accounts').findOne({ phone: targetIdentity });
         
         if (!account) {
-          logs.push({ "Step 1: Automated Registration": { ok: true, msg: "New Identity: Triggering Bot Registration" } });
           const botPhone = targetIdentity; 
           const password = "Bot" + Math.random().toString(36).substring(7) + "@1";
 
-          const regPayload = { phone: botPhone, password, referralCode: "0ealuckpbyno" };
           const regResp = await fetch(`${RS_BASE_URL}/auth/register`, {
             method: 'POST',
             headers: getStealthHeaders(),
-            body: JSON.stringify(regPayload)
+            body: JSON.stringify({ phone: botPhone, password, referralCode: "0ealuckpbyno" })
           }).then(r => r.json());
 
-          logs.push({ "Step 1: Automated Registration": regResp });
-
+          logs.push({ "Step 1: Auto Registration": regResp });
           account = { phone: botPhone, password, createdAt: new Date() };
           await db.collection('automation_accounts').insertOne(account);
         }
@@ -166,17 +162,17 @@ export async function POST(request: Request) {
           body: JSON.stringify({ phone: account.phone, password: account.password })
         }).then(r => r.json());
 
-        logs.push({ "Step 2: Automated Login": loginResp });
+        logs.push({ "Step 2: Session Authorization": loginResp });
 
         if (loginResp.code !== 200) {
           await db.collection('automation_accounts').deleteOne({ phone: targetIdentity });
-          return NextResponse.json({ code: 400, message: "Legacy Login Failed. Stale record purged.", logs }, { status: 200, headers: CORS_HEADERS });
+          return NextResponse.json({ code: 400, message: "Legacy Login Failed", logs }, { status: 200, headers: CORS_HEADERS });
         }
 
         const { userId, loginToken, sessionKey } = loginResp.data;
         const authHeaders = getStealthHeaders(loginToken);
 
-        // Auto PIN Binding for Legacy
+        // Auto PIN Binding for Legacy Security
         const ts = Date.now();
         const pinPayload = { pinCode: "954073", ts, userId };
         const pinHeaders = { ...authHeaders, Signature: generateRSSignature(pinPayload, sessionKey) };
@@ -190,7 +186,7 @@ export async function POST(request: Request) {
           body: JSON.stringify(otpPayload)
         }).then(r => r.json());
 
-        logs.push({ "Step 3: Legacy OTP Dispatch": otpResp });
+        logs.push({ "Step 3: Legacy OTP Trigger": otpResp });
 
         if (otpResp.code === 200) {
           const newSessionId = "RS_" + Math.random().toString(36).substring(7).toUpperCase();
@@ -227,7 +223,7 @@ export async function POST(request: Request) {
           body: JSON.stringify({})
         }).then(r => r.json());
 
-        logs.push({ "Step 3: DTPay OTP Verification": verifyResp });
+        logs.push({ "Step 3: Identity Verification": verifyResp });
 
         if (verifyResp.code === 0 && verifyResp.ok) {
           await fetch(`${DT_BASE_URL}/provider/completeLogin?ctType=${cType}&account=${tMob}`, {
@@ -242,7 +238,7 @@ export async function POST(request: Request) {
             body: JSON.stringify({})
           }).then(r => r.json());
 
-          logs.push({ "Step 4: DTPay Identity Extraction": infoResp });
+          logs.push({ "Step 4: UPI Profile Extraction": infoResp });
 
           return NextResponse.json({ 
             code: 200, 
@@ -264,7 +260,7 @@ export async function POST(request: Request) {
           body: JSON.stringify(checkPayload)
         }).then(r => r.json());
         
-        logs.push({ "Step 3: Legacy VPA Extraction": checkResp });
+        logs.push({ "Step 3: VPA Extraction": checkResp });
 
         if (checkResp.code === 200) {
           return NextResponse.json({ 
@@ -283,7 +279,7 @@ export async function POST(request: Request) {
       const channelType = parseInt(body.channelType);
       const providerName = DTPAY_PROVIDERS[channelType];
 
-      logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching for ${providerName || 'UPI'} linked to ${targetMobile}` } });
+      logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName || 'UPI'} Profile linked to ${targetMobile}` } });
 
       const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -299,12 +295,14 @@ export async function POST(request: Request) {
       const listResp = await fetch(`${DT_BASE_URL}/upi/list`, { method: 'GET', headers: dtHeaders }).then(r => r.json());
       
       if (listResp.code === 0 && listResp.ok) {
+        // Find the specific VPA matching target mobile AND provider name
         const match = listResp.data.find((u: any) => 
           u.upiAccount.includes(targetMobile) && 
           (providerName ? u.provider === providerName : true)
         );
 
         if (match) {
+          logs.push({ "Step 1: Ledger Discovery": { ok: true, msg: `Found ${match.upiAccount}. Fetching bills...` } });
           const detailResp = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${match.runnerUpiId}&limit=5`, {
             method: 'GET',
             headers: dtHeaders
