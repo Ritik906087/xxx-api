@@ -14,7 +14,7 @@ const DT_MASTER_PWD = "123456";
 // Provider Mapping for DTPay History
 const DTPAY_PROVIDERS: Record<number, string> = {
   33: "AMAZON", // Amazon mapped from type 33
-  1: "AMAZON",  // DTPay internal type 1
+  18: "AMAZON", // DTPay internal type 18 (Updated from 1)
   2: "MOBIKWIK",
   3: "FREECHARGE",
   9: "PAYTM"
@@ -92,8 +92,8 @@ export async function POST(request: Request) {
       const engine = body.engine || "legacy";
       
       const isDTPay = engine === 'dtpay';
-      // Amazon Mapping: 33 -> 1 for DTPay
-      const effectiveCtType = (isDTPay && channelType === 33) ? 1 : channelType;
+      // Amazon Mapping: 33 -> 18 for DTPay (Updated from 1)
+      const effectiveCtType = (isDTPay && channelType === 33) ? 18 : channelType;
 
       logs.push({ "Step 0: Engine Selection": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine for Type ${channelType} -> ${effectiveCtType}` } });
 
