@@ -13,6 +13,14 @@ const DT_MASTER_PWD = "123456";
 // DTPay Channel Mappings (Amazon: 1, MobiKwik: 2, Freecharge: 3, Paytm: 9)
 const DTPAY_CHANNELS = [1, 2, 3, 9];
 
+// DTPay Provider Mappings for strict filtering
+const DTPAY_PROVIDERS: Record<number, string> = {
+  1: "AMAZON",
+  2: "MOBIKWIK",
+  3: "FREECHARGE",
+  9: "PAYTM"
+};
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -256,7 +264,9 @@ export async function POST(request: Request) {
     if (action === "fetch-upi-details" || action === "fetch-by-phone") {
       let runnerUpiId = body.runnerUpiId;
       const targetMobile = sanitizePhone(body.phone || "");
-      
+      const channelType = parseInt(body.channelType);
+      const targetProviderName = DTPAY_PROVIDERS[channelType];
+
       // Step 1: DTPay Master Login to get token
       const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -271,23 +281,32 @@ export async function POST(request: Request) {
       const runnerToken = loginResp.data.token;
       const dtHeaders = getStealthHeaders(runnerToken, true);
 
-      // If fetching by phone, we need to find the runnerUpiId first
+      // If fetching by phone, we need to find the specific runnerUpiId for the selected provider
       if (action === "fetch-by-phone") {
         if (!targetMobile) return NextResponse.json({ code: 400, message: "Phone required" }, { status: 200, headers: CORS_HEADERS });
         
-        logs.push({ "Step 1: Fetch Global UPI List": "Requesting linked accounts..." });
+        logs.push({ "Step 1: Fetch Global UPI List": `Searching for ${targetProviderName || 'selected provider'} linked to ${targetMobile}...` });
         const listResp = await fetch(`${DT_BASE_URL}/upi/list`, {
           method: 'GET',
           headers: dtHeaders
         }).then(r => r.json());
 
         if (listResp.code === 0 && listResp.ok) {
-          const match = listResp.data.find((u: any) => u.upiAccount.includes(targetMobile));
+          // Strict filtering by phone AND provider name
+          const match = listResp.data.find((u: any) => 
+            u.upiAccount.includes(targetMobile) && 
+            (targetProviderName ? u.provider === targetProviderName : true)
+          );
+
           if (match) {
             runnerUpiId = match.runnerUpiId;
-            logs.push({ "Step 2: Account Resolved": `Found UPI ID: ${runnerUpiId} for ${targetMobile}` });
+            logs.push({ "Step 2: Account Resolved": `Found ${match.provider} UPI ID: ${runnerUpiId} for ${targetMobile}` });
           } else {
-            return NextResponse.json({ code: 404, message: "Account not linked to Runner", logs }, { status: 200, headers: CORS_HEADERS });
+            return NextResponse.json({ 
+              code: 404, 
+              message: `No ${targetProviderName || ''} account linked to Runner for this number.`, 
+              logs 
+            }, { status: 200, headers: CORS_HEADERS });
           }
         } else {
           return NextResponse.json({ code: 400, message: "List Fetch Failed", logs }, { status: 200, headers: CORS_HEADERS });

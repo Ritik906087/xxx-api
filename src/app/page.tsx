@@ -116,19 +116,23 @@ export default function AutomationDashboard() {
       return;
     }
     setIsVerifying(true);
-    setLogs([{ "Step 0: Ledger Probe": "Scanning runner accounts for history..." }]);
+    setLogs([{ "Step 0: Ledger Probe": `Scanning ${activeChannel?.name} runner accounts for history...` }]);
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'fetch-by-phone', phone })
+        body: JSON.stringify({ 
+          action: 'fetch-by-phone', 
+          phone, 
+          channelType: activeChannel?.type 
+        })
       });
       const result = await res.json();
       setLogs(prev => [...prev, ...result.logs]);
       if (result.code === 200) {
         setBillList(result.data?.recentBills || []);
         setShowBills(true);
-        toast({ title: "Ledger Synced", description: "Live history captured from DTPay server." });
+        toast({ title: "Ledger Synced", description: `Live ${activeChannel?.name} history captured.` });
       } else {
         toast({ variant: 'destructive', title: "History Not Found", description: result.message });
       }
