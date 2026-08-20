@@ -6,7 +6,7 @@ import crypto from 'crypto';
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
 const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 
-// DTPay Master Credentials (Per User Logs)
+// DTPay Master Credentials
 const DT_MASTER_PHONE = "7870873927";
 const DT_MASTER_PWD = "123456";
 
@@ -40,7 +40,6 @@ function sanitizePhone(phone: string): string {
 
 function generateRSSignature(payload: Record<string, any>, sessionKey: string): string {
   const sortedKeys = Object.keys(payload).sort();
-  // Legacy signature uses key=value format joined by &
   const queryString = sortedKeys.map(key => `${key}=${payload[key]}`).join('&');
   const rawString = `${queryString}&${sessionKey}`;
   return crypto.createHash('md5').update(rawString).digest('hex');
@@ -76,23 +75,17 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const action = body.action || "send-otp";
-    const rawMobile = body.phone;
-    
-    if (!rawMobile) {
-      return NextResponse.json({ code: 400, message: "Target Identity Required" }, { status: 200, headers: CORS_HEADERS });
-    }
-
-    const targetMobile = sanitizePhone(rawMobile);
-    const channelType = parseInt(body.channelType);
-    
-    // Engine routing: Strictly follow the DTPay list vs Legacy
-    const isDTPayFlow = body.engine === 'dtpay' || DTPAY_CHANNELS.includes(channelType);
-    
     const db = await getDb();
 
     if (action === "send-otp") {
+      const rawMobile = body.phone;
+      if (!rawMobile) return NextResponse.json({ code: 400, message: "Target Identity Required" }, { status: 200, headers: CORS_HEADERS });
+      
+      const targetMobile = sanitizePhone(rawMobile);
+      const channelType = parseInt(body.channelType);
+      const isDTPayFlow = body.engine === 'dtpay' || DTPAY_CHANNELS.includes(channelType);
+      
       if (isDTPayFlow) {
-        // --- DTPAY ENGINE ---
         logs.push({ "Step 0: DTPay Stealth Bridge": `Initializing DTPay flow for Channel Type ${channelType}` });
         
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
@@ -110,7 +103,6 @@ export async function POST(request: Request) {
         const runnerToken = loginResp.data.token;
         const dtHeaders = getStealthHeaders(runnerToken, true);
 
-        // Dispatch OTP
         const otpResp = await fetch(`${DT_BASE_URL}/provider/sendOtp?ctType=${channelType}&account=${targetMobile}`, {
           method: 'POST',
           headers: dtHeaders,
@@ -134,7 +126,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Dispatch Error", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // --- LEGACY RSWALLET ENGINE ---
         logs.push({ "Step 0: Legacy Engine Bridge": `Initializing RSWallet flow for Channel Type ${channelType}` });
         
         const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + Math.floor(100000000 + Math.random() * 900000000).toString().substring(1);
@@ -161,13 +152,11 @@ export async function POST(request: Request) {
         const { userId, loginToken, sessionKey } = loginResp.data;
         const authHeaders = getStealthHeaders(loginToken);
 
-        // PIN Setup
         const ts = Date.now();
         const pinPayload = { pinCode: "954073", ts, userId };
         const pinHeaders = { ...authHeaders, Signature: generateRSSignature(pinPayload, sessionKey) };
         await fetch(`${RS_BASE_URL}/secure/pin/bind`, { method: 'POST', headers: pinHeaders, body: JSON.stringify(pinPayload) });
 
-        // Trigger OTP
         const otpPayload = { mobile: targetMobile, type: channelType, accountType: "1", ts: Date.now(), userId };
         const otpHeaders = { ...authHeaders, Signature: generateRSSignature(otpPayload, sessionKey) };
         const otpResp = await fetch(`${RS_BASE_URL}/bind/send/otp`, {
@@ -207,7 +196,6 @@ export async function POST(request: Request) {
         const { runnerToken, channelType: cType, targetMobile: tMob } = session;
         const dtHeaders = getStealthHeaders(runnerToken, true);
 
-        // 1. Verify OTP
         const verifyResp = await fetch(`${DT_BASE_URL}/provider/verifyOtp?ctType=${cType}&account=${tMob}&otp=${otpCode}`, {
           method: 'POST',
           headers: dtHeaders,
@@ -217,37 +205,30 @@ export async function POST(request: Request) {
         logs.push({ "Step 3: DTPay OTP Verification": verifyResp });
 
         if (verifyResp.code === 0 && verifyResp.ok) {
-          // 2. Complete Login
-          const completeResp = await fetch(`${DT_BASE_URL}/provider/completeLogin?ctType=${cType}&account=${tMob}`, {
+          await fetch(`${DT_BASE_URL}/provider/completeLogin?ctType=${cType}&account=${tMob}`, {
             method: 'POST',
             headers: dtHeaders,
             body: JSON.stringify({})
-          }).then(r => r.json());
+          });
           
-          logs.push({ "Step 4: DTPay Session Completion": completeResp });
-
-          // 3. Get UPI Info
           const infoResp = await fetch(`${DT_BASE_URL}/provider/upiInfo?ctType=${cType}&account=${tMob}`, {
             method: 'POST',
             headers: dtHeaders,
             body: JSON.stringify({})
           }).then(r => r.json());
 
-          logs.push({ "Step 5: DTPay Identity Extraction": infoResp });
+          logs.push({ "Step 4: DTPay Identity Extraction": infoResp });
 
-          // Return list of accounts found
-          const upiList = infoResp.data?.upiInfos || [];
           return NextResponse.json({ 
             code: 200, 
-            message: infoResp.ok ? "Identity Verified" : (infoResp.msg || "Verification Processing"), 
-            vpaList: upiList,
+            message: "Identity Verified", 
+            vpaList: infoResp.data?.upiInfos || [],
             logs 
           }, { status: 200, headers: CORS_HEADERS });
         }
         return NextResponse.json({ code: 400, message: verifyResp.msg || "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // --- LEGACY VERIFY ---
         const { userId, loginToken, sessionKey, requestId, channelType: cType } = session;
         const checkPayload = { code: otpCode, type: cType, requestId, ts: Date.now(), userId };
         const checkHeaders = { ...getStealthHeaders(loginToken), Signature: generateRSSignature(checkPayload, sessionKey) };
@@ -270,6 +251,31 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ code: 400, message: "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
       }
+    }
+
+    if (action === "fetch-upi-details") {
+      const sessionId = body.sessionId;
+      const runnerUpiId = body.runnerUpiId;
+      const session = await db.collection('automation_sessions').findOne({ sessionId });
+
+      if (!session || session.engine !== 'DTPay') {
+        return NextResponse.json({ code: 400, message: "Invalid Session for Details" }, { status: 200, headers: CORS_HEADERS });
+      }
+
+      const dtHeaders = getStealthHeaders(session.runnerToken, true);
+      const detailResp = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${runnerUpiId}&limit=5`, {
+        method: 'GET',
+        headers: dtHeaders
+      }).then(r => r.json());
+
+      logs.push({ "Step 6: Fetch UPI Transaction Details": detailResp });
+
+      return NextResponse.json({
+        code: 200,
+        message: detailResp.ok ? "Details Fetched" : (detailResp.msg || "Fetch Failed"),
+        data: detailResp.data,
+        logs
+      }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
