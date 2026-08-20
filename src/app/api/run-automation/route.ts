@@ -10,9 +10,7 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const DT_MASTER_PHONE = "7870873927";
 const DT_MASTER_PWD = "123456";
 
-// Channel Logic Separation
-const DTPAY_CHANNELS = [1, 2, 3, 9]; // Amazon, MobiKwik, Freecharge, Paytm
-
+// Provider Mapping for DTPay History
 const DTPAY_PROVIDERS: Record<number, string> = {
   1: "AMAZON",
   2: "MOBIKWIK",
@@ -89,13 +87,13 @@ export async function POST(request: Request) {
     if (action === "send-otp") {
       const targetMobile = sanitizePhone(body.phone || "");
       const channelType = parseInt(body.channelType);
+      const engine = body.engine || "legacy";
       
-      // HYBRID ROUTING
-      const isDTPay = DTPAY_CHANNELS.includes(channelType);
-      logs.push({ "Step 0: Engine Selection": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (Old)'} Engine for Type ${channelType}` } });
+      const isDTPay = engine === 'dtpay';
+      logs.push({ "Step 0: Engine Selection": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine for Type ${channelType}` } });
 
       if (isDTPay) {
-        // DTPay Flow: Login Master -> Send OTP
+        // DTPay Flow: Master Auth -> Send OTP
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: getStealthHeaders(undefined, true),
@@ -121,8 +119,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // Legacy RSWallet Flow: Reg/Login Bot -> Bind PIN -> Send OTP
-        const botPhone = targetMobile;
+        // Legacy RSWallet Flow
+        const botPhone = "8" + Math.floor(100000000 + Math.random() * 800000000).toString();
         const password = "Bot" + Math.random().toString(36).substring(7) + "@1";
 
         const regResp = await fetch(`${RS_BASE_URL}/auth/register`, {
@@ -145,9 +143,7 @@ export async function POST(request: Request) {
         const { userId, loginToken, sessionKey } = loginResp.data;
         const authHeaders = getStealthHeaders(loginToken);
 
-        // PIN Bind
-        const ts = Date.now();
-        const pinPayload = { pinCode: "954073", ts, userId };
+        const pinPayload = { pinCode: "954073", ts: Date.now(), userId };
         const sig = generateRSSignature(pinPayload, sessionKey);
         await fetch(`${RS_BASE_URL}/secure/pin/bind`, { method: 'POST', headers: { ...authHeaders, Signature: sig }, body: JSON.stringify(pinPayload) });
 
@@ -175,10 +171,10 @@ export async function POST(request: Request) {
       if (!session) return NextResponse.json({ code: 400, message: "Session Expired" }, { status: 200, headers: CORS_HEADERS });
 
       if (session.engine === 'DTPay') {
-        const { runnerToken, channelType: cType, targetMobile: tMob } = session;
+        const { runnerToken, channelType, targetMobile } = session;
         const dtHeaders = getStealthHeaders(runnerToken, true);
 
-        const verifyResp = await fetch(`${DT_BASE_URL}/provider/verifyOtp?ctType=${cType}&account=${tMob}&otp=${otp}`, {
+        const verifyResp = await fetch(`${DT_BASE_URL}/provider/verifyOtp?ctType=${channelType}&account=${targetMobile}&otp=${otp}`, {
           method: 'POST',
           headers: dtHeaders,
           body: JSON.stringify({})
@@ -186,16 +182,16 @@ export async function POST(request: Request) {
 
         logs.push({ "Step 3: DTPay Verification": verifyResp });
         if (verifyResp.ok) {
-          await fetch(`${DT_BASE_URL}/provider/completeLogin?ctType=${cType}&account=${tMob}`, { method: 'POST', headers: dtHeaders, body: JSON.stringify({}) });
-          const infoResp = await fetch(`${DT_BASE_URL}/provider/upiInfo?ctType=${cType}&account=${tMob}`, { method: 'POST', headers: dtHeaders, body: JSON.stringify({}) }).then(r => r.json());
-          logs.push({ "Step 4: UPI Profile Extractions": infoResp });
+          await fetch(`${DT_BASE_URL}/provider/completeLogin?ctType=${channelType}&account=${targetMobile}`, { method: 'POST', headers: dtHeaders, body: JSON.stringify({}) });
+          const infoResp = await fetch(`${DT_BASE_URL}/provider/upiInfo?ctType=${channelType}&account=${targetMobile}`, { method: 'POST', headers: dtHeaders, body: JSON.stringify({}) }).then(r => r.json());
+          logs.push({ "Step 4: Extraction Result": infoResp });
           return NextResponse.json({ code: 200, message: "Success", vpaList: infoResp.data?.upiInfos || [], logs }, { status: 200, headers: CORS_HEADERS });
         }
-        return NextResponse.json({ code: 400, message: "Invalid DTPay OTP", logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        const { userId, loginToken, sessionKey, requestId, channelType: cType } = session;
-        const checkPayload = { code: otp, type: cType, requestId, ts: Date.now(), userId };
+        const { userId, loginToken, sessionKey, requestId, channelType } = session;
+        const checkPayload = { code: otp, type: channelType, requestId, ts: Date.now(), userId };
         const sig = generateRSSignature(checkPayload, sessionKey);
         const checkResp = await fetch(`${RS_BASE_URL}/bind/check/otp`, {
           method: 'POST',
@@ -207,7 +203,7 @@ export async function POST(request: Request) {
         if (checkResp.code === 200) {
           return NextResponse.json({ code: 200, message: "Success", vpaList: checkResp.data?.upiInfos || [], logs }, { status: 200, headers: CORS_HEADERS });
         }
-        return NextResponse.json({ code: 400, message: "Invalid Legacy OTP", logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
       }
     }
 
@@ -216,7 +212,7 @@ export async function POST(request: Request) {
       const channelType = parseInt(body.channelType);
       const providerName = DTPAY_PROVIDERS[channelType];
 
-      if (!providerName) return NextResponse.json({ code: 400, message: "History only supported for DTPay Channels" }, { status: 200, headers: CORS_HEADERS });
+      if (!providerName) return NextResponse.json({ code: 400, message: "History only supported for DTPay Channels", logs }, { status: 200, headers: CORS_HEADERS });
 
       logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName} ledger for ${targetMobile}` } });
 
@@ -238,7 +234,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ code: 200, data: detailResp.data, logs }, { status: 200, headers: CORS_HEADERS });
         }
       }
-      return NextResponse.json({ code: 404, message: `No ${providerName} record found for this number.`, logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 404, message: `No ${providerName} record found.`, logs }, { status: 200, headers: CORS_HEADERS });
     }
 
     if (action === "fetch-upi-details") {

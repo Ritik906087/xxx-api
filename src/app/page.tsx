@@ -20,23 +20,16 @@ import {
   Zap, 
   Cpu, 
   Database,
-  RefreshCw,
   Activity,
   History,
-  Lock,
   Smartphone,
-  Wallet,
   CheckCircle2,
   KeyRound,
   UserCheck,
-  Globe,
-  ArrowRight,
-  ChevronRight,
-  Info,
+  Clock,
   ArrowUpRight,
   ArrowDownLeft,
-  FileText,
-  Clock
+  FileText
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -44,18 +37,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const CHANNELS = [
-  // DTPay Engine Channels (New System - Strictly Login Based)
-  { id: "dt_paytm", name: "Paytm (DTPay)", type: 9, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/icon/paytmct.png" },
-  { id: "dt_mobikwik", name: "MobiKwik (DTPay)", type: 2, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/icon/mobc.webp" },
-  { id: "dt_freecharge", name: "Freecharge (DTPay)", type: 3, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
-  { id: "dt_amazon", name: "Amazon Pay (DTPay)", type: 1, accountType: "1", engine: "dtpay", icon: "https://picsum.photos/seed/amazon/32/32" },
+  // DTPay Engine Channels (New System)
+  { id: "dt_amazon", name: "Amazon Pay", type: 1, engine: "dtpay", icon: "https://picsum.photos/seed/amazon/32/32" },
+  { id: "dt_mobikwik", name: "MobiKwik", type: 2, engine: "dtpay", icon: "https://download.kspay.shop/icon/mobc.webp" },
+  { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
+  { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://download.kspay.shop/icon/paytmct.png" },
   
-  // Legacy Engine Channels (Old System - Registration Fallback)
-  { id: "leg_phonepe", name: "PhonePe (Legacy)", type: 1, accountType: "1", engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
-  { id: "leg_navi", name: "Navi (Legacy)", type: 13, accountType: "1", engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
-  { id: "leg_bharatpe", name: "BharatPe Business", type: 18, accountType: "1", engine: "legacy", icon: "https://picsum.photos/seed/bp/32/32" },
-  { id: "leg_phonepe_biz", name: "PhonePe Business", type: 14, accountType: "1", engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
-  { id: "leg_supermoney", name: "SuperMoney", type: 17, accountType: "1", engine: "legacy", icon: "https://picsum.photos/seed/sm/32/32" },
+  // Legacy Engine Channels (Old RSWallet System)
+  { id: "leg_phonepe", name: "PhonePe", type: 1, engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
+  { id: "leg_navi", name: "Navi", type: 13, engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
+  { id: "leg_phonepe_biz", name: "PhonePe Business", type: 14, engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
+  { id: "leg_paytm_biz", name: "Paytm Business", type: 16, engine: "legacy", icon: "https://picsum.photos/seed/pyb/32/32" },
+  { id: "leg_supermoney", name: "SuperMoney", type: 17, engine: "legacy", icon: "https://picsum.photos/seed/sm/32/32" },
+  { id: "leg_bharatpe_biz", name: "BharatPe Business", type: 18, engine: "legacy", icon: "https://picsum.photos/seed/bp/32/32" },
 ];
 
 export default function AutomationDashboard() {
@@ -338,7 +332,6 @@ export default function AutomationDashboard() {
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
-                        // FIXED: Handle informational steps (strings or objects with ok property)
                         const isOk = typeof data === 'string' || data.ok === true || data.code === 200 || data.code === 0;
                         return (
                           <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">
