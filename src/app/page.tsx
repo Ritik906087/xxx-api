@@ -44,13 +44,13 @@ const CHANNELS = [
   { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
   { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://download.kspay.shop/icon/paytmct.png" },
   
-  // Legacy Engine Channels (Old RSWallet System)
+  // Legacy Engine Channels (Old RSWallet System - api.rswallet-api.com)
   { id: "leg_phonepe", name: "PhonePe", type: 1, engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
   { id: "leg_navi", name: "Navi", type: 13, engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
-  { id: "leg_phonepe_biz", name: "PhonePe Business", type: 14, engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
-  { id: "leg_paytm_biz", name: "Paytm Business", type: 16, engine: "legacy", icon: "https://picsum.photos/seed/pyb/32/32" },
+  { id: "leg_phonepe_biz", name: "PhonePeBusiness", type: 14, engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
+  { id: "leg_paytm_biz", name: "PaytmBusiness", type: 16, engine: "legacy", icon: "https://picsum.photos/seed/pyb/32/32" },
   { id: "leg_supermoney", name: "SuperMoney", type: 17, engine: "legacy", icon: "https://picsum.photos/seed/sm/32/32" },
-  { id: "leg_bharatpe_biz", name: "BharatPe Business", type: 18, engine: "legacy", icon: "https://picsum.photos/seed/bp/32/32" },
+  { id: "leg_bharatpe_biz", name: "BharatPeBusiness", type: 18, engine: "legacy", icon: "https://picsum.photos/seed/bp/32/32" },
 ];
 
 export default function AutomationDashboard() {
@@ -234,14 +234,16 @@ export default function AutomationDashboard() {
                       <SelectValue placeholder="Select Platform" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800 text-slate-300 rounded-xl">
-                      {CHANNELS.map((c) => (
-                        <SelectItem key={c.id} value={c.id} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
-                          <div className="flex items-center gap-3">
-                            <img src={c.icon} alt={c.name} className="w-5 h-5 rounded-sm object-contain" />
-                            <span className="font-bold">{c.name} (Type {c.type})</span>
-                          </div>
-                        </SelectItem>
-                      ))}
+                      <ScrollArea className="h-[300px]">
+                        {CHANNELS.map((c) => (
+                          <SelectItem key={c.id} value={c.id} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
+                            <div className="flex items-center gap-3">
+                              <img src={c.icon} alt={c.name} className="w-5 h-5 rounded-sm object-contain" />
+                              <span className="font-bold">{c.name} (Type {c.type})</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </ScrollArea>
                     </SelectContent>
                   </Select>
                 </div>

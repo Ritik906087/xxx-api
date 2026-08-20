@@ -92,13 +92,13 @@ export async function POST(request: Request) {
       const engine = body.engine || "legacy";
       
       const isDTPay = engine === 'dtpay';
-      // Specific mapping for Amazon: Incoming 33 -> DTPay 1
+      // Amazon Mapping: 33 -> 1 for DTPay
       const effectiveCtType = (isDTPay && channelType === 33) ? 1 : channelType;
 
       logs.push({ "Step 0: Engine Selection": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine for Type ${channelType} -> ${effectiveCtType}` } });
 
       if (isDTPay) {
-        // DTPay Flow: Master Auth -> Send OTP
+        // DTPay Master Auth Flow
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: getStealthHeaders(undefined, true),
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // Legacy RSWallet Flow (PhonePe 1 stays 1, etc.)
+        // Legacy RSWallet Flow
         const botPhone = "8" + Math.floor(100000000 + Math.random() * 800000000).toString();
         const password = "Bot" + Math.random().toString(36).substring(7) + "@1";
 
@@ -221,7 +221,7 @@ export async function POST(request: Request) {
       const providerName = DTPAY_PROVIDERS[channelType];
 
       if (isDTPay && providerName) {
-        logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName} (DTPay) runner records for history...` } });
+        logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName} (DTPay) records for history...` } });
 
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
