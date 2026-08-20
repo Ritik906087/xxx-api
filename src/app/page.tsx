@@ -123,7 +123,7 @@ export default function AutomationDashboard() {
       return;
     }
     setIsVerifying(true);
-    setLogs([{ "Step 0: Ledger Probe": `Searching ${activeChannel?.name} runner records for history...` }]);
+    setLogs([{ "Step 0: Ledger Probe": { ok: true, msg: `Searching ${activeChannel?.name} runner records for history...` } }]);
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
@@ -338,7 +338,8 @@ export default function AutomationDashboard() {
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
-                        const isOk = data.ok === true || data.code === 200 || data.code === 0;
+                        // If data is a string (legacy) or an object with ok property
+                        const isOk = typeof data === 'string' || data.ok === true || data.code === 200 || data.code === 0;
                         return (
                           <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">
                             <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] rounded-full bg-slate-800" />

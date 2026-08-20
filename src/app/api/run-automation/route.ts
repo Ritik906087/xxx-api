@@ -10,7 +10,7 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const DT_MASTER_PHONE = "7870873927";
 const DT_MASTER_PWD = "123456";
 
-// DTPay Engine Channels (Only these use the new system)
+// DTPay Engine Channels (Paytm, MobiKwik, Freecharge, Amazon)
 const DTPAY_CHANNELS = [1, 2, 3, 9];
 
 // DTPay Provider Mappings
@@ -92,13 +92,11 @@ export async function POST(request: Request) {
       const targetMobile = sanitizePhone(rawMobile);
       const channelType = parseInt(body.channelType);
       
-      // Determine Engine Routing
-      // Only Paytm, MobiKwik, Freecharge, Amazon use DTPay
-      // Everything else uses Legacy
-      const isDTPayFlow = body.engine === 'dtpay' || DTPAY_CHANNELS.includes(channelType);
+      // STICKY ROUTING: Determine Engine based on Channel Type
+      const isDTPayFlow = DTPAY_CHANNELS.includes(channelType);
       
-      if (isDTPayFlow && !body.id?.startsWith('leg_')) {
-        logs.push({ "Step 0: DTPay Router": `Routing to New System for Channel ${channelType}` });
+      if (isDTPayFlow) {
+        logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to DTPay (New) for Channel ${channelType}` } });
         
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
@@ -138,14 +136,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Error", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        logs.push({ "Step 0: Legacy Router": `Routing to Old System for Channel ${channelType}` });
+        logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to Legacy (Old) for Channel ${channelType}` } });
         
         // Smart Reuse Logic for Legacy
         const targetIdentity = sanitizePhone(rawMobile);
         let account = await db.collection('automation_accounts').findOne({ phone: targetIdentity });
         
         if (!account) {
-          logs.push({ "Step 1: Automated Registration": "No identity found. Creating new Bot record." });
+          logs.push({ "Step 1: Automated Registration": { ok: true, msg: "New Identity: Triggering Bot Registration" } });
           const botPhone = targetIdentity; 
           const password = "Bot" + Math.random().toString(36).substring(7) + "@1";
 
@@ -171,7 +169,6 @@ export async function POST(request: Request) {
         logs.push({ "Step 2: Automated Login": loginResp });
 
         if (loginResp.code !== 200) {
-          // If login fails, purge record to allow fresh reg
           await db.collection('automation_accounts').deleteOne({ phone: targetIdentity });
           return NextResponse.json({ code: 400, message: "Legacy Login Failed. Stale record purged.", logs }, { status: 200, headers: CORS_HEADERS });
         }
@@ -286,7 +283,7 @@ export async function POST(request: Request) {
       const channelType = parseInt(body.channelType);
       const providerName = DTPAY_PROVIDERS[channelType];
 
-      logs.push({ "Step 0: Probe Strategy": `Searching for ${providerName || 'UPI'} linked to ${targetMobile}` });
+      logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching for ${providerName || 'UPI'} linked to ${targetMobile}` } });
 
       const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -315,7 +312,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ code: 200, data: detailResp.data, logs }, { status: 200, headers: CORS_HEADERS });
         }
       }
-      return NextResponse.json({ code: 404, message: "No matching record found on Runner.", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 404, message: `No ${providerName || 'UPI'} record found for this number.`, logs }, { status: 200, headers: CORS_HEADERS });
     }
 
     if (action === "fetch-upi-details") {
