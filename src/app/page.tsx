@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -37,21 +36,24 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 const CHANNELS = [
-  { id: "8", name: "Paytm", type: 8, accountType: "1", icon: "https://download.kspay.shop/icon/paytmct.png" },
-  { id: "1", name: "PhonePe", type: 1, accountType: "1", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
-  { id: "2", name: "Freecharge", type: 2, accountType: "2", icon: "https://download.kspay.shop/img/freecharge.webp" },
-  { id: "4", name: "Mobikwik", type: 4, accountType: "1", icon: "https://download.kspay.shop/icon/mobc.webp" },
-  { id: "13", name: "Navi", type: 13, accountType: "1", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
-  { id: "14", name: "PhonePe Business", type: 14, accountType: "1", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
-  { id: "16", name: "Paytm Business", type: 16, accountType: "1", icon: "https://download.kspay.shop/icon/paytmct.png" },
-  { id: "17", name: "SuperMoney", type: 17, accountType: "1", icon: "https://picsum.photos/seed/sm/32/32" },
-  { id: "18", name: "BharatPe Business", type: 18, accountType: "1", icon: "https://picsum.photos/seed/bp/32/32" },
+  // NEW DTPay Server Platforms
+  { id: "dt_paytm", name: "Paytm (DTPay)", type: 9, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/icon/paytmct.png" },
+  { id: "dt_mobikwik", name: "MobiKwik (DTPay)", type: 2, accountType: "1", engine: "dtpay", icon: "https://download.kspay.shop/icon/mobc.webp" },
+  { id: "dt_freecharge", name: "Freecharge (DTPay)", type: 3, accountType: "2", engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
+  { id: "dt_amazon", name: "Amazon Pay (DTPay)", type: 1, accountType: "1", engine: "dtpay", icon: "https://picsum.photos/seed/amazon/32/32" },
+  
+  // LEGACY RSWallet Platforms
+  { id: "leg_phonepe", name: "PhonePe", type: 1, accountType: "1", engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
+  { id: "leg_navi", name: "Navi", type: 13, accountType: "1", engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
+  { id: "leg_paytm_biz", name: "Paytm Business", type: 16, accountType: "1", engine: "legacy", icon: "https://download.kspay.shop/icon/paytmct.png" },
+  { id: "leg_supermoney", name: "SuperMoney", type: 17, accountType: "1", engine: "legacy", icon: "https://picsum.photos/seed/sm/32/32" },
+  { id: "leg_bharatpe", name: "BharatPe Business", type: 18, accountType: "1", engine: "legacy", icon: "https://picsum.photos/seed/bp/32/32" },
 ];
 
 export default function AutomationDashboard() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [selectedChannelId, setSelectedChannelId] = useState('8');
+  const [selectedChannelId, setSelectedChannelId] = useState('dt_paytm');
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -88,7 +90,8 @@ export default function AutomationDashboard() {
           action: 'send-otp', 
           phone, 
           channelType: activeChannel?.type,
-          accountType: activeChannel?.accountType
+          accountType: activeChannel?.accountType,
+          engine: activeChannel?.engine
         })
       });
       
@@ -154,12 +157,12 @@ export default function AutomationDashboard() {
               <Zap className="w-8 h-8 fill-current" />
             </div>
             <div>
-              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">RS Wallet Expert System</h1>
+              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">Vantage Expert Automation</h1>
               <div className="flex items-center gap-3 mt-1.5">
-                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">MongoDB Persistent Engine v3.0</Badge>
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">Multi-Server Orchestrator v4.0</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
-                  Anti-Detection: Active
+                  DTPay & RSWallet: Ready
                 </div>
               </div>
             </div>
@@ -259,8 +262,8 @@ export default function AutomationDashboard() {
                 <div className="space-y-2">
                   {vpaList.map((v, i) => (
                     <div key={i} className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
-                      <span className="text-xs font-black text-white">{v.vpa}</span>
-                      <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] px-2">{v.status || 'Active'}</Badge>
+                      <span className="text-xs font-black text-white">{v.vpa || v.upiAccount}</span>
+                      <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] px-2">{v.status || v.provider || 'Active'}</Badge>
                     </div>
                   ))}
                 </div>
@@ -277,7 +280,7 @@ export default function AutomationDashboard() {
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Secure Cloud Bridge</span>
+                  <span className="text-[8px] font-black uppercase text-slate-600 tracking-widest">Multi-Cloud Bridge</span>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 p-0 overflow-hidden bg-slate-950/40">
@@ -285,14 +288,14 @@ export default function AutomationDashboard() {
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 space-y-6">
                       <Database className="w-12 h-12 opacity-10" />
-                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Standby: MongoDB Link Established</p>
+                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Standby: Hybrid Link Established</p>
                     </div>
                   ) : (
                     <div className="space-y-8">
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
-                        const isOk = String(data.code) === "200" || data.success === true;
+                        const isOk = String(data.code) === "200" || String(data.code) === "0" || data.success === true || data.ok === true;
                         return (
                           <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">
                             <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] rounded-full bg-slate-800" />
@@ -312,7 +315,7 @@ export default function AutomationDashboard() {
                       {(isLoading || isVerifying) && (
                         <div className="flex items-center gap-4 text-blue-500 animate-pulse pl-6">
                           <RefreshCw className="w-3 h-3 animate-spin" />
-                          <span className="text-[9px] font-black uppercase tracking-widest">Bypassing WAF / Executing Protocol...</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest">Executing Protocol across Multi-Server Bridge...</span>
                         </div>
                       )}
                     </div>
@@ -326,3 +329,4 @@ export default function AutomationDashboard() {
     </div>
   );
 }
+
