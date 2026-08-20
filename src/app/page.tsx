@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -38,7 +39,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 const CHANNELS = [
   // DTPay Engine Channels (New System)
-  { id: "dt_amazon", name: "Amazon Pay", type: 1, engine: "dtpay", icon: "https://picsum.photos/seed/amazon/32/32" },
+  { id: "dt_amazon", name: "Amazon Pay", type: 33, engine: "dtpay", icon: "https://picsum.photos/seed/amazon/32/32" },
   { id: "dt_mobikwik", name: "MobiKwik", type: 2, engine: "dtpay", icon: "https://download.kspay.shop/icon/mobc.webp" },
   { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
   { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://download.kspay.shop/icon/paytmct.png" },
@@ -125,7 +126,8 @@ export default function AutomationDashboard() {
         body: JSON.stringify({ 
           action: 'fetch-by-phone', 
           phone, 
-          channelType: activeChannel?.type 
+          channelType: activeChannel?.type,
+          engine: activeChannel?.engine
         })
       });
       const result = await res.json();
@@ -236,7 +238,7 @@ export default function AutomationDashboard() {
                         <SelectItem key={c.id} value={c.id} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
                           <div className="flex items-center gap-3">
                             <img src={c.icon} alt={c.name} className="w-5 h-5 rounded-sm object-contain" />
-                            <span className="font-bold">{c.name}</span>
+                            <span className="font-bold">{c.name} (Type {c.type})</span>
                           </div>
                         </SelectItem>
                       ))}
