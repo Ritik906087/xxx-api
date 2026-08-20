@@ -34,7 +34,8 @@ import {
   ChevronRight,
   Info,
   ArrowUpRight,
-  ArrowDownLeft
+  ArrowDownLeft,
+  FileText
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -106,6 +107,35 @@ export default function AutomationDashboard() {
       toast({ variant: 'destructive', title: "System Fault", description: "Network connection lost." });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFetchHistoryDirect = async () => {
+    if (!phone || phone.length < 10) {
+      toast({ variant: 'destructive', title: "Validation Error", description: "Phone number is required." });
+      return;
+    }
+    setIsVerifying(true);
+    setLogs([{ "Step 0: Ledger Probe": "Scanning runner accounts for history..." }]);
+    try {
+      const res = await fetch('/api/run-automation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'fetch-by-phone', phone })
+      });
+      const result = await res.json();
+      setLogs(prev => [...prev, ...result.logs]);
+      if (result.code === 200) {
+        setBillList(result.data?.recentBills || []);
+        setShowBills(true);
+        toast({ title: "Ledger Synced", description: "Live history captured from DTPay server." });
+      } else {
+        toast({ variant: 'destructive', title: "History Not Found", description: result.message });
+      }
+    } catch (e) {
+      toast({ variant: 'destructive', title: "Fetch Error", description: "Failed to establish DTPay tunnel." });
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -227,6 +257,12 @@ export default function AutomationDashboard() {
                     {isLoading ? <Loader2 className="animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
                     {isLoading ? "Automating..." : "Trigger Automation"}
                   </Button>
+                  
+                  <Button onClick={handleFetchHistoryDirect} disabled={isLoading || isVerifying} variant="outline" className="w-full h-16 rounded-2xl border-slate-800 bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-900 font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 active:scale-95">
+                    {isVerifying && !otpSent ? <Loader2 className="animate-spin" /> : <FileText className="w-4 h-4" />}
+                    Fetch Ledger History
+                  </Button>
+
                   {otpSent && (
                     <Button onClick={handleVerifyOtp} disabled={isLoading || isVerifying} className="w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 active:scale-95">
                       {isVerifying ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -250,9 +286,9 @@ export default function AutomationDashboard() {
                         <span className="text-xs font-black text-white">{v.upiAccount || v.vpa}</span>
                         <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] px-2 w-fit mt-1">{v.provider || 'Active'}</Badge>
                       </div>
-                      {v.runnerUpiId && (
+                      {(v.runnerUpiId || sessionId.startsWith('DT_')) && (
                         <Button 
-                          onClick={() => handleFetchDetails(v.runnerUpiId)}
+                          onClick={() => handleFetchDetails(v.runnerUpiId || 0)}
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 text-blue-400 hover:bg-blue-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"

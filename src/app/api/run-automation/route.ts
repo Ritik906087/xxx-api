@@ -253,26 +253,59 @@ export async function POST(request: Request) {
       }
     }
 
-    if (action === "fetch-upi-details") {
-      const sessionId = body.sessionId;
-      const runnerUpiId = body.runnerUpiId;
-      const session = await db.collection('automation_sessions').findOne({ sessionId });
+    if (action === "fetch-upi-details" || action === "fetch-by-phone") {
+      let runnerUpiId = body.runnerUpiId;
+      const targetMobile = sanitizePhone(body.phone || "");
+      
+      // Step 1: DTPay Master Login to get token
+      const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: getStealthHeaders(undefined, true),
+        body: JSON.stringify({ phone: DT_MASTER_PHONE, password: DT_MASTER_PWD, countryCode: "+91" })
+      }).then(r => r.json());
 
-      if (!session || session.engine !== 'DTPay') {
-        return NextResponse.json({ code: 400, message: "Invalid Session for Details" }, { status: 200, headers: CORS_HEADERS });
+      if (loginResp.code !== 0 || !loginResp.ok) {
+        return NextResponse.json({ code: 400, message: "Auth Error", logs }, { status: 200, headers: CORS_HEADERS });
       }
 
-      const dtHeaders = getStealthHeaders(session.runnerToken, true);
+      const runnerToken = loginResp.data.token;
+      const dtHeaders = getStealthHeaders(runnerToken, true);
+
+      // If fetching by phone, we need to find the runnerUpiId first
+      if (action === "fetch-by-phone") {
+        if (!targetMobile) return NextResponse.json({ code: 400, message: "Phone required" }, { status: 200, headers: CORS_HEADERS });
+        
+        logs.push({ "Step 1: Fetch Global UPI List": "Requesting linked accounts..." });
+        const listResp = await fetch(`${DT_BASE_URL}/upi/list`, {
+          method: 'GET',
+          headers: dtHeaders
+        }).then(r => r.json());
+
+        if (listResp.code === 0 && listResp.ok) {
+          const match = listResp.data.find((u: any) => u.upiAccount.includes(targetMobile));
+          if (match) {
+            runnerUpiId = match.runnerUpiId;
+            logs.push({ "Step 2: Account Resolved": `Found UPI ID: ${runnerUpiId} for ${targetMobile}` });
+          } else {
+            return NextResponse.json({ code: 404, message: "Account not linked to Runner", logs }, { status: 200, headers: CORS_HEADERS });
+          }
+        } else {
+          return NextResponse.json({ code: 400, message: "List Fetch Failed", logs }, { status: 200, headers: CORS_HEADERS });
+        }
+      }
+
+      // Final Step: Fetch Details
+      logs.push({ "Step 3: Fetching Recent Bills": `Requesting ledger for runnerUpiId: ${runnerUpiId}` });
       const detailResp = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${runnerUpiId}&limit=5`, {
         method: 'GET',
         headers: dtHeaders
       }).then(r => r.json());
 
-      logs.push({ "Step 6: Fetch UPI Transaction Details": detailResp });
+      logs.push({ "Step 4: Final Payload": detailResp });
 
       return NextResponse.json({
         code: 200,
-        message: detailResp.ok ? "Details Fetched" : (detailResp.msg || "Fetch Failed"),
+        message: detailResp.ok ? "Ledger Captured" : "Fetch Failed",
         data: detailResp.data,
         logs
       }, { status: 200, headers: CORS_HEADERS });
