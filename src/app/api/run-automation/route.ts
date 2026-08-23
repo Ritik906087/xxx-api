@@ -11,7 +11,7 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const DT_MASTER_PHONE = "7870873927";
 const DT_MASTER_PWD = "123456";
 
-// Provider Mapping for DTPay History
+// Provider Mapping for DTPay (4 Supported Providers for History & OTP)
 const DTPAY_PROVIDERS: Record<number, string> = {
   33: "AMAZON", // Frontend type 33
   18: "AMAZON", // DTPay actual type 18
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       const engine = body.engine || "legacy";
       
       const isDTPay = engine === 'dtpay';
-      // Amazon Mapping: 33 -> 18 for DTPay (Latest Specification)
+      // Amazon Mapping: 33 -> 18 for DTPay
       const effectiveCtType = (isDTPay && channelType === 33) ? 18 : channelType;
 
       logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine | Type: ${channelType} -> ${effectiveCtType}` } });
@@ -218,11 +218,12 @@ export async function POST(request: Request) {
       const engine = body.engine || "legacy";
       const isDTPay = engine === 'dtpay';
       
+      // Amazon Mapping (33 -> 18) for DTPay lookup
       const effectiveType = (isDTPay && channelType === 33) ? 18 : channelType;
       const providerName = DTPAY_PROVIDERS[effectiveType];
 
       if (isDTPay && providerName) {
-        logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName} (DTPay) records for history...` } });
+        logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName} (DTPay) linked to ${targetMobile}...` } });
 
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
@@ -236,16 +237,26 @@ export async function POST(request: Request) {
         const listResp = await fetch(`${DT_BASE_URL}/upi/list`, { method: 'GET', headers: getStealthHeaders(runnerToken, true) }).then(r => r.json());
 
         if (listResp.ok) {
-          const match = listResp.data.find((u: any) => u.upiAccount.includes(targetMobile) && u.provider === providerName);
+          // Find matching VPA based on phone and provider name
+          const match = listResp.data.find((u: any) => 
+            u.upiAccount.includes(targetMobile) && 
+            u.provider.toUpperCase() === providerName.toUpperCase()
+          );
+
           if (match) {
-            const detailResp = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${match.runnerUpiId}&limit=5`, { method: 'GET', headers: getStealthHeaders(runnerToken, true) }).then(r => r.json());
+            logs.push({ "Step 1: Record Identified": { ok: true, msg: `Found ${providerName} VPA: ${match.upiAccount}. Fetching details...` } });
+            const detailResp = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${match.runnerUpiId}&limit=5`, { 
+              method: 'GET', 
+              headers: getStealthHeaders(runnerToken, true) 
+            }).then(r => r.json());
+            
             return NextResponse.json({ code: 200, data: detailResp.data, logs }, { status: 200, headers: CORS_HEADERS });
           }
         }
-        return NextResponse.json({ code: 404, message: `No ${providerName} record found on DTPay.`, logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 404, message: `No linked ${providerName} record found for ${targetMobile}.`, logs }, { status: 200, headers: CORS_HEADERS });
       }
       
-      return NextResponse.json({ code: 400, message: "Direct History probe only active for DTPay Engine.", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: "History probe is only available for DTPay providers (Amazon, Paytm, MobiKwik, Freecharge).", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
