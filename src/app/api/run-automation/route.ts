@@ -13,8 +13,8 @@ const DT_MASTER_PWD = "123456";
 
 // Provider Mapping for DTPay History
 const DTPAY_PROVIDERS: Record<number, string> = {
-  33: "AMAZON", // Amazon mapped from type 33
-  18: "AMAZON", // DTPay internal type 18 (Updated from 1)
+  33: "AMAZON", // Frontend type 33
+  18: "AMAZON", // DTPay actual type 18
   2: "MOBIKWIK",
   3: "FREECHARGE",
   9: "PAYTM"
@@ -92,13 +92,13 @@ export async function POST(request: Request) {
       const engine = body.engine || "legacy";
       
       const isDTPay = engine === 'dtpay';
-      // Amazon Mapping: 33 -> 18 for DTPay (Updated from 1)
+      // Amazon Mapping: 33 -> 18 for DTPay (Latest Specification)
       const effectiveCtType = (isDTPay && channelType === 33) ? 18 : channelType;
 
-      logs.push({ "Step 0: Engine Selection": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine for Type ${channelType} -> ${effectiveCtType}` } });
+      logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine | Type: ${channelType} -> ${effectiveCtType}` } });
 
       if (isDTPay) {
-        // DTPay Master Auth Flow
+        // DTPay Flow
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: getStealthHeaders(undefined, true),
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // Legacy RSWallet Flow
+        // Legacy RSWallet Flow (1, 13, 14, 16, 17, 18)
         const botPhone = "8" + Math.floor(100000000 + Math.random() * 800000000).toString();
         const password = "Bot" + Math.random().toString(36).substring(7) + "@1";
 
@@ -218,7 +218,8 @@ export async function POST(request: Request) {
       const engine = body.engine || "legacy";
       const isDTPay = engine === 'dtpay';
       
-      const providerName = DTPAY_PROVIDERS[channelType];
+      const effectiveType = (isDTPay && channelType === 33) ? 18 : channelType;
+      const providerName = DTPAY_PROVIDERS[effectiveType];
 
       if (isDTPay && providerName) {
         logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName} (DTPay) records for history...` } });
@@ -245,18 +246,6 @@ export async function POST(request: Request) {
       }
       
       return NextResponse.json({ code: 400, message: "Direct History probe only active for DTPay Engine.", logs }, { status: 200, headers: CORS_HEADERS });
-    }
-
-    if (action === "fetch-upi-details") {
-      const { runnerUpiId } = body;
-      const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: getStealthHeaders(undefined, true),
-        body: JSON.stringify({ phone: DT_MASTER_PHONE, password: DT_MASTER_PWD, countryCode: "+91" })
-      }).then(r => r.json());
-
-      const detailResp = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${runnerUpiId}&limit=5`, { method: 'GET', headers: getStealthHeaders(loginResp.data.token, true) }).then(r => r.json());
-      return NextResponse.json({ code: 200, data: detailResp.data, logs }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
