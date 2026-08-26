@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
@@ -46,7 +45,7 @@ function sanitizePhone(phone: string): string {
 
 /**
  * Updated RSWallet Signature Logic
- * Matches the Python implementation: key1=value1&key2=value2&sessionKey
+ * Matches Python implementation: key1=value1&key2=value2&sessionKey
  */
 function generateRSSignature(payload: Record<string, any>, sessionKey: string): string {
   const sortedKeys = Object.keys(payload).sort();
@@ -74,7 +73,7 @@ function getStealthHeaders(token?: string, isDTPay: boolean = false) {
     const cleanToken = token.replace(/['"]+/g, '').trim();
     headers["token"] = cleanToken;
     headers["loginToken"] = cleanToken;
-    headers["Authorization"] = cleanToken;
+    // Removing Authorization header for legacy RSWallet to prevent 1002
   }
   return headers;
 }
@@ -193,7 +192,7 @@ export async function POST(request: Request) {
         }).then(r => r.json());
         logs.push({ "Step 3c: Pre-Check Integrity": preResp });
 
-        // Step 4: Final OTP Dispatch
+        // Step 4: Final OTP Trigger
         await new Promise(r => setTimeout(r, 1500));
         ts = Date.now();
         const otpPayload = { 
