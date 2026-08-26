@@ -13,8 +13,7 @@ const DT_MASTER_PWD = "123456";
 
 // Provider Mapping for DTPay History Probe
 const DTPAY_PROVIDERS: Record<number, string> = {
-  33: "AMAZON", // Frontend type 33
-  18: "AMAZON", // DTPay actual type 18
+  18: "AMAZON", // Amazon Pay mapped to 18 in DTPay
   2: "MOBIKWIK",
   3: "FREECHARGE",
   9: "PAYTM"
@@ -69,8 +68,10 @@ function getStealthHeaders(token?: string, isDTPay: boolean = false) {
     headers["X-App-Version-Code"] = "17";
     if (token) headers["X-Runner-Token"] = token;
   } else if (token) {
-    headers["token"] = token;
-    headers["loginToken"] = token;
+    const cleanToken = token.replace(/['"]+/g, '').trim();
+    headers["token"] = cleanToken;
+    headers["loginToken"] = cleanToken;
+    headers["Authorization"] = cleanToken;
   }
   return headers;
 }
@@ -98,7 +99,6 @@ export async function POST(request: Request) {
       logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine | Type: ${channelType} -> ${effectiveCtType}` } });
 
       if (isDTPay) {
-        // DTPay Login-based Flow
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: getStealthHeaders(undefined, true),
@@ -124,11 +124,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // Legacy RSWallet Flow - FRESH BOT IDENTITY EVERY TIME
-        // Generates a new random phone starting with 7, 8, or 9
+        // Legacy RSWallet Flow - FRESH IDENTITY EVERY TIME
         const botPhone = ["7", "8", "9"][Math.floor(Math.random() * 3)] + 
                          Math.floor(1000000000 + Math.random() * 900000000).toString().substring(1);
-        const password = "Bot" + Math.random().toString(36).substring(7) + "@1";
+        const password = "Ritik" + Math.random().toString(36).substring(7) + "@1";
 
         logs.push({ "Step 1: Generating Fresh Identity": { ok: true, phone: botPhone } });
 
@@ -138,33 +137,67 @@ export async function POST(request: Request) {
           headers: getStealthHeaders(),
           body: JSON.stringify({ phone: botPhone, password, referralCode: "0ealuckpbyno" })
         }).then(r => r.json());
-        logs.push({ "Step 2: Bot Registration": regResp });
+        logs.push({ "Step 2a: Bot Registration": regResp });
+        await new Promise(r => setTimeout(r, 2000)); 
 
         // Step 2: Login Bot
-        await new Promise(r => setTimeout(r, 1500)); // Small delay for server stability
         const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: getStealthHeaders(),
           body: JSON.stringify({ phone: botPhone, password })
         }).then(r => r.json());
+        logs.push({ "Step 2b: Bot Login": loginResp });
 
-        logs.push({ "Step 3: Bot Login": loginResp });
         if (loginResp.code !== 200) return NextResponse.json({ code: 400, message: "Legacy Auth Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
         const { userId, loginToken, sessionKey } = loginResp.data;
         const authHeaders = getStealthHeaders(loginToken);
+        const pinCode = "954073";
 
-        // Step 4: PIN Binding (Simulate secure setup)
-        const pinPayload = { pinCode: "954073", ts: Date.now(), userId };
-        const sig = generateRSSignature(pinPayload, sessionKey);
-        await fetch(`${RS_BASE_URL}/secure/pin/bind`, { method: 'POST', headers: { ...authHeaders, Signature: sig }, body: JSON.stringify(pinPayload) });
+        // Step 3a: PIN Binding
+        await new Promise(r => setTimeout(r, 1500));
+        let ts = Date.now();
+        let pinPayload = { pinCode, ts, userId };
+        let sig = generateRSSignature(pinPayload, sessionKey);
+        const bindResp = await fetch(`${RS_BASE_URL}/secure/pin/bind`, {
+          method: 'POST',
+          headers: { ...authHeaders, Signature: sig },
+          body: JSON.stringify(pinPayload)
+        }).then(r => r.json());
+        logs.push({ "Step 3a: PIN Bind": bindResp });
 
-        // Step 5: Send OTP for Target Mobile
-        const otpPayload = { mobile: targetMobile, type: channelType, accountType: "1", ts: Date.now(), userId };
-        const otpSig = generateRSSignature(otpPayload, sessionKey);
+        // Step 3b: PIN Verification (Crucial to avoid 1002 error)
+        await new Promise(r => setTimeout(r, 1500));
+        ts = Date.now();
+        pinPayload = { pinCode, ts, userId };
+        sig = generateRSSignature(pinPayload, sessionKey);
+        const verifyResp = await fetch(`${RS_BASE_URL}/secure/pin/verify`, {
+          method: 'POST',
+          headers: { ...authHeaders, Signature: sig },
+          body: JSON.stringify(pinPayload)
+        }).then(r => r.json());
+        logs.push({ "Step 3b: PIN Verification": verifyResp });
+
+        // Step 3c: Pre-Check Integrity
+        await new Promise(r => setTimeout(r, 1500));
+        ts = Date.now();
+        const prePayload = { mobile: targetMobile, type: channelType, appPinCode: pinCode, ts, userId };
+        sig = generateRSSignature(prePayload, sessionKey);
+        const preResp = await fetch(`${RS_BASE_URL}/bind/pre/check`, {
+          method: 'POST',
+          headers: { ...authHeaders, Signature: sig },
+          body: JSON.stringify(prePayload)
+        }).then(r => r.json());
+        logs.push({ "Step 3c: Pre-Check Integrity": preResp });
+
+        // Step 4: Final OTP Dispatch
+        await new Promise(r => setTimeout(r, 1500));
+        ts = Date.now();
+        const otpPayload = { mobile: targetMobile, type: channelType, accountType: "1", ts, userId };
+        sig = generateRSSignature(otpPayload, sessionKey);
         const otpResp = await fetch(`${RS_BASE_URL}/bind/send/otp`, {
           method: 'POST',
-          headers: { ...authHeaders, Signature: otpSig },
+          headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(otpPayload)
         }).then(r => r.json());
 
@@ -174,7 +207,7 @@ export async function POST(request: Request) {
           await db.collection('automation_sessions').insertOne({ sessionId, userId, loginToken, sessionKey, requestId: otpResp.data.requestId, channelType, engine: 'Legacy', createdAt: new Date() });
           return NextResponse.json({ code: 200, message: "OTP Sent via Legacy", sessionId, logs }, { status: 200, headers: CORS_HEADERS });
         }
-        return NextResponse.json({ code: 400, message: "Legacy OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: otpResp.message || "Legacy OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
       }
     }
 
@@ -230,7 +263,7 @@ export async function POST(request: Request) {
       const providerName = DTPAY_PROVIDERS[effectiveType];
 
       if (isDTPay && providerName) {
-        logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName} (DTPay) runner records for history...` } });
+        logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching for ${providerName} linked to ${targetMobile}...` } });
 
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',

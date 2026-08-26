@@ -38,7 +38,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const CHANNELS = [
-  // DTPay Engine Channels (New System)
+  // DTPay Engine Channels (New System - Target ctType 18 for Amazon)
   { id: "dt_amazon", name: "Amazon Pay", type: 33, engine: "dtpay", icon: "https://picsum.photos/seed/amazon/32/32" },
   { id: "dt_mobikwik", name: "MobiKwik", type: 2, engine: "dtpay", icon: "https://download.kspay.shop/icon/mobc.webp" },
   { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
@@ -336,7 +336,6 @@ export default function AutomationDashboard() {
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
-                        // If data is a string or has ok:true/code:200, it's a success
                         const isOk = typeof data === 'string' || data.ok === true || data.code === 200 || data.code === 0;
                         return (
                           <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">
