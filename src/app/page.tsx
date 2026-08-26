@@ -44,7 +44,7 @@ const CHANNELS = [
   { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
   { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://download.kspay.shop/icon/paytmct.png" },
   
-  // Legacy Engine Channels (Old RSWallet System - api.rswallet-api.com)
+  // Legacy Engine Channels (RSWallet System - api.rswallet-api.com)
   { id: "leg_phonepe", name: "PhonePe", type: 1, engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
   { id: "leg_navi", name: "Navi", type: 13, engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
   { id: "leg_phonepe_biz", name: "PhonePeBusiness", type: 14, engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
@@ -101,7 +101,7 @@ export default function AutomationDashboard() {
       if (result.code === 200) {
         setOtpSent(true);
         setSessionId(result.sessionId);
-        toast({ title: "OTP Dispatched", description: `Sequence started via ${activeChannel?.engine.toUpperCase()} engine.` });
+        toast({ title: "OTP Dispatched", description: `Fresh session started via ${activeChannel?.engine.toUpperCase()} engine.` });
       } else {
         toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Upstream Error" });
       }
@@ -118,7 +118,7 @@ export default function AutomationDashboard() {
       return;
     }
     setIsVerifying(true);
-    setLogs([{ "Step 0: Ledger Probe": { ok: true, msg: `Initiating ${activeChannel?.name} Ledger Scan...` } }]);
+    setLogs([{ "Step 0: Ledger Probe": { ok: true, msg: `Searching ${activeChannel?.name} runner records for history...` } }]);
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
@@ -209,7 +209,7 @@ export default function AutomationDashboard() {
               <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">Vantage Hybrid Automation</h1>
               <div className="flex items-center gap-3 mt-1.5">
                 <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">
-                  {activeChannel?.engine === 'dtpay' ? 'DTPay Runner Engine' : 'Legacy RS Engine'}
+                  {activeChannel?.engine === 'dtpay' ? 'DTPay Runner Engine' : 'Legacy Fresh Flow'}
                 </Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
@@ -336,6 +336,7 @@ export default function AutomationDashboard() {
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
+                        // If data is a string or has ok:true/code:200, it's a success
                         const isOk = typeof data === 'string' || data.ok === true || data.code === 200 || data.code === 0;
                         return (
                           <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">

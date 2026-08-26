@@ -11,7 +11,7 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const DT_MASTER_PHONE = "7870873927";
 const DT_MASTER_PWD = "123456";
 
-// Provider Mapping for DTPay (4 Supported Providers for History & OTP)
+// Provider Mapping for DTPay History Probe
 const DTPAY_PROVIDERS: Record<number, string> = {
   33: "AMAZON", // Frontend type 33
   18: "AMAZON", // DTPay actual type 18
@@ -92,13 +92,13 @@ export async function POST(request: Request) {
       const engine = body.engine || "legacy";
       
       const isDTPay = engine === 'dtpay';
-      // Amazon Mapping: 33 -> 18 for DTPay
+      // Amazon Mapping: 33 -> 18 for DTPay Engine
       const effectiveCtType = (isDTPay && channelType === 33) ? 18 : channelType;
 
       logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine | Type: ${channelType} -> ${effectiveCtType}` } });
 
       if (isDTPay) {
-        // DTPay Flow
+        // DTPay Login-based Flow
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: getStealthHeaders(undefined, true),
@@ -124,34 +124,42 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // Legacy RSWallet Flow (1, 13, 14, 16, 17, 18)
-        const botPhone = "8" + Math.floor(100000000 + Math.random() * 800000000).toString();
+        // Legacy RSWallet Flow - FRESH BOT IDENTITY EVERY TIME
+        // Generates a new random phone starting with 7, 8, or 9
+        const botPhone = ["7", "8", "9"][Math.floor(Math.random() * 3)] + 
+                         Math.floor(1000000000 + Math.random() * 900000000).toString().substring(1);
         const password = "Bot" + Math.random().toString(36).substring(7) + "@1";
 
+        logs.push({ "Step 1: Generating Fresh Identity": { ok: true, phone: botPhone } });
+
+        // Step 1: Register New Bot
         const regResp = await fetch(`${RS_BASE_URL}/auth/register`, {
           method: 'POST',
           headers: getStealthHeaders(),
           body: JSON.stringify({ phone: botPhone, password, referralCode: "0ealuckpbyno" })
         }).then(r => r.json());
+        logs.push({ "Step 2: Bot Registration": regResp });
 
-        logs.push({ "Step 1: Legacy Registration": regResp });
-
+        // Step 2: Login Bot
+        await new Promise(r => setTimeout(r, 1500)); // Small delay for server stability
         const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: getStealthHeaders(),
           body: JSON.stringify({ phone: botPhone, password })
         }).then(r => r.json());
 
-        logs.push({ "Step 2: Legacy Bot Login": loginResp });
+        logs.push({ "Step 3: Bot Login": loginResp });
         if (loginResp.code !== 200) return NextResponse.json({ code: 400, message: "Legacy Auth Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
         const { userId, loginToken, sessionKey } = loginResp.data;
         const authHeaders = getStealthHeaders(loginToken);
 
+        // Step 4: PIN Binding (Simulate secure setup)
         const pinPayload = { pinCode: "954073", ts: Date.now(), userId };
         const sig = generateRSSignature(pinPayload, sessionKey);
         await fetch(`${RS_BASE_URL}/secure/pin/bind`, { method: 'POST', headers: { ...authHeaders, Signature: sig }, body: JSON.stringify(pinPayload) });
 
+        // Step 5: Send OTP for Target Mobile
         const otpPayload = { mobile: targetMobile, type: channelType, accountType: "1", ts: Date.now(), userId };
         const otpSig = generateRSSignature(otpPayload, sessionKey);
         const otpResp = await fetch(`${RS_BASE_URL}/bind/send/otp`, {
@@ -160,7 +168,7 @@ export async function POST(request: Request) {
           body: JSON.stringify(otpPayload)
         }).then(r => r.json());
 
-        logs.push({ "Step 3: Legacy OTP Trigger": otpResp });
+        logs.push({ "Step 4: Legacy OTP Trigger": otpResp });
         if (otpResp.code === 200) {
           const sessionId = "RS_" + Math.random().toString(36).substring(7).toUpperCase();
           await db.collection('automation_sessions').insertOne({ sessionId, userId, loginToken, sessionKey, requestId: otpResp.data.requestId, channelType, engine: 'Legacy', createdAt: new Date() });
@@ -218,12 +226,11 @@ export async function POST(request: Request) {
       const engine = body.engine || "legacy";
       const isDTPay = engine === 'dtpay';
       
-      // Amazon Mapping (33 -> 18) for DTPay lookup
       const effectiveType = (isDTPay && channelType === 33) ? 18 : channelType;
       const providerName = DTPAY_PROVIDERS[effectiveType];
 
       if (isDTPay && providerName) {
-        logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName} (DTPay) linked to ${targetMobile}...` } });
+        logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching ${providerName} (DTPay) runner records for history...` } });
 
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
@@ -237,7 +244,6 @@ export async function POST(request: Request) {
         const listResp = await fetch(`${DT_BASE_URL}/upi/list`, { method: 'GET', headers: getStealthHeaders(runnerToken, true) }).then(r => r.json());
 
         if (listResp.ok) {
-          // Find matching VPA based on phone and provider name
           const match = listResp.data.find((u: any) => 
             u.upiAccount.includes(targetMobile) && 
             u.provider.toUpperCase() === providerName.toUpperCase()
@@ -255,8 +261,7 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ code: 404, message: `No linked ${providerName} record found for ${targetMobile}.`, logs }, { status: 200, headers: CORS_HEADERS });
       }
-      
-      return NextResponse.json({ code: 400, message: "History probe is only available for DTPay providers (Amazon, Paytm, MobiKwik, Freecharge).", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: "History probe only available for DTPay (Amazon, Paytm, MobiKwik, Freecharge).", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
