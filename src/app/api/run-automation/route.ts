@@ -31,9 +31,10 @@ function getRandomIP() {
 
 function getRandomUserAgent() {
   const uas = [
-    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 11; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+    "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 14; OnePlus 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 13; SM-A546B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
   ];
   return uas[Math.floor(Math.random() * uas.length)];
 }
@@ -43,14 +44,15 @@ function sanitizePhone(phone: string): string {
   return cleaned.length > 10 ? cleaned.slice(-10) : cleaned;
 }
 
+/**
+ * Updated RSWallet Signature Logic
+ * Matches the Python implementation: key1=value1&key2=value2&sessionKey
+ */
 function generateRSSignature(payload: Record<string, any>, sessionKey: string): string {
   const sortedKeys = Object.keys(payload).sort();
-  let rawStr = "";
-  for (const key of sortedKeys) {
-    rawStr += `${key}${payload[key]}`;
-  }
-  rawStr += sessionKey;
-  return crypto.createHash('md5').update(rawStr).digest('hex');
+  const queryString = sortedKeys.map(key => `${key}=${payload[key]}`).join('&');
+  const rawString = `${queryString}&${sessionKey}`;
+  return crypto.createHash('md5').update(rawString).digest('hex');
 }
 
 function getStealthHeaders(token?: string, isDTPay: boolean = false) {
@@ -61,6 +63,7 @@ function getStealthHeaders(token?: string, isDTPay: boolean = false) {
     "User-Agent": getRandomUserAgent(),
     "X-Forwarded-For": ip,
     "X-Real-IP": ip,
+    "Client-IP": ip,
   };
 
   if (isDTPay) {
@@ -124,7 +127,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // Legacy RSWallet Flow - FRESH IDENTITY EVERY TIME
+        // RSWallet Legacy Flow - FRESH IDENTITY EVERY TIME
         const botPhone = ["7", "8", "9"][Math.floor(Math.random() * 3)] + 
                          Math.floor(1000000000 + Math.random() * 900000000).toString().substring(1);
         const password = "Ritik" + Math.random().toString(36).substring(7) + "@1";
@@ -138,7 +141,7 @@ export async function POST(request: Request) {
           body: JSON.stringify({ phone: botPhone, password, referralCode: "0ealuckpbyno" })
         }).then(r => r.json());
         logs.push({ "Step 2a: Bot Registration": regResp });
-        await new Promise(r => setTimeout(r, 2000)); 
+        await new Promise(r => setTimeout(r, 1500)); 
 
         // Step 2: Login Bot
         const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
@@ -166,7 +169,7 @@ export async function POST(request: Request) {
         }).then(r => r.json());
         logs.push({ "Step 3a: PIN Bind": bindResp });
 
-        // Step 3b: PIN Verification (Crucial to avoid 1002 error)
+        // Step 3b: PIN Verification
         await new Promise(r => setTimeout(r, 1500));
         ts = Date.now();
         pinPayload = { pinCode, ts, userId };
@@ -193,7 +196,13 @@ export async function POST(request: Request) {
         // Step 4: Final OTP Dispatch
         await new Promise(r => setTimeout(r, 1500));
         ts = Date.now();
-        const otpPayload = { mobile: targetMobile, type: channelType, accountType: "1", ts, userId };
+        const otpPayload = { 
+          mobile: targetMobile, 
+          type: channelType, 
+          accountType: "1", 
+          ts, 
+          userId 
+        };
         sig = generateRSSignature(otpPayload, sessionKey);
         const otpResp = await fetch(`${RS_BASE_URL}/bind/send/otp`, {
           method: 'POST',
@@ -237,7 +246,13 @@ export async function POST(request: Request) {
 
       } else {
         const { userId, loginToken, sessionKey, requestId, channelType } = session;
-        const checkPayload = { code: otp, type: channelType, requestId, ts: Date.now(), userId };
+        const checkPayload = { 
+          code: String(otp), 
+          type: parseInt(channelType), 
+          requestId: parseInt(requestId), 
+          ts: Date.now(), 
+          userId: parseInt(userId) 
+        };
         const sig = generateRSSignature(checkPayload, sessionKey);
         const checkResp = await fetch(`${RS_BASE_URL}/bind/check/otp`, {
           method: 'POST',
