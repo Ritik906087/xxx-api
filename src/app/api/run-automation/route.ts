@@ -73,7 +73,6 @@ function getStealthHeaders(token?: string, isDTPay: boolean = false) {
     const cleanToken = token.replace(/['"]+/g, '').trim();
     headers["token"] = cleanToken;
     headers["loginToken"] = cleanToken;
-    // Removing Authorization header for legacy RSWallet to prevent 1002
   }
   return headers;
 }
@@ -126,31 +125,47 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // RSWallet Legacy Flow - FRESH IDENTITY EVERY TIME
-        const botPhone = ["7", "8", "9"][Math.floor(Math.random() * 3)] + 
-                         Math.floor(1000000000 + Math.random() * 900000000).toString().substring(1);
-        const password = "Ritik" + Math.random().toString(36).substring(7) + "@1";
+        // RSWallet Legacy Flow - SMART RETRY LOOP
+        let loginResp: any = null;
+        let botPhone = "";
+        let password = "";
+        const lettersNums = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-        logs.push({ "Step 1: Generating Fresh Identity": { ok: true, phone: botPhone } });
+        for (let attempt = 1; attempt <= 15; attempt++) {
+          botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
+                     Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
+          password = "Ritik" + 
+                     Array.from({ length: 4 }, () => lettersNums[Math.floor(Math.random() * lettersNums.length)]).join('') + 
+                     "@1";
 
-        // Step 1: Register New Bot
-        const regResp = await fetch(`${RS_BASE_URL}/auth/register`, {
-          method: 'POST',
-          headers: getStealthHeaders(),
-          body: JSON.stringify({ phone: botPhone, password, referralCode: "0ealuckpbyno" })
-        }).then(r => r.json());
-        logs.push({ "Step 2a: Bot Registration": regResp });
-        await new Promise(r => setTimeout(r, 1500)); 
+          const headers = getStealthHeaders();
 
-        // Step 2: Login Bot
-        const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
-          method: 'POST',
-          headers: getStealthHeaders(),
-          body: JSON.stringify({ phone: botPhone, password })
-        }).then(r => r.json());
-        logs.push({ "Step 2b: Bot Login": loginResp });
+          // Step 2a: Register New Bot
+          const reg = await fetch(`${RS_BASE_URL}/auth/register`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ phone: botPhone, password, referralCode: "0ealuckpbyno" })
+          }).then(r => r.json()).catch(() => ({ code: 500 }));
 
-        if (loginResp.code !== 200) return NextResponse.json({ code: 400, message: "Legacy Auth Failed", logs }, { status: 200, headers: CORS_HEADERS });
+          // Step 2b: Login Bot
+          loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ phone: botPhone, password })
+          }).then(r => r.json()).catch(() => ({ code: 500 }));
+
+          if (loginResp && loginResp.code === 200) {
+            logs.push({ "Step 1: Fresh Identity Validated": { ok: true, phone: botPhone, attempts: attempt } });
+            break;
+          }
+
+          // Progressive sleep to bypass rate limits
+          await new Promise(r => setTimeout(r, 400 * attempt));
+        }
+
+        if (!loginResp || loginResp.code !== 200) {
+          return NextResponse.json({ code: 400, message: "Legacy Auth Failed after 15 attempts", logs }, { status: 200, headers: CORS_HEADERS });
+        }
 
         const { userId, loginToken, sessionKey } = loginResp.data;
         const authHeaders = getStealthHeaders(loginToken);
@@ -166,7 +181,7 @@ export async function POST(request: Request) {
           headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(pinPayload)
         }).then(r => r.json());
-        logs.push({ "Step 3a: PIN Bind": bindResp });
+        logs.push({ "Step 2: PIN Bind": bindResp });
 
         // Step 3b: PIN Verification
         await new Promise(r => setTimeout(r, 1500));
@@ -178,7 +193,7 @@ export async function POST(request: Request) {
           headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(pinPayload)
         }).then(r => r.json());
-        logs.push({ "Step 3b: PIN Verification": verifyResp });
+        logs.push({ "Step 3: PIN Verification": verifyResp });
 
         // Step 3c: Pre-Check Integrity
         await new Promise(r => setTimeout(r, 1500));
@@ -190,7 +205,7 @@ export async function POST(request: Request) {
           headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(prePayload)
         }).then(r => r.json());
-        logs.push({ "Step 3c: Pre-Check Integrity": preResp });
+        logs.push({ "Step 4: Pre-Check Integrity": preResp });
 
         // Step 4: Final OTP Trigger
         await new Promise(r => setTimeout(r, 1500));
@@ -209,7 +224,7 @@ export async function POST(request: Request) {
           body: JSON.stringify(otpPayload)
         }).then(r => r.json());
 
-        logs.push({ "Step 4: Legacy OTP Trigger": otpResp });
+        logs.push({ "Step 5: Legacy OTP Trigger": otpResp });
         if (otpResp.code === 200) {
           const sessionId = "RS_" + Math.random().toString(36).substring(7).toUpperCase();
           await db.collection('automation_sessions').insertOne({ sessionId, userId, loginToken, sessionKey, requestId: otpResp.data.requestId, channelType, engine: 'Legacy', createdAt: new Date() });
