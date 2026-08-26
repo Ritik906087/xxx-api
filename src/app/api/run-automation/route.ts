@@ -12,7 +12,7 @@ const DT_MASTER_PWD = "123456";
 
 // Provider Mapping for DTPay History Probe
 const DTPAY_PROVIDERS: Record<number, string> = {
-  18: "AMAZON", // Amazon Pay mapped to 18 in DTPay
+  18: "AMAZON",
   2: "MOBIKWIK",
   3: "FREECHARGE",
   9: "PAYTM"
@@ -21,21 +21,27 @@ const DTPAY_PROVIDERS: Record<number, string> = {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, token, loginToken, Signature, X-Runner-Token, X-App-Version, X-App-Version-Code',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, token, loginToken, Signature, X-Runner-Token, X-App-Version, X-App-Version-Code, X-Device-ID, X-Android-ID',
 };
 
 function getRandomIP() {
-  return Array.from({ length: 4 }, () => Math.floor(Math.random() * 256)).join('.');
+  const ranges = [
+    [1, 126], [128, 191], [192, 223]
+  ];
+  const range = ranges[Math.floor(Math.random() * ranges.length)];
+  return `${Math.floor(Math.random() * (range[1] - range[0] + 1)) + range[0]}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
 }
 
 function getRandomUserAgent() {
-  const uas = [
-    "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 14; OnePlus 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 13; SM-A546B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
-  ];
-  return uas[Math.floor(Math.random() * uas.length)];
+  const versions = ["10", "11", "12", "13", "14"];
+  const build = ["SM-S918B", "Pixel 7", "Pixel 8 Pro", "SM-A546B", "OnePlus 11", "SM-G998B"];
+  const chrome = ["118.0.0.0", "119.0.0.0", "120.0.0.0", "121.0.0.0"];
+  
+  return `Mozilla/5.0 (Linux; Android ${versions[Math.floor(Math.random() * versions.length)]}; ${build[Math.floor(Math.random() * build.length)]}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chrome[Math.floor(Math.random() * chrome.length)]} Mobile Safari/537.36`;
+}
+
+function getRandomHex(len: number) {
+  return crypto.randomBytes(len).toString('hex');
 }
 
 function sanitizePhone(phone: string): string {
@@ -43,10 +49,6 @@ function sanitizePhone(phone: string): string {
   return cleaned.length > 10 ? cleaned.slice(-10) : cleaned;
 }
 
-/**
- * Updated RSWallet Signature Logic
- * Matches Python implementation: key1=value1&key2=value2&sessionKey
- */
 function generateRSSignature(payload: Record<string, any>, sessionKey: string): string {
   const sortedKeys = Object.keys(payload).sort();
   const queryString = sortedKeys.map(key => `${key}=${payload[key]}`).join('&');
@@ -56,6 +58,9 @@ function generateRSSignature(payload: Record<string, any>, sessionKey: string): 
 
 function getStealthHeaders(token?: string, isDTPay: boolean = false) {
   const ip = getRandomIP();
+  const deviceId = getRandomHex(8);
+  const androidId = getRandomHex(8);
+  
   const headers: any = {
     "Accept": "application/json, text/plain, */*",
     "Content-Type": "application/json;charset=UTF-8",
@@ -63,6 +68,11 @@ function getStealthHeaders(token?: string, isDTPay: boolean = false) {
     "X-Forwarded-For": ip,
     "X-Real-IP": ip,
     "Client-IP": ip,
+    "X-Device-ID": deviceId,
+    "X-Android-ID": androidId,
+    "X-Requested-With": "com.vantage.app",
+    "Origin": "https://api.rswallet-api.com",
+    "Referer": "https://api.rswallet-api.com/app/"
   };
 
   if (isDTPay) {
@@ -118,36 +128,32 @@ export async function POST(request: Request) {
 
         logs.push({ "Step 2: DTPay OTP Trigger": otpResp });
         if (otpResp.ok) {
-          const sessionId = "DT_" + Math.random().toString(36).substring(7).toUpperCase();
+          const sessionId = "DT_" + getRandomHex(4).toUpperCase();
           await db.collection('automation_sessions').insertOne({ sessionId, runnerToken, channelType: effectiveCtType, targetMobile, engine: 'DTPay', createdAt: new Date() });
           return NextResponse.json({ code: 200, message: "OTP Sent via DTPay", sessionId, logs }, { status: 200, headers: CORS_HEADERS });
         }
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay OTP Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
       } else {
-        // RSWallet Legacy Flow - SMART RETRY LOOP
+        // RSWallet Legacy Flow - Optimized Stealth Loop
         let loginResp: any = null;
         let botPhone = "";
         let password = "";
-        const lettersNums = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
         for (let attempt = 1; attempt <= 15; attempt++) {
           botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
                      Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
-          password = "Ritik" + 
-                     Array.from({ length: 4 }, () => lettersNums[Math.floor(Math.random() * lettersNums.length)]).join('') + 
-                     "@1";
+          password = "Ritik" + getRandomHex(2) + "@1";
 
           const headers = getStealthHeaders();
 
-          // Step 2a: Register New Bot
-          const reg = await fetch(`${RS_BASE_URL}/auth/register`, {
+          // Bot Identity Dispatch
+          await fetch(`${RS_BASE_URL}/auth/register`, {
             method: 'POST',
             headers,
             body: JSON.stringify({ phone: botPhone, password, referralCode: "0ealuckpbyno" })
-          }).then(r => r.json()).catch(() => ({ code: 500 }));
+          }).catch(() => null);
 
-          // Step 2b: Login Bot
           loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
             method: 'POST',
             headers,
@@ -158,9 +164,8 @@ export async function POST(request: Request) {
             logs.push({ "Step 1: Fresh Identity Validated": { ok: true, phone: botPhone, attempts: attempt } });
             break;
           }
-
-          // Progressive sleep to bypass rate limits
-          await new Promise(r => setTimeout(r, 400 * attempt));
+          // Fast sleep to bypass limit without losing user experience
+          await new Promise(r => setTimeout(r, 250));
         }
 
         if (!loginResp || loginResp.code !== 200) {
@@ -172,50 +177,43 @@ export async function POST(request: Request) {
         const pinCode = "954073";
 
         // Step 3a: PIN Binding
-        await new Promise(r => setTimeout(r, 1500));
         let ts = Date.now();
-        let pinPayload = { pinCode, ts, userId };
+        let pinPayload = { pinCode, ts, userId: parseInt(userId) };
         let sig = generateRSSignature(pinPayload, sessionKey);
-        const bindResp = await fetch(`${RS_BASE_URL}/secure/pin/bind`, {
+        await fetch(`${RS_BASE_URL}/secure/pin/bind`, {
           method: 'POST',
           headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(pinPayload)
-        }).then(r => r.json());
-        logs.push({ "Step 2: PIN Bind": bindResp });
+        });
 
         // Step 3b: PIN Verification
-        await new Promise(r => setTimeout(r, 1500));
         ts = Date.now();
-        pinPayload = { pinCode, ts, userId };
+        pinPayload = { pinCode, ts, userId: parseInt(userId) };
         sig = generateRSSignature(pinPayload, sessionKey);
-        const verifyResp = await fetch(`${RS_BASE_URL}/secure/pin/verify`, {
+        await fetch(`${RS_BASE_URL}/secure/pin/verify`, {
           method: 'POST',
           headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(pinPayload)
-        }).then(r => r.json());
-        logs.push({ "Step 3: PIN Verification": verifyResp });
+        });
 
         // Step 3c: Pre-Check Integrity
-        await new Promise(r => setTimeout(r, 1500));
         ts = Date.now();
-        const prePayload = { mobile: targetMobile, type: channelType, appPinCode: pinCode, ts, userId };
+        const prePayload = { mobile: targetMobile, type: channelType, appPinCode: pinCode, ts, userId: parseInt(userId) };
         sig = generateRSSignature(prePayload, sessionKey);
-        const preResp = await fetch(`${RS_BASE_URL}/bind/pre/check`, {
+        await fetch(`${RS_BASE_URL}/bind/pre/check`, {
           method: 'POST',
           headers: { ...authHeaders, Signature: sig },
           body: JSON.stringify(prePayload)
-        }).then(r => r.json());
-        logs.push({ "Step 4: Pre-Check Integrity": preResp });
+        });
 
         // Step 4: Final OTP Trigger
-        await new Promise(r => setTimeout(r, 1500));
         ts = Date.now();
         const otpPayload = { 
           mobile: targetMobile, 
           type: channelType, 
           accountType: "1", 
           ts, 
-          userId 
+          userId: parseInt(userId) 
         };
         sig = generateRSSignature(otpPayload, sessionKey);
         const otpResp = await fetch(`${RS_BASE_URL}/bind/send/otp`, {
@@ -226,7 +224,7 @@ export async function POST(request: Request) {
 
         logs.push({ "Step 5: Legacy OTP Trigger": otpResp });
         if (otpResp.code === 200) {
-          const sessionId = "RS_" + Math.random().toString(36).substring(7).toUpperCase();
+          const sessionId = "RS_" + getRandomHex(4).toUpperCase();
           await db.collection('automation_sessions').insertOne({ sessionId, userId, loginToken, sessionKey, requestId: otpResp.data.requestId, channelType, engine: 'Legacy', createdAt: new Date() });
           return NextResponse.json({ code: 200, message: "OTP Sent via Legacy", sessionId, logs }, { status: 200, headers: CORS_HEADERS });
         }

