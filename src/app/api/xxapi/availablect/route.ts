@@ -5,12 +5,13 @@ export async function OPTIONS() {
 }
 
 /**
- * Mocked locally to prevent 403 Forbidden from old server.
+ * Filtered channel list for APK.
  */
 export async function GET() {
   const mockData = [
-    { id: 16, name: "USDT-TRC20", type: 16, status: 1 },
-    { id: 1, name: "UPI-FAST", type: 1, status: 1 }
+    { id: 1, name: "UPI-FAST", type: 1, status: 1 },
+    { id: 14, name: "PHONEPE-BIZ", type: 14, status: 1 },
+    { id: 18, name: "BHARATPE-BIZ", type: 18, status: 1 }
   ];
   return jsonResponse(mockData);
 }

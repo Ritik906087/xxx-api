@@ -36,18 +36,11 @@ import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+// STRICT EXCLUSIONS: No Paytm, MobiKwik, Freecharge, Amazon.
 const CHANNELS = [
-  // DTPay Engine Channels (New System)
-  { id: "dt_amazon", name: "Amazon Pay", type: 33, engine: "dtpay", icon: "https://picsum.photos/seed/amazon/32/32" },
-  { id: "dt_mobikwik", name: "MobiKwik", type: 2, engine: "dtpay", icon: "https://download.kspay.shop/icon/mobc.webp" },
-  { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://download.kspay.shop/img/freecharge.webp" },
-  { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://download.kspay.shop/icon/paytmct.png" },
-  
-  // Legacy Engine Channels (RSWallet System)
   { id: "leg_phonepe", name: "PhonePe", type: 1, engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
   { id: "leg_navi", name: "Navi", type: 13, engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
   { id: "leg_phonepe_biz", name: "PhonePeBusiness", type: 14, engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
-  { id: "leg_paytm_biz", name: "PaytmBusiness", type: 16, engine: "legacy", icon: "https://picsum.photos/seed/pyb/32/32" },
   { id: "leg_supermoney", name: "SuperMoney", type: 17, engine: "legacy", icon: "https://picsum.photos/seed/sm/32/32" },
   { id: "leg_bharatpe_biz", name: "BharatPeBusiness", type: 18, engine: "legacy", icon: "https://picsum.photos/seed/bp/32/32" },
 ];
@@ -55,15 +48,13 @@ const CHANNELS = [
 export default function AutomationDashboard() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [selectedChannelId, setSelectedChannelId] = useState('dt_paytm');
+  const [selectedChannelId, setSelectedChannelId] = useState('leg_phonepe');
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [logs, setLogs] = useState<any[]>([]);
   const [vpaList, setVpaList] = useState<any[]>([]);
-  const [billList, setBillList] = useState<any[]>([]);
-  const [showBills, setShowBills] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -91,8 +82,7 @@ export default function AutomationDashboard() {
         body: JSON.stringify({ 
           action: 'send-otp', 
           phone, 
-          channelType: activeChannel?.type,
-          engine: activeChannel?.engine
+          channelType: activeChannel?.type
         })
       });
       const result = await res.json();
@@ -100,48 +90,14 @@ export default function AutomationDashboard() {
       if (result.code === 200) {
         setOtpSent(true);
         setSessionId(result.sessionId);
-        toast({ title: "OTP Dispatched", description: `Hybrid session started via ${activeChannel?.engine.toUpperCase()} engine.` });
+        toast({ title: "OTP Dispatched", description: "Identity Pool session started." });
       } else {
-        toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Upstream Error" });
+        toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Pool Error" });
       }
     } catch (e) {
       toast({ variant: 'destructive', title: "System Fault", description: "Network connection lost." });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleFetchHistoryDirect = async () => {
-    if (!phone || phone.length < 10) {
-      toast({ variant: 'destructive', title: "Validation Error", description: "Phone number is required." });
-      return;
-    }
-    setIsVerifying(true);
-    setLogs([{ "Step 0: Ledger Probe": { ok: true, msg: `Searching ${activeChannel?.name} runner records for history...` } }]);
-    try {
-      const res = await fetch('/api/run-automation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'fetch-by-phone', 
-          phone, 
-          channelType: activeChannel?.type,
-          engine: activeChannel?.engine
-        })
-      });
-      const result = await res.json();
-      if (result.logs) setLogs(prev => [...prev, ...result.logs]);
-      if (result.code === 200) {
-        setBillList(result.data?.recentBills || []);
-        setShowBills(true);
-        toast({ title: "Ledger Synced", description: `Live ${activeChannel?.name} records captured.` });
-      } else {
-        toast({ variant: 'destructive', title: "Identity Not Found", description: result.message });
-      }
-    } catch (e) {
-      toast({ variant: 'destructive', title: "Fetch Error", description: "Identity resolve failed." });
-    } finally {
-      setIsVerifying(false);
     }
   };
 
@@ -181,14 +137,14 @@ export default function AutomationDashboard() {
               <Zap className="w-8 h-8 fill-current" />
             </div>
             <div>
-              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">Vantage Extreme Automation</h1>
+              <h1 className="text-4xl font-headline font-black tracking-tighter uppercase text-white">Vantage Pool Automation</h1>
               <div className="flex items-center gap-3 mt-1.5">
                 <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 px-3 py-1 text-[8px] font-black uppercase tracking-widest">
-                  {activeChannel?.engine === 'dtpay' ? 'DTPay Runner V2' : 'Legacy Fresh Bot'}
+                  Auto-Healing Enabled
                 </Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                   <Activity className="w-3 h-3 text-emerald-500" />
-                  Cluster Status: STABLE
+                  Pool Status: OPTIMIZED
                 </div>
               </div>
             </div>
@@ -199,7 +155,7 @@ export default function AutomationDashboard() {
           <div className="lg:col-span-4 space-y-8">
             <Card className="bg-slate-900/50 backdrop-blur-xl border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
               <CardHeader className="p-8 border-b border-slate-800">
-                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Execution Nexus</CardTitle>
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Identity Provisioning</CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-3">
@@ -209,16 +165,14 @@ export default function AutomationDashboard() {
                       <SelectValue placeholder="Select Platform" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800 text-slate-300 rounded-xl">
-                      <ScrollArea className="h-[300px]">
-                        {CHANNELS.map((c) => (
-                          <SelectItem key={c.id} value={c.id} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
-                            <div className="flex items-center gap-3">
-                              <img src={c.icon} alt={c.name} className="w-5 h-5 rounded-sm object-contain" />
-                              <span className="font-bold">{c.name} (Type {c.type})</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </ScrollArea>
+                      {CHANNELS.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer py-3">
+                          <div className="flex items-center gap-3">
+                            <img src={c.icon} alt={c.name} className="w-5 h-5 rounded-sm object-contain" />
+                            <span className="font-bold">{c.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -241,20 +195,13 @@ export default function AutomationDashboard() {
                 <div className="grid grid-cols-1 gap-4">
                   <Button onClick={handleRunAutomation} disabled={isLoading || isVerifying} className={cn("w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl", isLoading ? "bg-slate-800 text-slate-600" : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 active:scale-95")}>
                     {isLoading ? <Loader2 className="animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-                    {isLoading ? "Automating..." : "Trigger Automation"}
+                    {isLoading ? "Provisioning..." : "Trigger OTP"}
                   </Button>
                   
-                  {activeChannel?.engine === 'dtpay' && (
-                    <Button onClick={handleFetchHistoryDirect} disabled={isLoading || isVerifying} variant="outline" className="w-full h-16 rounded-2xl border-slate-800 bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-900 font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 active:scale-95">
-                      {isVerifying && !otpSent ? <Loader2 className="animate-spin" /> : <FileText className="w-4 h-4" />}
-                      Fetch Ledger History
-                    </Button>
-                  )}
-
                   {otpSent && (
                     <Button onClick={handleVerifyOtp} disabled={isLoading || isVerifying} className="w-full h-16 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all flex gap-4 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 active:scale-95">
                       {isVerifying ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      {isVerifying ? "Verifying..." : "Verify & Extract VPAs"}
+                      {isVerifying ? "Verifying..." : "Confirm & Extract"}
                     </Button>
                   )}
                 </div>
@@ -271,8 +218,8 @@ export default function AutomationDashboard() {
                   {vpaList.map((v, i) => (
                     <div key={i} className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 flex items-center justify-between group">
                       <div className="flex flex-col">
-                        <span className="text-xs font-black text-white">{v.upiAccount || v.vpa}</span>
-                        <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] px-2 w-fit mt-1">{v.provider || 'Active'}</Badge>
+                        <span className="text-xs font-black text-white">{v.vpa}</span>
+                        <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] px-2 w-fit mt-1">{v.status || 'Active'}</Badge>
                       </div>
                     </div>
                   ))}
@@ -286,7 +233,7 @@ export default function AutomationDashboard() {
               <CardHeader className="p-8 border-b border-slate-800 flex flex-row items-center justify-between">
                 <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-4">
                   <Terminal className="w-5 h-5 text-blue-500" />
-                  Hybrid Execution Ledger
+                  Auto-Healing Execution Ledger
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1 p-0 overflow-hidden bg-slate-950/40">
@@ -294,14 +241,14 @@ export default function AutomationDashboard() {
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 space-y-6">
                       <Database className="w-12 h-12 opacity-10" />
-                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Standby: Orchestrator Idle</p>
+                      <p className="text-[9px] uppercase font-black tracking-[0.5em]">System Standby: Pool Ready</p>
                     </div>
                   ) : (
                     <div className="space-y-8">
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
-                        const isOk = typeof data === 'string' || data.ok === true || data.code === 200 || data.code === 0 || data.code === 30001;
+                        const isOk = typeof data === 'string' || data.ok === true || data.code === 200 || data.code === 0;
                         return (
                           <div key={idx} className="border-l border-slate-800 pl-6 space-y-3 relative">
                             <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] rounded-full bg-slate-800" />
@@ -326,59 +273,6 @@ export default function AutomationDashboard() {
           </div>
         </div>
       </div>
-
-      <Dialog open={showBills} onOpenChange={setShowBills}>
-        <DialogContent className="max-w-4xl bg-[#0f172a] text-slate-50 border-slate-800 rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
-          <DialogHeader className="p-8 border-b border-slate-800 bg-slate-950/50">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-600/20">
-                <History className="w-6 h-6" />
-              </div>
-              <div>
-                <DialogTitle className="text-2xl font-headline font-black uppercase tracking-tight">Recent Ledger History</DialogTitle>
-                <DialogDescription className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Live from Runner Engine</DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <ScrollArea className="h-[500px] p-8">
-            <div className="space-y-4">
-              {billList.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full py-20 text-slate-700">
-                  <Database className="w-12 h-12 mb-4 opacity-10" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">No recent transactions found</p>
-                </div>
-              ) : (
-                billList.map((bill, idx) => (
-                  <div key={idx} className="bg-slate-900/50 border border-slate-800 p-6 rounded-2xl flex items-center justify-between hover:bg-slate-800/50 transition-all">
-                    <div className="flex items-center gap-6">
-                      <div className={cn(
-                        "w-12 h-12 rounded-xl flex items-center justify-center",
-                        bill.billType === 'PAYIN' ? "bg-emerald-500/10 text-emerald-500" : "bg-slate-500/10 text-slate-400"
-                      )}>
-                        {bill.billType === 'PAYIN' ? <ArrowDownLeft className="w-6 h-6" /> : <ArrowUpRight className="w-6 h-6" />}
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs font-black text-white uppercase tracking-tight">{bill.billType} | {bill.billStatus}</p>
-                        <p className="text-[10px] font-bold text-slate-500">UTR: {bill.utr}</p>
-                        <p className="text-[9px] text-slate-600 uppercase font-bold">{bill.receivedTime}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={cn(
-                        "text-xl font-headline font-black",
-                        bill.billType === 'PAYIN' ? "text-emerald-500" : "text-white"
-                      )}>
-                        {bill.billType === 'PAYIN' ? '+' : '-'}{parseFloat(bill.amount).toFixed(2)}
-                      </p>
-                      <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">{bill.provider}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

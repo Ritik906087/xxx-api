@@ -5,8 +5,7 @@ export async function OPTIONS() {
 }
 
 /**
- * Returns the exact configuration structure provided in RITIK's logs.
- * Locally mocked to prevent 403 Forbidden from old server.
+ * Returns configuration strictly excluding Paytm, MobiKwik, Freecharge, Amazon.
  */
 export async function GET() {
   const mockConfig = {
@@ -28,18 +27,18 @@ export async function GET() {
       "https://picsum.photos/seed/3/800/400"
     ],
     newsList: [
-      { id: 32, cover: "", name: "securityupdate", code: "", type: 1, content: "Update verified", crtDate: 1779259339, crtUser: "alan", sort: 4 }
+      { id: 32, cover: "", name: "securityupdate", code: "", type: 1, content: "Pool System Active", crtDate: 1779259339, crtUser: "alan", sort: 4 }
     ],
     pinFlag: false,
-    ctTypes: [16, 1, 17, 2, 18, 3, 19, 4, 7, 9],
-    ctTypesPayType: { "16": 2, "1": 2, "17": 2, "2": 2, "18": 1, "3": 1, "19": 2, "4": 2, "7": 3, "9": 2 },
+    ctTypes: [1, 13, 14, 17, 18],
+    ctTypesPayType: { "1": 2, "13": 2, "14": 2, "17": 2, "18": 1 },
     ifFinishNewbieActivity: 0,
     rptPaymentMode: 1,
     webLicenseId: "19711455",
     userBalShowReal: 0,
     sevenDayBuyEnabled: 0,
-    v: 2039,
-    pv: 3
+    v: 2040,
+    pv: 4
   };
 
   return jsonResponse(mockConfig);
