@@ -24,20 +24,19 @@ import {
   UserCheck, 
   ArrowRightCircle,
   SearchCode,
-  AlertCircle,
-  History as HistoryIcon
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// HYBRID CHANNELS: DTPay (Static Token acebce0aa2f64ddd945b5bcb6bc9c089) + Legacy RSWallet (Fresh Pool)
+// HYBRID CHANNELS: DTPay (Static Token) + Legacy RSWallet
 const CHANNELS = [
-  // DTPay Engine (New Server)
+  // DTPay Engine (Static Auth acebce0aa2f64ddd945b5bcb6bc9c089)
   { id: "dt_phonepe", name: "PhonePe", type: 1, engine: "dtpay", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
   { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://picsum.photos/seed/paytm/32/32" },
   { id: "dt_mobikwik", name: "MobiKwik", type: 2, engine: "dtpay", icon: "https://picsum.photos/seed/mobi/32/32" },
   { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://picsum.photos/seed/fc/32/32" },
   { id: "dt_amazon", name: "Amazon Pay", type: 33, engine: "dtpay", icon: "https://picsum.photos/seed/amz/32/32" },
-  // Legacy Engine (RSWallet)
+  // Legacy Engine (RSWallet Fresh identities)
   { id: "leg_navi", name: "Navi", type: 13, engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
   { id: "leg_phonepe_biz", name: "PhonePeBusiness", type: 14, engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
   { id: "leg_paytm_biz", name: "PaytmBusiness", type: 16, engine: "legacy", icon: "https://picsum.photos/seed/paytmb/32/32" },
@@ -90,16 +89,9 @@ export default function AutomationDashboard() {
       if (result.logs) setLogs(result.logs);
       
       if (result.code === 200) {
-        // Handle success (could be OTP sent or Session Active)
-        if (result.message && result.message.includes("Session Active")) {
-          setOtpSent(false); // No OTP entry needed
-          toast({ title: "Session Found", description: "Active identity detected, scanning history..." });
-          handleHistoryCheck();
-        } else {
-          setOtpSent(true);
-          setSessionId(result.sessionId);
-          toast({ title: "OTP Triggered", description: `Session ${result.sessionId} ready.` });
-        }
+        setOtpSent(true);
+        setSessionId(result.sessionId);
+        toast({ title: "OTP Sequence Initiated", description: result.message });
       } else {
         toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Upstream Error" });
       }
@@ -123,7 +115,7 @@ export default function AutomationDashboard() {
       if (result.logs) setLogs(prev => [...prev, ...result.logs]);
       if (result.code === 200) {
         setVpaList(result.vpaList || []);
-        toast({ title: "Verified", description: `${result.vpaList?.length || 0} VPAs found.` });
+        toast({ title: "Verification Successful", description: `${result.vpaList?.length || 0} accounts extracted.` });
       } else {
         toast({ variant: 'destructive', title: "Verification Failed", description: result.message });
       }
@@ -153,9 +145,9 @@ export default function AutomationDashboard() {
       
       if (result.code === 200) {
         setVpaList(result.vpaList || []);
-        toast({ title: "Scan Complete", description: `${result.vpaList?.length || 0} bills found.` });
+        toast({ title: "Ledger Scan Complete", description: result.message });
       } else {
-        toast({ variant: 'destructive', title: "Scan Failed", description: result.message || "Server Internal Error (10001)" });
+        toast({ variant: 'destructive', title: "Scan Halted", description: result.message });
       }
     } catch (e) {
       toast({ variant: 'destructive', title: "System Fault" });
@@ -175,16 +167,16 @@ export default function AutomationDashboard() {
             <div>
               <h1 className="text-3xl font-headline font-black tracking-tighter uppercase">Hybrid Vantage Engine</h1>
               <div className="flex items-center gap-3 mt-1">
-                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[8px] tracking-widest px-3">STEALTH_v1.1.17_ACTIVE</Badge>
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[8px] tracking-widest px-3">ULTRA_STEALTH_v13.0_ACTIVE</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase">
-                  <Activity className="w-3 h-3 text-emerald-500" /> STATUS: OPTIMIZED
+                  <Activity className="w-3 h-3 text-emerald-500" /> SYSTEM: OPTIMIZED
                 </div>
               </div>
             </div>
           </div>
           <div className="hidden md:flex gap-4">
              <div className="text-right">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Master Auth</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">DTPay Static Auth</p>
                 <p className="text-xs font-bold text-emerald-500">acebce0aa2f64ddd9...bc089</p>
              </div>
           </div>
@@ -229,7 +221,7 @@ export default function AutomationDashboard() {
 
                 {otpSent && (
                   <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                    <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1">Protocol Code (OTP)</label>
+                    <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1">Security Code (OTP)</label>
                     <div className="relative">
                       <Input 
                         value={otp} 
@@ -253,7 +245,7 @@ export default function AutomationDashboard() {
                         {isLoading ? <Loader2 className="animate-spin" /> : (
                           <div className="flex items-center gap-3">
                             <ArrowRightCircle className="w-5 h-5" />
-                            Trigger OTP Sequence
+                            Trigger OTP Flow
                           </div>
                         )}
                       </Button>
@@ -266,7 +258,7 @@ export default function AutomationDashboard() {
                           className="h-16 rounded-2xl border-slate-800 bg-slate-950 hover:bg-slate-900 font-black uppercase text-[10px] tracking-widest text-emerald-500 transition-all flex gap-3 shadow-lg shadow-emerald-500/5"
                         >
                           <SearchCode className="w-4 h-4" />
-                          Scan Ledger History (No OTP)
+                          Scan Direct History
                         </Button>
                       )}
                     </div>
@@ -279,7 +271,7 @@ export default function AutomationDashboard() {
                       {isVerifying ? <Loader2 className="animate-spin" /> : (
                         <>
                           <CheckCircle2 className="w-5 h-5" />
-                          Verify & Extract Profile
+                          Verify & Extract Ledger
                         </>
                       )}
                     </Button>
@@ -292,16 +284,18 @@ export default function AutomationDashboard() {
               <Card className="bg-emerald-500/5 border-emerald-500/20 rounded-3xl p-6 border animate-in zoom-in-95 shadow-2xl">
                 <div className="flex items-center gap-3 text-emerald-400 mb-6">
                   <UserCheck className="w-5 h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Extracted Ledger Profiles</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Extracted Ledger Data</span>
                 </div>
                 <div className="space-y-3">
                   {vpaList.map((v, i) => (
                     <div key={i} className="bg-slate-950 p-5 rounded-2xl border border-slate-900 flex justify-between items-center group hover:border-emerald-500/50 transition-all">
                       <div className="flex flex-col">
-                        <span className="text-xs font-black text-white">{v.vpa || v.upiAccount || v.upiId}</span>
-                        <span className="text-[8px] text-slate-500 uppercase mt-1">Provider: {v.provider || activeChannel?.name}</span>
+                        <span className="text-xs font-black text-white">{v.vpa}</span>
+                        <span className="text-[8px] text-slate-500 uppercase mt-1">
+                          Account: {v.upiAccount} | {v.provider || 'UPI'}
+                        </span>
                       </div>
-                      <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2">{v.status || 'Active'}</Badge>
+                      <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2">{v.status || 'Success'}</Badge>
                     </div>
                   ))}
                 </div>
@@ -320,7 +314,7 @@ export default function AutomationDashboard() {
             <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden h-[750px] flex flex-col shadow-2xl">
               <CardHeader className="p-8 border-b border-slate-900 flex justify-between flex-row items-center">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
-                  <Terminal className="w-5 h-5 text-blue-500" /> Hybrid Telemetry Stream
+                  <Terminal className="w-5 h-5 text-blue-500" /> Hybrid System Telemetry
                 </CardTitle>
                 <div className="flex gap-2">
                    <div className="w-3 h-3 rounded-full bg-rose-500/20 border border-rose-500/50" />
@@ -332,7 +326,7 @@ export default function AutomationDashboard() {
                 <div ref={scrollRef} className="h-full overflow-y-auto p-8 terminal-scroll text-[11px] font-code">
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 opacity-20 italic">
-                      [Waiting for Hybrid Protocol Initiation...]
+                      [System Idle - Waiting for Protocol Initiation]
                     </div>
                   ) : (
                     <div className="space-y-6">
