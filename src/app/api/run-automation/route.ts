@@ -137,7 +137,6 @@ export async function POST(request: Request) {
       let type = parseInt(body.channelType);
       
       // DTPay Engine Targets: PhonePe(1), Mobi(2), FC(3), Paytm(9), Amazon(33->18)
-      // Now including PhonePe (1) in DTPay as requested.
       const isDt = [1, 2, 3, 9, 33].includes(type);
 
       if (isDt) {
@@ -156,7 +155,14 @@ export async function POST(request: Request) {
         
         if (otpResp.code === 0 || otpResp.ok) {
           const sessionId = "DT_" + getRandomHex(4).toUpperCase();
-          await db.collection('automation_sessions').insertOne({ sessionId, token: DT_STATIC_TOKEN, engine: 'DTPay', ctType: type, phone, createdAt: new Date() });
+          await db.collection('automation_sessions').insertOne({ 
+            sessionId, 
+            token: DT_STATIC_TOKEN, 
+            engine: 'DTPay', 
+            ctType: type, 
+            phone, 
+            createdAt: new Date() 
+          });
           return NextResponse.json({ 
             code: 200, 
             message: otpResp.msg || "Success (OTP Sent or Active Session Detected)", 
@@ -207,16 +213,26 @@ export async function POST(request: Request) {
       if (!session) return NextResponse.json({ code: 400, message: "Invalid Session" }, { status: 200, headers: CORS_HEADERS });
 
       if (session.engine === 'DTPay') {
-        const checkResp = await fetch(`${DT_BASE_URL}/runner/bind/check/otp`, {
+        // Updated to use provider/verifyOtp with query parameters as per original working request
+        const verifyUrl = `${DT_BASE_URL}/provider/verifyOtp?ctType=${session.ctType}&account=${session.phone}&otp=${otp}`;
+        
+        const checkResp = await fetch(verifyUrl, {
           method: 'POST',
           headers: getStealthHeaders(session.token, true),
-          body: JSON.stringify({ code: otp, ctType: session.ctType })
+          body: JSON.stringify({}) // Empty body for verifyOtp
         }).then(r => r.json());
         
+        logs.push({ "Step 1: DTPay OTP Verification": checkResp });
+
         if (checkResp.code === 200 || checkResp.ok || checkResp.code === 0) {
-          return NextResponse.json({ code: 200, message: "Success", vpaList: checkResp.data?.upiInfos || [], logs: [{ "DTPay_Verify": checkResp }] }, { status: 200, headers: CORS_HEADERS });
+          return NextResponse.json({ 
+            code: 200, 
+            message: "Success", 
+            vpaList: checkResp.data?.upiInfos || [], 
+            logs: logs 
+          }, { status: 200, headers: CORS_HEADERS });
         }
-        return NextResponse.json({ code: 400, message: checkResp.msg || "Invalid OTP", logs: [{ "DTPay_Verify": checkResp }] }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: checkResp.msg || "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
         const checkPayload = { code: String(otp), type: session.ctType, requestId: session.requestId, ts: Date.now(), userId: session.userId };
         const sig = generateRSSignature(checkPayload, session.sessionKey);
@@ -240,7 +256,6 @@ export async function POST(request: Request) {
       const dtHeaders = getStealthHeaders(DT_STATIC_TOKEN, true);
       let runnerUpiId = null;
 
-      // STEP 1: RESOLVE runnerUpiId from upi/list to ensure history is for the CORRECT phone
       try {
         const listUrl = `${DT_BASE_URL}/upi/list`;
         const listRes = await fetch(listUrl, { method: "GET", headers: dtHeaders }).then(r => r.json());
@@ -256,7 +271,7 @@ export async function POST(request: Request) {
           }
         }
       } catch (e) {
-        logs.push({ "Identity_Resolution_Error": e.message });
+        logs.push({ "Identity_Resolution_Error": (e as Error).message });
       }
 
       if (!runnerUpiId) {
@@ -268,7 +283,6 @@ export async function POST(request: Request) {
         }, { status: 200, headers: CORS_HEADERS });
       }
 
-      // STEP 2: FETCH HISTORY for the specific runnerUpiId
       const detailUrl = `${DT_BASE_URL}/upi/detail?runnerUpiId=${runnerUpiId}&limit=5`;
       const detailRes = await fetch(detailUrl, {
         method: 'GET',
