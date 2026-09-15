@@ -167,7 +167,7 @@ export default function AutomationDashboard() {
             <div>
               <h1 className="text-3xl font-headline font-black tracking-tighter uppercase">Hybrid Vantage Engine</h1>
               <div className="flex items-center gap-3 mt-1">
-                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[8px] tracking-widest px-3">ULTRA_STEALTH_v13.0_ACTIVE</Badge>
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[8px] tracking-widest px-3">ULTRA_STEALTH_v14.0_ACTIVE</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase">
                   <Activity className="w-3 h-3 text-emerald-500" /> SYSTEM: OPTIMIZED
                 </div>

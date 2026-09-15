@@ -3,9 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v13.0 - Ultra Stealth Master
+ * @fileOverview Hybrid Engine v14.0 - Multi-Step Stealth Master
  * RSWallet: Fresh identity per request (Strict Python Signature Logic)
- * DTPay: Static Auth (acebce0aa2f64ddd945b5bcb6bc9c089) - Optimized for PhonePe & History Accuracy
+ * DTPay: Static Auth (acebce0aa2f64ddd945b5bcb6bc9c089) - Fixed OTP/Bind Chain
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -29,15 +29,15 @@ function getRandomHex(len: number) {
 }
 
 /**
- * Stealth Header Generator - Aligned with v1.1.17/21 Working Logs
+ * Stealth Header Generator - Aligned with v1.1.17/21 working logs
  */
-function getStealthHeaders(token?: string, isDt = false) {
+function getStealthHeaders(token?: string, isDt = false, isForm = false) {
   const ip = `${Math.floor(Math.random() * 220) + 10}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}`;
   
   if (isDt) {
     return {
       "Accept": "application/json, text/plain, */*",
-      "Content-Type": "application/json;charset=UTF-8",
+      "Content-Type": isForm ? "application/x-www-form-urlencoded" : "application/json;charset=UTF-8",
       "X-Forwarded-For": ip,
       "X-Real-IP": ip,
       "Client-IP": ip,
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
         if (type === 33) type = 18; 
         
         const otpUrl = `${DT_BASE_URL}/provider/sendOtp?ctType=${type}&account=${phone}`;
-        logs.push({ "Step 0: Engine Selection": `DTPay (New) | Mapping ${body.channelType} -> ${type}` });
+        logs.push({ "Step 0: Engine Selection": `DTPay | Mapping ${body.channelType} -> ${type}` });
 
         const otpResp = await fetch(otpUrl, {
           method: 'POST',
@@ -165,7 +165,7 @@ export async function POST(request: Request) {
           });
           return NextResponse.json({ 
             code: 200, 
-            message: otpResp.msg || "Success (OTP Sent or Active Session Detected)", 
+            message: otpResp.msg || "Success (OTP Sent or Session Active)", 
             sessionId, 
             logs 
           }, { status: 200, headers: CORS_HEADERS });
@@ -213,27 +213,56 @@ export async function POST(request: Request) {
       if (!session) return NextResponse.json({ code: 400, message: "Invalid Session" }, { status: 200, headers: CORS_HEADERS });
 
       if (session.engine === 'DTPay') {
-        // Updated to use provider/verifyOtp with query parameters as per original working request
+        // 1. Verify OTP
         const verifyUrl = `${DT_BASE_URL}/provider/verifyOtp?ctType=${session.ctType}&account=${session.phone}&otp=${otp}`;
-        
-        const checkResp = await fetch(verifyUrl, {
+        const verifyResp = await fetch(verifyUrl, {
           method: 'POST',
           headers: getStealthHeaders(session.token, true),
-          body: JSON.stringify({}) // Empty body for verifyOtp
+          body: JSON.stringify({})
         }).then(r => r.json());
         
-        logs.push({ "Step 1: DTPay OTP Verification": checkResp });
+        logs.push({ "Step 1: DTPay Verify OTP": verifyResp });
 
-        if (checkResp.code === 200 || checkResp.ok || checkResp.code === 0) {
+        if (verifyResp.code === 0 || verifyResp.ok) {
+          // 2. Fetch UPI Info
+          const infoUrl = `${DT_BASE_URL}/provider/upiInfo?ctType=${session.ctType}&account=${session.phone}&noAutoBind=true`;
+          const infoResp = await fetch(infoUrl, {
+            method: 'POST',
+            headers: getStealthHeaders(session.token, true),
+            body: JSON.stringify({})
+          }).then(r => r.json());
+          
+          logs.push({ "Step 2: DTPay UPI Info": infoResp });
+
+          if (infoResp.code === 0 && infoResp.data?.vpa) {
+            // 3. Bind UPI (Form Encoded)
+            const bindUrl = `${DT_BASE_URL}/provider/bindUpi?ctType=${session.ctType}&account=${session.phone}&upiAccount=${encodeURIComponent(infoResp.data.vpa)}`;
+            const bindResp = await fetch(bindUrl, {
+              method: 'POST',
+              headers: getStealthHeaders(session.token, true, true),
+              body: ""
+            }).then(r => r.json());
+            
+            logs.push({ "Step 3: DTPay Bind UPI": bindResp });
+
+            return NextResponse.json({ 
+              code: 200, 
+              message: "Success", 
+              vpaList: infoResp.data?.upiList?.map((u: string) => ({ vpa: u, status: "ACTIVE" })) || [], 
+              logs 
+            }, { status: 200, headers: CORS_HEADERS });
+          }
+          
           return NextResponse.json({ 
             code: 200, 
-            message: "Success", 
-            vpaList: checkResp.data?.upiInfos || [], 
-            logs: logs 
+            message: "Verified (No VPA List)", 
+            vpaList: [], 
+            logs 
           }, { status: 200, headers: CORS_HEADERS });
         }
-        return NextResponse.json({ code: 400, message: checkResp.msg || "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: verifyResp.msg || "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
+        // Legacy Verify
         const checkPayload = { code: String(otp), type: session.ctType, requestId: session.requestId, ts: Date.now(), userId: session.userId };
         const sig = generateRSSignature(checkPayload, session.sessionKey);
         
@@ -293,11 +322,9 @@ export async function POST(request: Request) {
 
       if (detailRes && (detailRes.code === 0 || detailRes.ok) && detailRes.data) {
         const recentBills = detailRes.data.recentBills || [];
-        const upiAccountInfo = detailRes.data.upi?.upiAccount || `${phone}@upi`;
-
         const mappedVpaList = recentBills.map((bill: any) => ({
           vpa: `UTR: ${bill.utr} | Amount: ₹${bill.amount} | Status: ${bill.billStatus}`,
-          upiAccount: upiAccountInfo,
+          upiAccount: detailRes.data.upi?.upiAccount || phone,
           provider: bill.provider,
           status: bill.billStatus
         }));
@@ -314,7 +341,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ code: 200, message: "History Synced Successfully", vpaList: mappedVpaList, logs }, { status: 200, headers: CORS_HEADERS });
       }
       
-      return NextResponse.json({ code: 400, message: detailRes?.msg || "History scan failed (10001)", vpaList: [], logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: detailRes?.msg || "History scan failed", vpaList: [], logs }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
