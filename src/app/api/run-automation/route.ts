@@ -3,9 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v11.0 - Extreme Stealth Precision
+ * @fileOverview Hybrid Engine v12.0 - Ultra Stealth Master
  * RSWallet: Fresh identity per request (Strict Python Signature Logic)
- * DTPay: Static Auth (acebce0aa2f64ddd945b5bcb6bc9c089) with v1.1.17/21 Headers
+ * DTPay: Static Auth (acebce0aa2f64ddd945b5bcb6bc9c089) - Fixed v1.1.17/21 Headers
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -38,14 +38,14 @@ function getStealthHeaders(token?: string, isDt = false) {
     return {
       "Accept": "application/json, text/plain, */*",
       "Content-Type": "application/json;charset=UTF-8",
-      "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36",
       "X-Forwarded-For": ip,
       "X-Real-IP": ip,
       "Client-IP": ip,
       "X-Runner-Token": token || DT_STATIC_TOKEN,
       "X-App-Version": "1.1.17",
       "X-App-Version-Code": "21",
-      "X-App-Platform": "android"
+      "X-App-Platform": "android",
+      "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36"
     };
   }
 
@@ -152,26 +152,39 @@ export async function POST(request: Request) {
     if (action === "send-otp") {
       const phone = body.phone;
       let type = parseInt(body.channelType);
-      const isDt = [9, 2, 3, 33].includes(type);
+      
+      // DTPay Engine Targets: PhonePe(1), Mobi(2), FC(3), Paytm(9), Amazon(33->18)
+      const isDt = [1, 2, 3, 9, 33].includes(type);
 
       if (isDt) {
-        if (type === 33) type = 18; // Amazon Pay mapping
+        if (type === 33) type = 18; 
         
-        const otpResp = await fetch(`${DT_BASE_URL}/runner/bind/send/otp`, {
+        // Using provider/sendOtp endpoint as per new log format
+        const otpUrl = `${DT_BASE_URL}/provider/sendOtp?ctType=${type}&account=${phone}`;
+        logs.push({ "Step 0: DTPay Routing": `Engine: DTPay | Target: ${otpUrl}` });
+
+        const otpResp = await fetch(otpUrl, {
           method: 'POST',
           headers: getStealthHeaders(DT_STATIC_TOKEN, true),
-          body: JSON.stringify({ mobile: phone, ctType: type })
+          body: JSON.stringify({}) // Log shows empty body
         }).then(r => r.json());
 
-        logs.push({ "Step 1: DTPay OTP Dispatch": otpResp });
+        logs.push({ "Step 1: DTPay OTP Action": otpResp });
         
-        if (otpResp.code === 200 || otpResp.ok) {
+        // Logic: code 0 means success (either OTP sent or session already active/data present)
+        if (otpResp.code === 0 || otpResp.ok) {
           const sessionId = "DT_" + getRandomHex(4).toUpperCase();
           await db.collection('automation_sessions').insertOne({ sessionId, token: DT_STATIC_TOKEN, engine: 'DTPay', ctType: type, createdAt: new Date() });
-          return NextResponse.json({ code: 200, message: "OTP Sent (DTPay)", sessionId, logs }, { status: 200, headers: CORS_HEADERS });
+          return NextResponse.json({ 
+            code: 200, 
+            message: "Success (DTPay OTP or Session Active)", 
+            sessionId, 
+            logs 
+          }, { status: 200, headers: CORS_HEADERS });
         }
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay Dispatch Failed", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
+        // RSWallet Legacy Flow (For Navi, etc.)
         let acc = await provisionRSAccount(logs);
         if (!acc) return NextResponse.json({ code: 500, message: "Fresh Identity Provisioning Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
@@ -243,19 +256,14 @@ export async function POST(request: Request) {
       if (type === 9) providerStr = "PAYTM";
       if (type === 3) providerStr = "FREECHARGE";
       if (type === 18) providerStr = "AMAZON";
+      if (type === 1) providerStr = "PHONEPE";
 
-      const dtHeaders = {
-        "Accept": "application/json, text/plain, */*",
-        "X-Runner-Token": DT_STATIC_TOKEN,
-        "X-App-Version": "1.1.17",
-        "X-App-Version-Code": "21"
-      };
+      const dtHeaders = getStealthHeaders(DT_STATIC_TOKEN, true);
 
-      let runnerUpiId = 4130; // Default fallback matching MobiKwik working example
+      let runnerUpiId = 4130; 
 
-      // Precision dynamic lookup step from upi/list to keep it auto-adaptive
       try {
-        const listUrl = `https://dtpay.app/runner-api/runner/api/v1/upi/list`;
+        const listUrl = `${DT_BASE_URL}/upi/list`;
         const listRes = await fetch(listUrl, { method: "GET", headers: dtHeaders }).then(r => r.json());
         if (listRes && listRes.code === 0 && listRes.data) {
           const upiItems = Array.isArray(listRes.data) ? listRes.data : (listRes.data.list || []);
@@ -269,20 +277,19 @@ export async function POST(request: Request) {
         }
       } catch (e) {}
 
-      // Original Working Curl GET Endpoint Implementation
-      const detailUrl = `https://dtpay.app/runner-api/runner/api/v1/upi/detail?runnerUpiId=${runnerUpiId}&limit=5`;
-      logs.push({ "Original_Server_Fetch": `GET ${detailUrl}` });
+      const detailUrl = `${DT_BASE_URL}/upi/detail?runnerUpiId=${runnerUpiId}&limit=5`;
+      logs.push({ "DTPay_History_Fetch": `GET ${detailUrl}` });
 
       const detailRes = await fetch(detailUrl, {
         method: 'GET',
         headers: dtHeaders
       }).then(r => r.json());
 
-      logs.push({ "History_Fetch": detailRes });
+      logs.push({ "History_Fetch_Response": detailRes });
 
       if (detailRes && detailRes.code === 0 && detailRes.data) {
         const recentBills = detailRes.data.recentBills || [];
-        const upiAccountInfo = detailRes.data.upi?.upiAccount || "7870873927@mbkns";
+        const upiAccountInfo = detailRes.data.upi?.upiAccount || `${phone}@upi`;
 
         const mappedVpaList = recentBills.map((bill: any) => ({
           vpa: `UTR: ${bill.utr} | Amount: ₹${bill.amount} | Status: ${bill.billStatus}`,

@@ -32,12 +32,12 @@ import { useToast } from '@/hooks/use-toast';
 // HYBRID CHANNELS: DTPay (Static Token acebce0aa2f64ddd945b5bcb6bc9c089) + Legacy RSWallet (Fresh Pool)
 const CHANNELS = [
   // DTPay Engine (New Server)
+  { id: "dt_phonepe", name: "PhonePe", type: 1, engine: "dtpay", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
   { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://picsum.photos/seed/paytm/32/32" },
   { id: "dt_mobikwik", name: "MobiKwik", type: 2, engine: "dtpay", icon: "https://picsum.photos/seed/mobi/32/32" },
   { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://picsum.photos/seed/fc/32/32" },
   { id: "dt_amazon", name: "Amazon Pay", type: 33, engine: "dtpay", icon: "https://picsum.photos/seed/amz/32/32" },
   // Legacy Engine (RSWallet)
-  { id: "leg_phonepe", name: "PhonePe", type: 1, engine: "legacy", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
   { id: "leg_navi", name: "Navi", type: 13, engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
   { id: "leg_phonepe_biz", name: "PhonePeBusiness", type: 14, engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
   { id: "leg_paytm_biz", name: "PaytmBusiness", type: 16, engine: "legacy", icon: "https://picsum.photos/seed/paytmb/32/32" },
@@ -48,7 +48,7 @@ const CHANNELS = [
 export default function AutomationDashboard() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [selectedChannelId, setSelectedChannelId] = useState('dt_paytm');
+  const [selectedChannelId, setSelectedChannelId] = useState('dt_phonepe');
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -88,10 +88,18 @@ export default function AutomationDashboard() {
       });
       const result = await res.json();
       if (result.logs) setLogs(result.logs);
+      
       if (result.code === 200) {
-        setOtpSent(true);
-        setSessionId(result.sessionId);
-        toast({ title: "OTP Dispatched", description: `Session ${result.sessionId} active.` });
+        // Handle success (could be OTP sent or Session Active)
+        if (result.message && result.message.includes("Session Active")) {
+          setOtpSent(false); // No OTP entry needed
+          toast({ title: "Session Found", description: "Active identity detected, scanning history..." });
+          handleHistoryCheck();
+        } else {
+          setOtpSent(true);
+          setSessionId(result.sessionId);
+          toast({ title: "OTP Triggered", description: `Session ${result.sessionId} ready.` });
+        }
       } else {
         toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Upstream Error" });
       }
