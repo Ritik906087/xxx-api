@@ -3,8 +3,8 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v8.0 - Master Stealth Configuration
- * RSWallet: Fresh identity per request (Register -> Login -> PIN Bind -> PIN Verify -> Pre-Check -> OTP)
+ * @fileOverview Hybrid Engine v9.0 - Stealth Precision Mode
+ * RSWallet: Fresh identity per request (Strict Python Signature Logic)
  * DTPay: Static Auth (acebce0aa2f64ddd945b5bcb6bc9c089) with v1.1.17/21 Headers
  */
 
@@ -29,7 +29,7 @@ function getRandomHex(len: number) {
 }
 
 /**
- * Stealth Header Generator - Aligned with working logs
+ * Stealth Header Generator - Aligned with v1.1.17/21 Logs
  */
 function getStealthHeaders(token?: string, isDt = false) {
   const ip = `${Math.floor(Math.random() * 220) + 10}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}`;
@@ -122,7 +122,7 @@ async function provisionRSAccount(logs: any[]) {
 
         // Pre-Check Integrity
         const ts3 = Date.now();
-        const prePayload = { ts: ts3, userId: parseInt(userId) }; // Specific keys might vary per channel, but this warms the session
+        const prePayload = { ts: ts3, userId: parseInt(userId) }; 
         const sig3 = generateRSSignature(prePayload, sessionKey);
         await fetch(`${RS_BASE_URL}/bind/pre/check`, {
           method: 'POST',
@@ -240,15 +240,17 @@ export async function POST(request: Request) {
 
     if (action === "fetch-by-phone") {
       let type = parseInt(body.channelType);
-      if (type === 33) type = 18; // Amazon mapping for History
+      if (type === 33) type = 18; 
       
+      // Fixed Precision Endpoint Path and Headers
       const res = await fetch(`${DT_BASE_URL}/runner/bind/list?mobile=${body.phone}&ctType=${type}`, {
+        method: 'GET',
         headers: getStealthHeaders(DT_STATIC_TOKEN, true)
       }).then(r => r.json());
 
       logs.push({ "History_Fetch": res });
 
-      if (res.code === 200) {
+      if (res.code === 200 || res.code === 0) {
         return NextResponse.json({ code: 200, vpaList: res.data || [], logs }, { status: 200, headers: CORS_HEADERS });
       }
       return NextResponse.json({ code: 400, message: res.msg || "History Scan Failed (10001)", vpaList: [], logs }, { status: 200, headers: CORS_HEADERS });
