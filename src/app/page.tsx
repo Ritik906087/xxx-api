@@ -16,21 +16,17 @@ import {
   Loader2, 
   Play, 
   Terminal, 
-  Shield, 
   Zap, 
   Activity, 
   Smartphone, 
   CheckCircle2, 
   KeyRound, 
   UserCheck, 
-  History, 
-  Search,
-  Database,
   ArrowRightCircle,
-  SearchCode
+  SearchCode,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 
 // HYBRID CHANNELS: DTPay (Static Token) + Legacy RSWallet (Fresh Pool)
 const CHANNELS = [
@@ -136,6 +132,7 @@ export default function AutomationDashboard() {
     }
     setIsLoading(true);
     setVpaList([]);
+    setLogs([]);
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
@@ -143,9 +140,16 @@ export default function AutomationDashboard() {
         body: JSON.stringify({ action: 'fetch-by-phone', phone, channelType: activeChannel?.type })
       });
       const result = await res.json();
-      setVpaList(result.vpaList || []);
       if (result.logs) setLogs(result.logs);
-      toast({ title: "Scan Complete", description: "Direct Ledger Scan finished successfully." });
+      
+      if (result.code === 200) {
+        setVpaList(result.vpaList || []);
+        toast({ title: "Scan Complete", description: `${result.vpaList?.length || 0} bills found.` });
+      } else {
+        toast({ variant: 'destructive', title: "Scan Failed", description: result.message || "Server Internal Error (10001)" });
+      }
+    } catch (e) {
+      toast({ variant: 'destructive', title: "System Fault" });
     } finally {
       setIsLoading(false);
     }
@@ -171,8 +175,8 @@ export default function AutomationDashboard() {
           </div>
           <div className="hidden md:flex gap-4">
              <div className="text-right">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Master Auth</p>
-                <p className="text-xs font-bold text-emerald-500">DTPAY_STATIC_READY</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Master Token</p>
+                <p className="text-xs font-bold text-emerald-500">DTPAY_STATIC_ACTIVE</p>
              </div>
           </div>
         </header>
@@ -245,7 +249,6 @@ export default function AutomationDashboard() {
                         )}
                       </Button>
                       
-                      {/* DIRECT LEDGER SCAN BUTTON - ONLY FOR DTPAY */}
                       {activeChannel?.engine === 'dtpay' && (
                         <Button 
                           onClick={handleHistoryCheck} 
@@ -254,7 +257,7 @@ export default function AutomationDashboard() {
                           className="h-16 rounded-2xl border-slate-800 bg-slate-950 hover:bg-slate-900 font-black uppercase text-[10px] tracking-widest text-emerald-500 transition-all flex gap-3"
                         >
                           <SearchCode className="w-4 h-4" />
-                          Scan Direct History
+                          Scan Ledger History
                         </Button>
                       )}
                     </div>
@@ -276,7 +279,7 @@ export default function AutomationDashboard() {
               </CardContent>
             </Card>
 
-            {vpaList.length > 0 && (
+            {vpaList.length > 0 ? (
               <Card className="bg-emerald-500/5 border-emerald-500/20 rounded-3xl p-6 border animate-in zoom-in-95 shadow-2xl">
                 <div className="flex items-center gap-3 text-emerald-400 mb-6">
                   <UserCheck className="w-5 h-5" />
@@ -292,6 +295,13 @@ export default function AutomationDashboard() {
                       <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2">{v.status || 'Active'}</Badge>
                     </div>
                   ))}
+                </div>
+              </Card>
+            ) : logs.length > 0 && !otpSent && (
+              <Card className="bg-rose-500/5 border-rose-500/20 rounded-3xl p-6 border animate-in zoom-in-95 shadow-2xl">
+                <div className="flex items-center gap-3 text-rose-400">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">No Active Bills Found</span>
                 </div>
               </Card>
             )}
