@@ -3,9 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v14.0 - Multi-Step Stealth Master
+ * @fileOverview Hybrid Engine v15.0 - Multi-Step Stealth Master
  * RSWallet: Fresh identity per request (Strict Python Signature Logic)
- * DTPay: Static Auth (acebce0aa2f64ddd945b5bcb6bc9c089) - Fixed OTP/Bind Chain
+ * DTPay: Static Auth (acebce0aa2f64ddd945b5bcb6bc9c089) - Multi-Step OTP/Bind/History
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -29,7 +29,7 @@ function getRandomHex(len: number) {
 }
 
 /**
- * Stealth Header Generator - Aligned with v1.1.17/21 working logs
+ * Stealth Header Generator - Strictly aligned with v1.1.17/21 original logs
  */
 function getStealthHeaders(token?: string, isDt = false, isForm = false) {
   const ip = `${Math.floor(Math.random() * 220) + 10}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}`;
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
         if (type === 33) type = 18; 
         
         const otpUrl = `${DT_BASE_URL}/provider/sendOtp?ctType=${type}&account=${phone}`;
-        logs.push({ "Step 0: Engine Selection": `DTPay | Mapping ${body.channelType} -> ${type}` });
+        logs.push({ "Step 0: Engine Selection": `DTPay (New) | Mapping ${body.channelType} -> ${type}` });
 
         const otpResp = await fetch(otpUrl, {
           method: 'POST',
@@ -151,7 +151,7 @@ export async function POST(request: Request) {
           body: JSON.stringify({}) 
         }).then(r => r.json());
 
-        logs.push({ "Step 1: DTPay OTP Action": otpResp });
+        logs.push({ "Step 1: DTPay OTP Send": otpResp });
         
         if (otpResp.code === 0 || otpResp.ok) {
           const sessionId = "DT_" + getRandomHex(4).toUpperCase();
@@ -165,14 +165,14 @@ export async function POST(request: Request) {
           });
           return NextResponse.json({ 
             code: 200, 
-            message: otpResp.msg || "Success (OTP Sent or Session Active)", 
+            message: otpResp.msg || "OTP Sequence Initiated (Active Session)", 
             sessionId, 
             logs 
           }, { status: 200, headers: CORS_HEADERS });
         }
-        return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay Dispatch Failed", logs }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay Dispatch Error", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
-        // RSWallet Legacy Flow (For Navi, BharatPe, etc.)
+        // RSWallet Legacy Flow (Navi, SuperMoney, etc.)
         let acc = await provisionRSAccount(logs);
         if (!acc) return NextResponse.json({ code: 500, message: "RS Provisioning Failed", logs }, { status: 200, headers: CORS_HEADERS });
 
@@ -213,7 +213,7 @@ export async function POST(request: Request) {
       if (!session) return NextResponse.json({ code: 400, message: "Invalid Session" }, { status: 200, headers: CORS_HEADERS });
 
       if (session.engine === 'DTPay') {
-        // 1. Verify OTP
+        // 1. Verify OTP strictly as per original request format
         const verifyUrl = `${DT_BASE_URL}/provider/verifyOtp?ctType=${session.ctType}&account=${session.phone}&otp=${otp}`;
         const verifyResp = await fetch(verifyUrl, {
           method: 'POST',
@@ -248,17 +248,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ 
               code: 200, 
               message: "Success", 
-              vpaList: infoResp.data?.upiList?.map((u: string) => ({ vpa: u, status: "ACTIVE" })) || [], 
+              vpaList: infoResp.data?.upiList?.map((u: string) => ({ vpa: u, status: "ACTIVE" })) || [{ vpa: infoResp.data.vpa, status: "ACTIVE" }], 
               logs 
             }, { status: 200, headers: CORS_HEADERS });
           }
           
-          return NextResponse.json({ 
-            code: 200, 
-            message: "Verified (No VPA List)", 
-            vpaList: [], 
-            logs 
-          }, { status: 200, headers: CORS_HEADERS });
+          return NextResponse.json({ code: 200, message: "Verified (Link Pending)", vpaList: [], logs }, { status: 200, headers: CORS_HEADERS });
         }
         return NextResponse.json({ code: 400, message: verifyResp.msg || "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
@@ -285,18 +280,31 @@ export async function POST(request: Request) {
       const dtHeaders = getStealthHeaders(DT_STATIC_TOKEN, true);
       let runnerUpiId = null;
 
+      // PROVIDER FILTERING: Map ctType to original provider name to avoid PhonePe/Paytm history mismatch
+      const providerMap: Record<number, string> = {
+        1: "PHONEPE",
+        2: "MOBIKWIK",
+        3: "FREECHARGE",
+        9: "PAYTM",
+        18: "AMAZON"
+      };
+      const targetProvider = providerMap[type];
+
       try {
         const listUrl = `${DT_BASE_URL}/upi/list`;
         const listRes = await fetch(listUrl, { method: "GET", headers: dtHeaders }).then(r => r.json());
         if (listRes && (listRes.code === 0 || listRes.ok) && listRes.data) {
           const upiItems = Array.isArray(listRes.data) ? listRes.data : (listRes.data.list || []);
+          
+          // Filter by Phone AND Provider Name strictly
           const matched = upiItems.find((item: any) => 
-            String(item.walletPhone) === String(phone) || 
-            String(item.upiAccount).includes(String(phone))
+            (String(item.walletPhone) === String(phone) || String(item.upiAccount).includes(String(phone))) &&
+            (targetProvider ? String(item.provider).toUpperCase() === targetProvider : true)
           );
+
           if (matched) {
             runnerUpiId = matched.runnerUpiId;
-            logs.push({ "Identity_Resolution": `Found runnerUpiId: ${runnerUpiId} for Phone: ${phone}` });
+            logs.push({ "Identity_Resolution": `Found runnerUpiId: ${runnerUpiId} for ${targetProvider} | Phone: ${phone}` });
           }
         }
       } catch (e) {
@@ -306,12 +314,13 @@ export async function POST(request: Request) {
       if (!runnerUpiId) {
         return NextResponse.json({ 
           code: 400, 
-          message: "Could not resolve Ledger Identity for this number. Please trigger OTP first.", 
+          message: `Could not resolve Ledger Identity for ${targetProvider}. Please trigger OTP first.`, 
           vpaList: [], 
           logs 
         }, { status: 200, headers: CORS_HEADERS });
       }
 
+      // Fetch History using upi/detail exactly as original app
       const detailUrl = `${DT_BASE_URL}/upi/detail?runnerUpiId=${runnerUpiId}&limit=5`;
       const detailRes = await fetch(detailUrl, {
         method: 'GET',
