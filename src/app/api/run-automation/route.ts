@@ -3,8 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v5.0 - Static DTPay Token + RSWallet Fresh Pool
- * Optimized for 100+ concurrent users with zero DTPay login delay.
+ * @fileOverview Hybrid Engine v6.0 - Static DTPay Token + RSWallet Fresh Pool
+ * Optimized for 100+ concurrent users. 
+ * DTPay uses static token acebce0aa2f64ddd945b5bcb6bc9c089.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -68,53 +69,58 @@ function generateRSSignature(payload: Record<string, any>, sessionKey: string): 
 
 async function provisionRSAccount(logs: any[]) {
   const db = await getDb();
-  for (let attempt = 1; attempt <= 10; attempt++) {
+  for (let attempt = 1; attempt <= 15; attempt++) {
     const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + crypto.randomInt(100000000, 999999999).toString().substring(0, 9);
     const botPassword = "Ritik" + getRandomHex(2) + "@1";
     
     try {
       const stealthHeaders = getStealthHeaders();
       
-      await fetch(`${RS_BASE_URL}/auth/register`, {
+      const regResp = await fetch(`${RS_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: stealthHeaders,
         body: JSON.stringify({ phone: botPhone, password: botPassword, referralCode: FIXED_REFERRAL })
-      });
+      }).then(r => r.json());
+      logs.push({ [`Step 2a: RS Register (Att ${attempt})`]: regResp });
 
       const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: stealthHeaders,
         body: JSON.stringify({ phone: botPhone, password: botPassword })
       }).then(r => r.json());
+      logs.push({ [`Step 2b: RS Login (Att ${attempt})`]: loginResp });
 
       if (loginResp?.code === 200) {
         const { userId, loginToken, sessionKey } = loginResp.data;
         
-        // Warmup Sequence
-        const ts = Date.now();
-        const pinPayload = { pinCode: DEFAULT_PIN, ts, userId: parseInt(userId) };
-        const sig = generateRSSignature(pinPayload, sessionKey);
+        // PIN Binding (RSWarmup 1)
+        const ts1 = Date.now();
+        const pinPayload = { pinCode: DEFAULT_PIN, ts: ts1, userId: parseInt(userId) };
+        const sig1 = generateRSSignature(pinPayload, sessionKey);
         
         await fetch(`${RS_BASE_URL}/secure/pin/bind`, {
           method: 'POST',
-          headers: { ...getStealthHeaders(loginToken), Signature: sig },
+          headers: { ...getStealthHeaders(loginToken), Signature: sig1 },
           body: JSON.stringify(pinPayload)
         });
 
-        const acc = {
-          phone: botPhone,
-          userId: parseInt(userId),
-          loginToken,
-          sessionKey,
-          status: 'active',
-          lastUsed: new Date()
-        };
+        // PIN Verification (RSWarmup 2)
+        const ts2 = Date.now();
+        const verifyPayload = { pinCode: DEFAULT_PIN, ts: ts2, userId: parseInt(userId) };
+        const sig2 = generateRSSignature(verifyPayload, sessionKey);
         
-        await db.collection('dummy_accounts').insertOne(acc);
-        return acc;
+        await fetch(`${RS_BASE_URL}/secure/pin/verify`, {
+          method: 'POST',
+          headers: { ...getStealthHeaders(loginToken), Signature: sig2 },
+          body: JSON.stringify(verifyPayload)
+        });
+
+        return { userId: parseInt(userId), loginToken, sessionKey, phone: botPhone };
       }
-    } catch (e) { continue; }
-    await new Promise(r => setTimeout(r, 300 * attempt));
+    } catch (e) { 
+      logs.push({ [`Error RS Provision (Att ${attempt})`]: e.message });
+    }
+    await new Promise(r => setTimeout(r, 400 * attempt));
   }
   return null;
 }
@@ -137,10 +143,10 @@ export async function POST(request: Request) {
       let type = parseInt(body.channelType);
       const isDt = [9, 2, 3, 33].includes(type);
 
-      logs.push({ "Step 0: Engine Selection": { ok: true, msg: `Routing to ${isDt ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine for Type ${type} -> ${isDt && type === 33 ? 18 : type}` } });
+      logs.push({ "Step 0: Engine Selection": { ok: true, msg: `Routing to ${isDt ? 'DTPay (New)' : 'Legacy (RSWallet)'} Engine for Type ${type}` } });
 
       if (isDt) {
-        // DTPay Flow - ZERO LOGIN DELAY (Uses Static Token)
+        // DTPay Flow - Static Auth
         if (type === 33) type = 18; // Amazon Pay mapping
         
         const otpResp = await fetch(`${DT_BASE_URL}/runner/bind/send/otp`, {
@@ -172,7 +178,7 @@ export async function POST(request: Request) {
           body: JSON.stringify(otpPayload)
         }).then(r => r.json());
 
-        logs.push({ "Step 1: Legacy OTP Dispatch": otpResp });
+        logs.push({ "Step 4: Legacy OTP Dispatch": otpResp });
         
         if (otpResp.code === 200) {
           const sessionId = "RS_" + getRandomHex(4).toUpperCase();

@@ -25,14 +25,16 @@ import {
   UserCheck, 
   History, 
   Search,
-  Database
+  Database,
+  ArrowRightCircle,
+  SearchCode
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-// HYBRID CHANNELS: DTPay + Legacy RSWallet
+// HYBRID CHANNELS: DTPay (Static Token) + Legacy RSWallet (Fresh Pool)
 const CHANNELS = [
-  // DTPay Engine
+  // DTPay Engine (New Server)
   { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://picsum.photos/seed/paytm/32/32" },
   { id: "dt_mobikwik", name: "MobiKwik", type: 2, engine: "dtpay", icon: "https://picsum.photos/seed/mobi/32/32" },
   { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://picsum.photos/seed/fc/32/32" },
@@ -88,13 +90,13 @@ export default function AutomationDashboard() {
         })
       });
       const result = await res.json();
-      setLogs(result.logs || []);
+      if (result.logs) setLogs(result.logs);
       if (result.code === 200) {
         setOtpSent(true);
         setSessionId(result.sessionId);
         toast({ title: "OTP Dispatched", description: `Session ${result.sessionId} active.` });
       } else {
-        toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Error" });
+        toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Upstream Error" });
       }
     } catch (e) {
       toast({ variant: 'destructive', title: "System Fault" });
@@ -104,6 +106,7 @@ export default function AutomationDashboard() {
   };
 
   const handleVerifyOtp = async () => {
+    if (!otp) return;
     setIsVerifying(true);
     try {
       const res = await fetch('/api/run-automation', {
@@ -127,8 +130,12 @@ export default function AutomationDashboard() {
   };
 
   const handleHistoryCheck = async () => {
-    if (!phone) return;
+    if (!phone || phone.length < 10) {
+      toast({ variant: 'destructive', title: "Required", description: "Enter 10-digit number for ledger scan." });
+      return;
+    }
     setIsLoading(true);
+    setVpaList([]);
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
@@ -137,8 +144,8 @@ export default function AutomationDashboard() {
       });
       const result = await res.json();
       setVpaList(result.vpaList || []);
-      setLogs(result.logs || []);
-      toast({ title: "Audit Complete", description: "Direct Ledger Scan finished." });
+      if (result.logs) setLogs(result.logs);
+      toast({ title: "Scan Complete", description: "Direct Ledger Scan finished successfully." });
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +156,7 @@ export default function AutomationDashboard() {
       <div className="max-w-7xl mx-auto space-y-8">
         <header className="flex items-center justify-between border-b border-slate-800 pb-8">
           <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-600/30 rotate-3">
+            <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-600/30 rotate-3 transition-transform hover:rotate-0">
               <Zap className="w-8 h-8 fill-current" />
             </div>
             <div>
@@ -162,16 +169,22 @@ export default function AutomationDashboard() {
               </div>
             </div>
           </div>
+          <div className="hidden md:flex gap-4">
+             <div className="text-right">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Master Auth</p>
+                <p className="text-xs font-bold text-emerald-500">DTPAY_STATIC_READY</p>
+             </div>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-4 space-y-6">
-            <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] shadow-2xl">
+            <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden">
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-3">
                   <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Select Channel</label>
                   <Select value={selectedChannelId} onValueChange={setSelectedChannelId}>
-                    <SelectTrigger className="bg-slate-950 border-slate-800 h-14 rounded-2xl font-bold">
+                    <SelectTrigger className="bg-slate-950 border-slate-800 h-14 rounded-2xl font-bold transition-all focus:ring-blue-600">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800 text-slate-300">
@@ -180,6 +193,7 @@ export default function AutomationDashboard() {
                           <div className="flex items-center gap-3">
                             <img src={c.icon} alt={c.name} className="w-5 h-5 rounded-sm" />
                             <span className="font-bold">{c.name}</span>
+                            <Badge variant="outline" className="text-[7px] border-slate-700 ml-auto uppercase">{c.engine}</Badge>
                           </div>
                         </SelectItem>
                       ))}
@@ -190,7 +204,12 @@ export default function AutomationDashboard() {
                 <div className="space-y-3">
                   <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Target Identity (Phone)</label>
                   <div className="relative">
-                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number" className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl font-black text-lg pl-6" />
+                    <Input 
+                      value={phone} 
+                      onChange={(e) => setPhone(e.target.value)} 
+                      placeholder="10-digit number" 
+                      className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl font-black text-lg pl-6 focus:ring-blue-600 transition-all" 
+                    />
                     <Smartphone className="absolute right-6 top-5 w-5 h-5 text-slate-700" />
                   </div>
                 </div>
@@ -199,7 +218,12 @@ export default function AutomationDashboard() {
                   <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
                     <label className="text-[10px] uppercase font-black text-emerald-500 tracking-widest ml-1">Protocol Code (OTP)</label>
                     <div className="relative">
-                      <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter Code" className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl font-black text-lg pl-6" />
+                      <Input 
+                        value={otp} 
+                        onChange={(e) => setOtp(e.target.value)} 
+                        placeholder="Enter Code" 
+                        className="bg-slate-950 border-emerald-500/30 text-emerald-400 h-16 rounded-2xl font-black text-lg pl-6 focus:ring-emerald-600" 
+                      />
                       <KeyRound className="absolute right-6 top-5 w-5 h-5 text-emerald-900" />
                     </div>
                   </div>
@@ -207,22 +231,45 @@ export default function AutomationDashboard() {
 
                 <div className="space-y-4">
                   {!otpSent ? (
-                    <div className="grid grid-cols-2 gap-4">
-                      <Button onClick={handleRunAutomation} disabled={isLoading} className="h-16 rounded-2xl bg-blue-600 hover:bg-blue-700 font-black uppercase text-[10px] tracking-widest">
-                        {isLoading ? <Loader2 className="animate-spin" /> : "Trigger OTP"}
-                      </Button>
+                    <div className="grid grid-cols-1 gap-4">
                       <Button 
-                        onClick={handleHistoryCheck} 
-                        disabled={isLoading || activeChannel?.engine !== 'dtpay'} 
-                        variant="outline"
-                        className="h-16 rounded-2xl border-slate-800 bg-slate-950 hover:bg-slate-900 font-black uppercase text-[10px] tracking-widest text-slate-400"
+                        onClick={handleRunAutomation} 
+                        disabled={isLoading} 
+                        className="h-16 rounded-2xl bg-blue-600 hover:bg-blue-700 font-black uppercase text-[12px] tracking-widest shadow-xl shadow-blue-600/20 transition-all active:scale-95"
                       >
-                        Scan Ledger
+                        {isLoading ? <Loader2 className="animate-spin" /> : (
+                          <div className="flex items-center gap-3">
+                            <ArrowRightCircle className="w-5 h-5" />
+                            Trigger OTP Sequence
+                          </div>
+                        )}
                       </Button>
+                      
+                      {/* DIRECT LEDGER SCAN BUTTON - ONLY FOR DTPAY */}
+                      {activeChannel?.engine === 'dtpay' && (
+                        <Button 
+                          onClick={handleHistoryCheck} 
+                          disabled={isLoading} 
+                          variant="outline"
+                          className="h-16 rounded-2xl border-slate-800 bg-slate-950 hover:bg-slate-900 font-black uppercase text-[10px] tracking-widest text-emerald-500 transition-all flex gap-3"
+                        >
+                          <SearchCode className="w-4 h-4" />
+                          Scan Direct History
+                        </Button>
+                      )}
                     </div>
                   ) : (
-                    <Button onClick={handleVerifyOtp} disabled={isVerifying} className="w-full h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-black uppercase text-xs">
-                      {isVerifying ? <Loader2 className="animate-spin" /> : "Verify & Settle"}
+                    <Button 
+                      onClick={handleVerifyOtp} 
+                      disabled={isVerifying} 
+                      className="w-full h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-black uppercase text-xs shadow-xl shadow-emerald-600/20 transition-all active:scale-95 flex gap-3"
+                    >
+                      {isVerifying ? <Loader2 className="animate-spin" /> : (
+                        <>
+                          <CheckCircle2 className="w-5 h-5" />
+                          Verify & Extract
+                        </>
+                      )}
                     </Button>
                   )}
                 </div>
@@ -230,16 +277,19 @@ export default function AutomationDashboard() {
             </Card>
 
             {vpaList.length > 0 && (
-              <Card className="bg-emerald-500/5 border-emerald-500/20 rounded-3xl p-6 border animate-in zoom-in-95">
-                <div className="flex items-center gap-3 text-emerald-400 mb-4">
-                  <UserCheck className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Extracted Profiles</span>
+              <Card className="bg-emerald-500/5 border-emerald-500/20 rounded-3xl p-6 border animate-in zoom-in-95 shadow-2xl">
+                <div className="flex items-center gap-3 text-emerald-400 mb-6">
+                  <UserCheck className="w-5 h-5" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Extracted Ledger Profiles</span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {vpaList.map((v, i) => (
-                    <div key={i} className="bg-slate-950 p-4 rounded-xl border border-slate-900 flex justify-between">
-                      <span className="text-xs font-black text-white">{v.vpa}</span>
-                      <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px]">{v.status || 'Active'}</Badge>
+                    <div key={i} className="bg-slate-950 p-5 rounded-2xl border border-slate-900 flex justify-between items-center group hover:border-emerald-500/50 transition-all">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-black text-white">{v.vpa || v.upiId}</span>
+                        <span className="text-[8px] text-slate-500 uppercase mt-1">Provider: {v.provider || activeChannel?.name}</span>
+                      </div>
+                      <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2">{v.status || 'Active'}</Badge>
                     </div>
                   ))}
                 </div>
@@ -253,6 +303,11 @@ export default function AutomationDashboard() {
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
                   <Terminal className="w-5 h-5 text-blue-500" /> Hybrid Telemetry Stream
                 </CardTitle>
+                <div className="flex gap-2">
+                   <div className="w-3 h-3 rounded-full bg-rose-500/20 border border-rose-500/50" />
+                   <div className="w-3 h-3 rounded-full bg-amber-500/20 border border-amber-500/50" />
+                   <div className="w-3 h-3 rounded-full bg-emerald-500/20 border border-emerald-500/50" />
+                </div>
               </CardHeader>
               <CardContent className="flex-1 overflow-hidden">
                 <div ref={scrollRef} className="h-full overflow-y-auto p-8 terminal-scroll text-[11px] font-code">
@@ -269,9 +324,12 @@ export default function AutomationDashboard() {
                           <div key={idx} className="border-l border-slate-800 pl-6 relative">
                             <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] bg-slate-800 rounded-full" />
                             <div className="flex items-center gap-3 mb-2">
-                              <span className="text-blue-400 font-black uppercase">{step}</span>
+                              <span className="text-blue-400 font-black uppercase tracking-wider">{step}</span>
+                              <Badge variant="outline" className="text-[7px] border-slate-800 text-slate-500">
+                                {new Date().toLocaleTimeString()}
+                              </Badge>
                             </div>
-                            <pre className="text-slate-500 bg-slate-950 p-4 rounded-xl border border-slate-900 overflow-x-auto">
+                            <pre className="text-slate-500 bg-slate-950/50 p-5 rounded-2xl border border-slate-900 overflow-x-auto terminal-scroll">
                               {JSON.stringify(data, null, 2)}
                             </pre>
                           </div>
