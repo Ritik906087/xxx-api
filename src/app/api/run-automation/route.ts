@@ -3,9 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v7.0 - Static DTPay Token + RSWallet Fresh Pool
- * RSWallet: Strictly fresh identity per request (Register -> Login -> Pin Bind -> Pin Verify)
- * DTPay: Static Auth Token acebce0aa2f64ddd945b5bcb6bc9c089
+ * @fileOverview Hybrid Engine v8.0 - Master Stealth Configuration
+ * RSWallet: Fresh identity per request (Register -> Login -> PIN Bind -> PIN Verify -> Pre-Check -> OTP)
+ * DTPay: Static Auth (acebce0aa2f64ddd945b5bcb6bc9c089) with v1.1.17/21 Headers
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -29,32 +29,40 @@ function getRandomHex(len: number) {
 }
 
 /**
- * Stealth Header Generator with Deep Randomization
+ * Stealth Header Generator - Aligned with working logs
  */
 function getStealthHeaders(token?: string, isDt = false) {
   const ip = `${Math.floor(Math.random() * 220) + 10}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}`;
-  const headers: any = {
+  
+  if (isDt) {
+    return {
+      "Accept": "application/json, text/plain, */*",
+      "Content-Type": "application/json;charset=UTF-8",
+      "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36",
+      "X-Forwarded-For": ip,
+      "X-Real-IP": ip,
+      "Client-IP": ip,
+      "X-Device-ID": getRandomHex(8),
+      "X-Android-ID": getRandomHex(8),
+      "X-Runner-Token": token || DT_STATIC_TOKEN,
+      "X-App-Version": "1.1.17",
+      "X-App-Version-Code": "21",
+      "X-App-Platform": "android"
+    };
+  }
+
+  return {
     "Accept": "application/json, text/plain, */*",
     "Content-Type": "application/json;charset=UTF-8",
-    "User-Agent": `Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36`,
+    "User-Agent": `Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36`,
     "X-Forwarded-For": ip,
     "X-Real-IP": ip,
     "Client-IP": ip,
     "X-Device-ID": getRandomHex(8),
     "X-Android-ID": getRandomHex(8),
+    "token": token || "",
+    "loginToken": token || ""
   };
-
-  if (isDt) {
-    headers["X-App-Version"] = "1.1.18";
-    headers["X-App-Version-Code"] = "18";
-    headers["X-App-Platform"] = "android";
-    headers["X-Runner-Token"] = token || DT_STATIC_TOKEN;
-  } else if (token) {
-    const cleanToken = token.replace(/['"]+/g, '').trim();
-    headers["token"] = cleanToken;
-    headers["loginToken"] = cleanToken;
-  }
-  return headers;
 }
 
 /**
@@ -92,33 +100,39 @@ async function provisionRSAccount(logs: any[]) {
       if (loginResp?.code === 200) {
         const { userId, loginToken, sessionKey } = loginResp.data;
         
-        // PIN Binding (RSWarmup 1)
+        // PIN Binding
         const ts1 = Date.now();
         const pinPayload = { pinCode: DEFAULT_PIN, ts: ts1, userId: parseInt(userId) };
         const sig1 = generateRSSignature(pinPayload, sessionKey);
-        
         await fetch(`${RS_BASE_URL}/secure/pin/bind`, {
           method: 'POST',
           headers: { ...getStealthHeaders(loginToken), Signature: sig1 },
           body: JSON.stringify(pinPayload)
         });
 
-        // PIN Verification (RSWarmup 2)
+        // PIN Verification
         const ts2 = Date.now();
         const verifyPayload = { pinCode: DEFAULT_PIN, ts: ts2, userId: parseInt(userId) };
         const sig2 = generateRSSignature(verifyPayload, sessionKey);
-        
         await fetch(`${RS_BASE_URL}/secure/pin/verify`, {
           method: 'POST',
           headers: { ...getStealthHeaders(loginToken), Signature: sig2 },
           body: JSON.stringify(verifyPayload)
         });
 
+        // Pre-Check Integrity
+        const ts3 = Date.now();
+        const prePayload = { ts: ts3, userId: parseInt(userId) }; // Specific keys might vary per channel, but this warms the session
+        const sig3 = generateRSSignature(prePayload, sessionKey);
+        await fetch(`${RS_BASE_URL}/bind/pre/check`, {
+          method: 'POST',
+          headers: { ...getStealthHeaders(loginToken), Signature: sig3 },
+          body: JSON.stringify(prePayload)
+        });
+
         return { userId: parseInt(userId), loginToken, sessionKey, phone: botPhone };
       }
-    } catch (e) { 
-      // Silently retry
-    }
+    } catch (e) { }
     await new Promise(r => setTimeout(r, 400 * attempt));
   }
   return null;
@@ -232,13 +246,12 @@ export async function POST(request: Request) {
         headers: getStealthHeaders(DT_STATIC_TOKEN, true)
       }).then(r => r.json());
 
-      // Log the full response to help debugging 10001 errors
-      logs.push({ "History_Fetch_Raw": res });
+      logs.push({ "History_Fetch": res });
 
       if (res.code === 200) {
         return NextResponse.json({ code: 200, vpaList: res.data || [], logs }, { status: 200, headers: CORS_HEADERS });
       }
-      return NextResponse.json({ code: 400, message: res.msg || "Server Error (10001)", vpaList: [], logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: res.msg || "History Scan Failed (10001)", vpaList: [], logs }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {

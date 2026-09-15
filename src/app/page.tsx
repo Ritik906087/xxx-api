@@ -24,11 +24,12 @@ import {
   UserCheck, 
   ArrowRightCircle,
   SearchCode,
-  AlertCircle
+  AlertCircle,
+  History as HistoryIcon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// HYBRID CHANNELS: DTPay (Static Token) + Legacy RSWallet (Fresh Pool)
+// HYBRID CHANNELS: DTPay (Static Token acebce0aa2f64ddd945b5bcb6bc9c089) + Legacy RSWallet (Fresh Pool)
 const CHANNELS = [
   // DTPay Engine (New Server)
   { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://picsum.photos/seed/paytm/32/32" },
@@ -166,7 +167,7 @@ export default function AutomationDashboard() {
             <div>
               <h1 className="text-3xl font-headline font-black tracking-tighter uppercase">Hybrid Vantage Engine</h1>
               <div className="flex items-center gap-3 mt-1">
-                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[8px] tracking-widest px-3">POOL_SYSTEM_ACTIVE</Badge>
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[8px] tracking-widest px-3">STEALTH_v1.1.17_ACTIVE</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase">
                   <Activity className="w-3 h-3 text-emerald-500" /> STATUS: OPTIMIZED
                 </div>
@@ -175,8 +176,8 @@ export default function AutomationDashboard() {
           </div>
           <div className="hidden md:flex gap-4">
              <div className="text-right">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Master Token</p>
-                <p className="text-xs font-bold text-emerald-500">DTPAY_STATIC_ACTIVE</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Master Auth</p>
+                <p className="text-xs font-bold text-emerald-500">acebce0aa2f64ddd9...bc089</p>
              </div>
           </div>
         </header>
@@ -254,10 +255,10 @@ export default function AutomationDashboard() {
                           onClick={handleHistoryCheck} 
                           disabled={isLoading} 
                           variant="outline"
-                          className="h-16 rounded-2xl border-slate-800 bg-slate-950 hover:bg-slate-900 font-black uppercase text-[10px] tracking-widest text-emerald-500 transition-all flex gap-3"
+                          className="h-16 rounded-2xl border-slate-800 bg-slate-950 hover:bg-slate-900 font-black uppercase text-[10px] tracking-widest text-emerald-500 transition-all flex gap-3 shadow-lg shadow-emerald-500/5"
                         >
                           <SearchCode className="w-4 h-4" />
-                          Scan Ledger History
+                          Scan Ledger History (No OTP)
                         </Button>
                       )}
                     </div>
@@ -270,7 +271,7 @@ export default function AutomationDashboard() {
                       {isVerifying ? <Loader2 className="animate-spin" /> : (
                         <>
                           <CheckCircle2 className="w-5 h-5" />
-                          Verify & Extract
+                          Verify & Extract Profile
                         </>
                       )}
                     </Button>
@@ -289,7 +290,7 @@ export default function AutomationDashboard() {
                   {vpaList.map((v, i) => (
                     <div key={i} className="bg-slate-950 p-5 rounded-2xl border border-slate-900 flex justify-between items-center group hover:border-emerald-500/50 transition-all">
                       <div className="flex flex-col">
-                        <span className="text-xs font-black text-white">{v.vpa || v.upiId}</span>
+                        <span className="text-xs font-black text-white">{v.vpa || v.upiAccount || v.upiId}</span>
                         <span className="text-[8px] text-slate-500 uppercase mt-1">Provider: {v.provider || activeChannel?.name}</span>
                       </div>
                       <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2">{v.status || 'Active'}</Badge>
@@ -301,7 +302,7 @@ export default function AutomationDashboard() {
               <Card className="bg-rose-500/5 border-rose-500/20 rounded-3xl p-6 border animate-in zoom-in-95 shadow-2xl">
                 <div className="flex items-center gap-3 text-rose-400">
                   <AlertCircle className="w-5 h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">No Active Bills Found</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">No Active Ledger Entries Found</span>
                 </div>
               </Card>
             )}
@@ -323,7 +324,7 @@ export default function AutomationDashboard() {
                 <div ref={scrollRef} className="h-full overflow-y-auto p-8 terminal-scroll text-[11px] font-code">
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 opacity-20 italic">
-                      [Waiting for Protocol Initiation...]
+                      [Waiting for Hybrid Protocol Initiation...]
                     </div>
                   ) : (
                     <div className="space-y-6">
