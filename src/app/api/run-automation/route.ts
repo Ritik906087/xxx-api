@@ -3,7 +3,7 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v9.0 - Stealth Precision Mode
+ * @fileOverview Hybrid Engine v10.0 - Extreme Stealth Precision
  * RSWallet: Fresh identity per request (Strict Python Signature Logic)
  * DTPay: Static Auth (acebce0aa2f64ddd945b5bcb6bc9c089) with v1.1.17/21 Headers
  */
@@ -29,7 +29,7 @@ function getRandomHex(len: number) {
 }
 
 /**
- * Stealth Header Generator - Aligned with v1.1.17/21 Logs
+ * Stealth Header Generator - Strictly Aligned with v1.1.17/21 Logs
  */
 function getStealthHeaders(token?: string, isDt = false) {
   const ip = `${Math.floor(Math.random() * 220) + 10}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}`;
@@ -42,8 +42,6 @@ function getStealthHeaders(token?: string, isDt = false) {
       "X-Forwarded-For": ip,
       "X-Real-IP": ip,
       "Client-IP": ip,
-      "X-Device-ID": getRandomHex(8),
-      "X-Android-ID": getRandomHex(8),
       "X-Runner-Token": token || DT_STATIC_TOKEN,
       "X-App-Version": "1.1.17",
       "X-App-Version-Code": "21",
@@ -168,7 +166,7 @@ export async function POST(request: Request) {
 
         logs.push({ "Step 1: DTPay OTP Dispatch": otpResp });
         
-        if (otpResp.code === 200) {
+        if (otpResp.code === 200 || otpResp.ok) {
           const sessionId = "DT_" + getRandomHex(4).toUpperCase();
           await db.collection('automation_sessions').insertOne({ sessionId, token: DT_STATIC_TOKEN, engine: 'DTPay', ctType: type, createdAt: new Date() });
           return NextResponse.json({ code: 200, message: "OTP Sent (DTPay)", sessionId, logs }, { status: 200, headers: CORS_HEADERS });
@@ -221,7 +219,7 @@ export async function POST(request: Request) {
           body: JSON.stringify({ code: otp, ctType: session.ctType })
         }).then(r => r.json());
         
-        if (checkResp.code === 200) return NextResponse.json({ code: 200, message: "Success", vpaList: checkResp.data?.upiInfos || [], logs: [{ "DTPay_Verify": checkResp }] }, { status: 200, headers: CORS_HEADERS });
+        if (checkResp.code === 200 || checkResp.ok) return NextResponse.json({ code: 200, message: "Success", vpaList: checkResp.data?.upiInfos || [], logs: [{ "DTPay_Verify": checkResp }] }, { status: 200, headers: CORS_HEADERS });
         return NextResponse.json({ code: 400, message: checkResp.msg || "Invalid OTP", logs: [{ "DTPay_Verify": checkResp }] }, { status: 200, headers: CORS_HEADERS });
       } else {
         const checkPayload = { code: String(otp), type: session.ctType, requestId: session.requestId, ts: Date.now(), userId: session.userId };
@@ -242,18 +240,29 @@ export async function POST(request: Request) {
       let type = parseInt(body.channelType);
       if (type === 33) type = 18; 
       
-      // Fixed Precision Endpoint Path and Headers
-      const res = await fetch(`${DT_BASE_URL}/runner/bind/list?mobile=${body.phone}&ctType=${type}`, {
+      const phone = body.phone;
+      
+      // Precision Endpoint & Parameter Logic for DTPay History Fetch
+      const historyUrl = `${DT_BASE_URL}/runner/bind/list?mobile=${phone}&ctType=${type}`;
+      
+      const res = await fetch(historyUrl, {
         method: 'GET',
         headers: getStealthHeaders(DT_STATIC_TOKEN, true)
       }).then(r => r.json());
 
       logs.push({ "History_Fetch": res });
 
-      if (res.code === 200 || res.code === 0) {
-        return NextResponse.json({ code: 200, vpaList: res.data || [], logs }, { status: 200, headers: CORS_HEADERS });
+      if (res.code === 200 || res.code === 0 || res.ok) {
+        const vpaData = res.data?.upiInfos || res.data || [];
+        return NextResponse.json({ code: 200, vpaList: vpaData, logs }, { status: 200, headers: CORS_HEADERS });
       }
-      return NextResponse.json({ code: 400, message: res.msg || "History Scan Failed (10001)", vpaList: [], logs }, { status: 200, headers: CORS_HEADERS });
+      
+      return NextResponse.json({ 
+        code: 400, 
+        message: res.msg || "History Scan Failed (10001)", 
+        vpaList: [], 
+        logs 
+      }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
