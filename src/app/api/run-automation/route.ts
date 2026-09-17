@@ -3,10 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v19.0 - Strictly Aligned DTPay v1.1.17/21
- * Fix: Implemented strict walletPhone + Provider filtering to prevent wrong history leakage.
- * Routing: PhonePe Business (14) shifted back to Legacy (RSWallet) per user request.
- * RSWallet: Pooled Provisioning Engine Intact.
+ * @fileOverview Hybrid Engine v20.0 - Strictly Aligned DTPay v1.1.17/21
+ * Added: Dynamic token routing for target 9955557336 to use dedicated token b7adb3c145f04b2eb630cc3e3424c667.
+ * RSWallet Pool and DTPay multi-step orchestration remains untouched.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -14,8 +13,10 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const FIXED_REFERRAL = "0ealuckpbyno";
 const DEFAULT_PIN = "954073";
 
-// DTPay Static Auth
+// DTPay Multi-Token Mapping Registry
 const DT_STATIC_TOKEN = "acebce0aa2f64ddd945b5bcb6bc9c089";
+const DT_SPECIAL_TOKEN = "b7adb3c145f04b2eb630cc3e3424c667";
+const SPECIAL_PHONE = "9955557336";
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -25,21 +26,30 @@ const CORS_HEADERS = {
 
 // --- UTILITIES ---
 
+function getDtTokenForPhone(phone: string): string {
+  const clean = String(phone).replace(/\D/g, '').slice(-10);
+  if (clean === SPECIAL_PHONE) {
+    return DT_SPECIAL_TOKEN;
+  }
+  return DT_STATIC_TOKEN;
+}
+
 function getRandomHex(len: number) {
   return crypto.randomBytes(len).toString('hex');
 }
 
-function getStealthHeaders(token?: string, isDt = false, isForm = false) {
+function getStealthHeaders(token?: string, isDt = false, isForm = false, targetPhone?: string) {
   const ip = `${Math.floor(Math.random() * 220) + 10}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}.${Math.floor(Math.random() * 254)}`;
   
   if (isDt) {
+    const selectedToken = token || (targetPhone ? getDtTokenForPhone(targetPhone) : DT_STATIC_TOKEN);
     return {
       "Accept": "application/json, text/plain, */*",
       "Content-Type": isForm ? "application/x-www-form-urlencoded" : "application/json;charset=UTF-8",
       "X-Forwarded-For": ip,
       "X-Real-IP": ip,
       "Client-IP": ip,
-      "X-Runner-Token": token || DT_STATIC_TOKEN,
+      "X-Runner-Token": selectedToken,
       "X-App-Version": "1.1.17",
       "X-App-Version-Code": "21",
       "X-App-Platform": "android",
@@ -161,16 +171,17 @@ export async function POST(request: Request) {
       const engine = body.engine || "dtpay";
       
       // Strict Engine Mapping: PhonePe Business (14) forced to Legacy (RSWallet)
-      // PhonePe Fast (1) stays on DTPay
-      const isDtForced = (engine === "dtpay" || [1, 2, 3, 9, 33].includes(type)) && type !== 14;
+      const isDtForced = (engine === "dtpay" || [1, 2, 3, 9, 18, 33].includes(type)) && type !== 14;
 
       if (isDtForced) {
         if (type === 33) type = 18; 
         
+        const targetDtToken = getDtTokenForPhone(phone);
         const otpUrl = `${DT_BASE_URL}/provider/sendOtp?ctType=${type}&account=${phone}`;
+        
         const otpResp = await fetch(otpUrl, {
           method: 'POST',
-          headers: getStealthHeaders(DT_STATIC_TOKEN, true),
+          headers: getStealthHeaders(targetDtToken, true, false, phone),
           body: JSON.stringify({}) 
         }).then(r => r.json());
 
@@ -179,7 +190,7 @@ export async function POST(request: Request) {
         if (otpResp.code === 0 || otpResp.ok) {
           const sessionId = "DT_" + getRandomHex(4).toUpperCase();
           await db.collection('automation_sessions').insertOne({ 
-            sessionId, token: DT_STATIC_TOKEN, engine: 'DTPay', ctType: type, phone, createdAt: new Date() 
+            sessionId, token: targetDtToken, engine: 'DTPay', ctType: type, phone, createdAt: new Date() 
           });
           return NextResponse.json({ code: 200, message: "OTP Sequence Initiated", sessionId, logs }, { status: 200, headers: CORS_HEADERS });
         }
@@ -220,7 +231,7 @@ export async function POST(request: Request) {
         const verifyUrl = `${DT_BASE_URL}/provider/verifyOtp?ctType=${session.ctType}&account=${session.phone}&otp=${otp}`;
         const verifyResp = await fetch(verifyUrl, {
           method: 'POST',
-          headers: getStealthHeaders(session.token, true),
+          headers: getStealthHeaders(session.token, true, false, session.phone),
           body: JSON.stringify({})
         }).then(r => r.json());
         
@@ -230,7 +241,7 @@ export async function POST(request: Request) {
           const infoUrl = `${DT_BASE_URL}/provider/upiInfo?ctType=${session.ctType}&account=${session.phone}&noAutoBind=true`;
           const infoResp = await fetch(infoUrl, {
             method: 'POST',
-            headers: getStealthHeaders(session.token, true),
+            headers: getStealthHeaders(session.token, true, false, session.phone),
             body: JSON.stringify({})
           }).then(r => r.json());
 
@@ -238,7 +249,7 @@ export async function POST(request: Request) {
             const bindUrl = `${DT_BASE_URL}/provider/bindUpi?ctType=${session.ctType}&account=${session.phone}&upiAccount=${encodeURIComponent(infoResp.data.vpa)}`;
             await fetch(bindUrl, {
               method: 'POST',
-              headers: getStealthHeaders(session.token, true, true),
+              headers: getStealthHeaders(session.token, true, true, session.phone),
               body: ""
             });
             return NextResponse.json({ 
@@ -270,26 +281,26 @@ export async function POST(request: Request) {
       if (type === 33) type = 18; 
       const phone = body.phone;
       const cleanTargetPhone = String(phone).replace(/\D/g, '').slice(-10);
+      const targetDtToken = getDtTokenForPhone(phone);
       
+      const providerMap: Record<number, string> = {
+        1: "PHONEPE",
+        2: "MOBIKWIK",
+        3: "FREECHARGE",
+        9: "PAYTM",
+        14: "PHONEPE",
+        18: "BHARATPE"
+      };
+      const targetProvider = providerMap[type] || "";
+
       const listUrl = `${DT_BASE_URL}/upi/list?account=${phone}&ctType=${type}`;
       const listRes = await fetch(listUrl, {
         method: 'GET',
-        headers: getStealthHeaders(DT_STATIC_TOKEN, true)
+        headers: getStealthHeaders(targetDtToken, true, false, phone)
       }).then(r => r.json());
 
       if (listRes?.code === 0 && listRes.data?.length > 0) {
-        const providerMap: Record<number, string> = {
-          1: "PHONEPE",
-          2: "MOBIKWIK",
-          3: "FREECHARGE",
-          9: "PAYTM",
-          14: "PHONEPE",
-          18: "BHARATPE",
-          33: "AMAZON"
-        };
-        const targetProvider = providerMap[type] || "";
-
-        // CRITICAL: Strict match by Provider AND WalletPhone to prevent leakage
+        // Precise filtering by provider string and exact clean phone match
         const upiRecord = listRes.data.find((item: any) => {
           const providerStr = String(item.provider || "").toUpperCase();
           const targetStr = String(targetProvider).toUpperCase();
@@ -302,7 +313,7 @@ export async function POST(request: Request) {
           const detailUrl = `${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=5`;
           const detailRes = await fetch(detailUrl, {
             method: 'GET',
-            headers: getStealthHeaders(DT_STATIC_TOKEN, true)
+            headers: getStealthHeaders(targetDtToken, true, false, phone)
           }).then(r => r.json());
 
           logs.push({ "DTPay_Ledger_Fetch": detailRes });
@@ -319,7 +330,7 @@ export async function POST(request: Request) {
           }
         }
       }
-      return NextResponse.json({ code: 400, message: "No ledger entries for this specific phone/provider.", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: "No ledger entries found for this specific phone/provider.", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
