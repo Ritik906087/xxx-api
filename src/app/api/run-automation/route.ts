@@ -277,8 +277,6 @@ export async function POST(request: Request) {
         headers: getStealthHeaders(DT_STATIC_TOKEN, true)
       }).then(r => r.json());
 
-      logs.push({ "DTPay_Registry_Lookup": listRes });
-
       if (listRes?.code === 0 && listRes.data?.length > 0) {
         const providerMap: Record<number, string> = {
           1: "PHONEPE",
@@ -299,6 +297,9 @@ export async function POST(request: Request) {
           
           return providerStr.includes(targetStr) && itemPhone === cleanTargetPhone;
         });
+
+        // Clean log for Registry Lookup
+        logs.push({ "DTPay_Registry_Lookup": upiRecord ? { status: "Match Found", upi: upiRecord } : { status: "No Match", totalRecords: listRes.data.length } });
 
         if (upiRecord?.runnerUpiId) {
           const detailUrl = `${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=5`;
