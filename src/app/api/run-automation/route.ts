@@ -298,9 +298,6 @@ export async function POST(request: Request) {
           return providerStr.includes(targetStr) && itemPhone === cleanTargetPhone;
         });
 
-        // Clean log for Registry Lookup
-        logs.push({ "DTPay_Registry_Lookup": upiRecord ? { status: "Match Found", upi: upiRecord } : { status: "No Match", totalRecords: listRes.data.length } });
-
         if (upiRecord?.runnerUpiId) {
           const detailUrl = `${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=5`;
           const detailRes = await fetch(detailUrl, {
