@@ -3,9 +3,10 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v17.0 - Strictly Aligned DTPay v1.1.17/21
- * Fixed History Logic: Strictly filters by selected Provider (ctType) using Name Mapping.
- * RSWallet: Pooled Provisioning Engine Intact.
+ * @fileOverview Hybrid Engine v18.0 - Strictly Aligned DTPay v1.1.17/21
+ * Fixed History Logic: Implemented strict provider matching for DTPay Ledger scans.
+ * PhonePe (1, 14) now strictly uses DTPay Engine as requested.
+ * RSWallet: Pooled Provisioning Engine Intact for other legacy channels.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -159,7 +160,10 @@ export async function POST(request: Request) {
       let type = parseInt(body.channelType);
       const engine = body.engine || "dtpay";
       
-      if (engine === "dtpay" || [2, 3, 9, 33].includes(type)) {
+      // Force PhonePe (1, 14) to use DTPay Engine strictly
+      const isDtForced = engine === "dtpay" || [1, 14, 2, 3, 9, 33].includes(type);
+
+      if (isDtForced) {
         if (type === 33) type = 18; 
         
         const otpUrl = `${DT_BASE_URL}/provider/sendOtp?ctType=${type}&account=${phone}`;
@@ -286,11 +290,13 @@ export async function POST(request: Request) {
         };
         const targetProvider = providerMap[type] || "";
 
-        // STRICT FILTERING: Match by ctType OR map provider string
+        // STRICT FILTERING: Match by provider name associated with selected ctType
         const upiRecord = listRes.data.find((item: any) => {
-          const matchType = item.ctType === type;
-          const matchProvider = targetProvider && item.provider && item.provider.toUpperCase().includes(targetProvider);
-          return matchType || matchProvider;
+          const providerStr = String(item.provider || "").toUpperCase();
+          const targetStr = String(targetProvider).toUpperCase();
+          
+          // Must match the selected provider string or the exact ctType
+          return providerStr.includes(targetStr) || item.ctType === type;
         });
 
         if (upiRecord?.runnerUpiId) {
