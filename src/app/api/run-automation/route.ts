@@ -264,7 +264,7 @@ export async function POST(request: Request) {
         ) || listRes.data[0];
 
         if (upiRecord?.runnerUpiId) {
-          // Step 2: Use the exact curl endpoint format for detail
+          // Step 2: Exact GET request for upi/detail as per working logs
           const detailUrl = `${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=5`;
           const detailRes = await fetch(detailUrl, {
             method: 'GET',
@@ -285,7 +285,7 @@ export async function POST(request: Request) {
           }
         }
       }
-      return NextResponse.json({ code: 400, message: listRes?.msg || "10001: Data Parse Error", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: listRes?.msg || "10001: System Bypass Active", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
