@@ -3,8 +3,8 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v16.0 - Strictly Aligned DTPay v1.1.17/21
- * Fixed History Logic: Strictly filters by selected Provider (ctType).
+ * @fileOverview Hybrid Engine v17.0 - Strictly Aligned DTPay v1.1.17/21
+ * Fixed History Logic: Strictly filters by selected Provider (ctType) using Name Mapping.
  * RSWallet: Pooled Provisioning Engine Intact.
  */
 
@@ -274,10 +274,24 @@ export async function POST(request: Request) {
       logs.push({ "DTPay_Registry_Lookup": listRes });
 
       if (listRes?.code === 0 && listRes.data?.length > 0) {
-        // STRICT FILTERING: Only pick the record that matches the selected channel (ctType)
-        const upiRecord = listRes.data.find((item: any) => 
-          item.ctType === type && (item.walletPhone === phone || item.upiAccount.includes(phone))
-        );
+        // Map channel types to provider names for strict matching
+        const providerMap: Record<number, string> = {
+          1: "PHONEPE",
+          2: "MOBIKWIK",
+          3: "FREECHARGE",
+          9: "PAYTM",
+          14: "PHONEPE",
+          18: "BHARATPE",
+          33: "AMAZON"
+        };
+        const targetProvider = providerMap[type] || "";
+
+        // STRICT FILTERING: Match by ctType OR map provider string
+        const upiRecord = listRes.data.find((item: any) => {
+          const matchType = item.ctType === type;
+          const matchProvider = targetProvider && item.provider && item.provider.toUpperCase().includes(targetProvider);
+          return matchType || matchProvider;
+        });
 
         if (upiRecord?.runnerUpiId) {
           const detailUrl = `${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=5`;
