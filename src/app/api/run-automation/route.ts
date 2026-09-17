@@ -46,7 +46,7 @@ function getStealthHeaders(token?: string, isDt = false, isForm = false) {
     };
   }
 
-  return {
+  const headers: any = {
     "Accept": "application/json, text/plain, */*",
     "Content-Type": "application/json;charset=UTF-8",
     "User-Agent": `Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36`,
@@ -55,9 +55,14 @@ function getStealthHeaders(token?: string, isDt = false, isForm = false) {
     "Client-IP": ip,
     "X-Device-ID": getRandomHex(8),
     "X-Android-ID": getRandomHex(8),
-    "token": token || "",
-    "loginToken": token || ""
   };
+
+  if (token) {
+    headers["token"] = token;
+    headers["loginToken"] = token;
+  }
+
+  return headers;
 }
 
 function generateRSSignature(payload: Record<string, any>, sessionKey: string): string {
@@ -78,9 +83,9 @@ async function backgroundProvisioning() {
     const db = await getDb();
     const activeCount = await db.collection('automation_accounts').countDocuments({ status: 'active' });
     
-    // Maintain a pool of at least 10 active accounts
-    if (activeCount < 10) {
-      console.log(`[RS_PROVISIONER] Pool low (${activeCount}). Generating fresh identity...`);
+    // Maintain a pool of at least 15 active accounts continuously
+    if (activeCount < 15) {
+      console.log(`[RS_PROVISIONER] Pool current active: ${activeCount}. Generating fresh authenticated identity...`);
       
       const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + crypto.randomInt(100000000, 999999999).toString().substring(0, 9);
       const botPassword = "Ritik" + getRandomHex(2) + "@1";
@@ -89,17 +94,26 @@ async function backgroundProvisioning() {
         method: 'POST',
         headers: getStealthHeaders(),
         body: JSON.stringify({ phone: botPhone, password: botPassword, referralCode: FIXED_REFERRAL })
-      }).then(r => r.json());
+      }).then(r => r.json()).catch(() => null);
 
-      if (regResp?.code === 200) {
-        await db.collection('automation_accounts').insertOne({
-          phone: botPhone,
-          password: botPassword,
-          status: 'active',
-          createdAt: new Date(),
-          lastChecked: new Date()
-        });
-        console.log(`[RS_PROVISIONER] Successfully registered: ${botPhone}`);
+      if (regResp && (regResp.code === 200 || regResp.success || regResp.msg === "success")) {
+        // Validate with immediate test login to ensure no 'auth info' crashes exist
+        const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: getStealthHeaders(),
+          body: JSON.stringify({ phone: botPhone, password: botPassword })
+        }).then(r => r.json()).catch(() => null);
+
+        if (loginResp && loginResp.code === 200 && loginResp.data?.loginToken) {
+          await db.collection('automation_accounts').insertOne({
+            phone: botPhone,
+            password: botPassword,
+            status: 'active',
+            createdAt: new Date(),
+            lastChecked: new Date()
+          });
+          console.log(`[RS_PROVISIONER] Successfully registered and pooled working account: ${botPhone}`);
+        }
       }
     }
   } catch (e) {
@@ -110,29 +124,28 @@ async function backgroundProvisioning() {
 async function provisionRSAccount(logs: any[]) {
   const db = await getDb();
   
-  // Trigger background check (don't await to keep it "background")
+  // Trigger background check async to keep the machine running 24/7
   backgroundProvisioning();
 
-  // Try to find a valid account from the pool
+  // Try to find a valid active account from pool
   const poolAccounts = await db.collection('automation_accounts')
     .find({ status: 'active' })
-    .sort({ createdAt: 1 })
-    .limit(5)
+    .sort({ createdAt: -1 })
+    .limit(10)
     .toArray();
 
   for (const acc of poolAccounts) {
     try {
-      const stealthHeaders = getStealthHeaders();
       const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: stealthHeaders,
+        headers: getStealthHeaders(),
         body: JSON.stringify({ phone: acc.phone, password: acc.password })
-      }).then(r => r.json());
+      }).then(r => r.json()).catch(() => null);
 
-      if (loginResp?.code === 200) {
+      if (loginResp && loginResp.code === 200 && loginResp.data?.loginToken) {
         const { userId, loginToken, sessionKey } = loginResp.data;
         
-        // Setup PIN (Required for binding)
+        // Setup PIN
         const ts1 = Date.now();
         const pinPayload = { pinCode: DEFAULT_PIN, ts: ts1, userId: parseInt(userId) };
         const sig1 = generateRSSignature(pinPayload, sessionKey);
@@ -140,7 +153,7 @@ async function provisionRSAccount(logs: any[]) {
           method: 'POST',
           headers: { ...getStealthHeaders(loginToken), Signature: sig1 },
           body: JSON.stringify(pinPayload)
-        });
+        }).catch(() => null);
 
         const ts2 = Date.now();
         const verifyPayload = { pinCode: DEFAULT_PIN, ts: ts2, userId: parseInt(userId) };
@@ -149,42 +162,62 @@ async function provisionRSAccount(logs: any[]) {
           method: 'POST',
           headers: { ...getStealthHeaders(loginToken), Signature: sig2 },
           body: JSON.stringify(verifyPayload)
-        });
+        }).catch(() => null);
 
         return { userId: parseInt(userId), loginToken, sessionKey, phone: acc.phone };
       } else {
-        // If login fails (invalid password/expired), mark as expired and continue
+        // Mark explicitly as expired and instantly rotate to the next account in loop
         await db.collection('automation_accounts').updateOne(
           { _id: acc._id },
           { $set: { status: 'expired', lastChecked: new Date() } }
         );
-        logs.push({ "RS_POOL_HEAL": `Account ${acc.phone} marked as expired.` });
+        logs.push({ "RS_POOL_HEAL": `Pooled Account ${acc.phone} invalidated by server. Marked as expired.` });
       }
     } catch (e) {
-      logs.push({ "RS_POOL_ERROR": `Failed to verify account ${acc.phone}` });
+      logs.push({ "RS_POOL_ERROR": `Failed checking pooled account ${acc.phone}` });
     }
   }
 
-  // Final Fallback: If no pooled account works, create one on the fly (sync)
-  logs.push({ "RS_POOL_STATUS": "Pool empty or invalid. Provisioning on-the-fly..." });
-  const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + crypto.randomInt(100000000, 999999999).toString().substring(0, 9);
-  const botPassword = "Ritik" + getRandomHex(2) + "@1";
-  
-  await fetch(`${RS_BASE_URL}/auth/register`, {
-    method: 'POST',
-    headers: getStealthHeaders(),
-    body: JSON.stringify({ phone: botPhone, password: botPassword, referralCode: FIXED_REFERRAL })
-  });
-  
-  const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: getStealthHeaders(),
-    body: JSON.stringify({ phone: botPhone, password: botPassword })
-  }).then(r => r.json());
+  // Backup loop: If pool is dry, loop synchronously until an account registers and logs in cleanly
+  logs.push({ "RS_POOL_STATUS": "Pool dry or unverified. Provisioning fresh authenticated identity on the fly..." });
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + crypto.randomInt(100000000, 999999999).toString().substring(0, 9);
+    const botPassword = "Ritik" + getRandomHex(2) + "@1";
+    
+    const regResp = await fetch(`${RS_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: getStealthHeaders(),
+      body: JSON.stringify({ phone: botPhone, password: botPassword, referralCode: FIXED_REFERRAL })
+    }).then(r => r.json()).catch(() => null);
 
-  if (loginResp?.code === 200) {
-    const { userId, loginToken, sessionKey } = loginResp.data;
-    return { userId: parseInt(userId), loginToken, sessionKey, phone: botPhone };
+    const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: getStealthHeaders(),
+      body: JSON.stringify({ phone: botPhone, password: botPassword })
+    }).then(r => r.json()).catch(() => null);
+
+    if (loginResp && loginResp.code === 200 && loginResp.data?.loginToken) {
+      const { userId, loginToken, sessionKey } = loginResp.data;
+      
+      await db.collection('automation_accounts').insertOne({
+        phone: botPhone,
+        password: botPassword,
+        status: 'active',
+        createdAt: new Date(),
+        lastChecked: new Date()
+      });
+
+      const ts1 = Date.now();
+      const pinPayload = { pinCode: DEFAULT_PIN, ts: ts1, userId: parseInt(userId) };
+      const sig1 = generateRSSignature(pinPayload, sessionKey);
+      await fetch(`${RS_BASE_URL}/secure/pin/bind`, {
+        method: 'POST',
+        headers: { ...getStealthHeaders(loginToken), Signature: sig1 },
+        body: JSON.stringify(pinPayload)
+      }).catch(() => null);
+
+      return { userId: parseInt(userId), loginToken, sessionKey, phone: botPhone };
+    }
   }
 
   return null;
@@ -236,7 +269,7 @@ export async function POST(request: Request) {
       } else {
         // RSWallet Pooled Flow
         let acc = await provisionRSAccount(logs);
-        if (!acc) return NextResponse.json({ code: 500, message: "RS Provisioning Failed", logs }, { status: 200, headers: CORS_HEADERS });
+        if (!acc) return NextResponse.json({ code: 500, message: "RS Provisioning Failed: Server busy", logs }, { status: 200, headers: CORS_HEADERS });
 
         const ts = Date.now();
         const otpPayload = { mobile: phone, type: type, accountType: "1", ts, userId: acc.userId };
@@ -291,7 +324,7 @@ export async function POST(request: Request) {
           }).then(r => r.json());
 
           if (infoResp.code === 0 && infoResp.data?.vpa) {
-            const bindUrl = `${DT_BASE_URL}/provider/bindUpi?ctType=${session.ctType}&account=${session.phone}&upiAccount=${encodeURIComponent(infoResp.data.vpa)}`;
+            const bindUrl = `${DT_BASE_URL}/provider/bindUpi?ctType=${session.ctType}&account=${session.phone}&upiAccount={infoResp.data.vpa}`;
             await fetch(bindUrl, {
               method: 'POST',
               headers: getStealthHeaders(session.token, true, true),
@@ -322,7 +355,6 @@ export async function POST(request: Request) {
     }
 
     if (action === "fetch-by-phone") {
-      // Direct history logic for DTPay - Untouched
       let type = parseInt(body.channelType);
       if (type === 33) type = 18; 
       const phone = body.phone;
