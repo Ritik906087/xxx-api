@@ -28,16 +28,16 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// HYBRID CHANNELS: PhonePe moved strictly to DTPay Engine
+// HYBRID CHANNELS: PhonePe Business strictly moved back to Legacy (RSWallet)
 const CHANNELS = [
   // DTPay Engine (Static Auth acebce0aa2f64ddd945b5bcb6bc9c089)
   { id: "dt_phonepe", name: "PhonePe", type: 1, engine: "dtpay", icon: "https://download.kspay.shop/icon/phonepe_1.webp" },
-  { id: "dt_phonepe_biz", name: "PhonePeBusiness", type: 14, engine: "dtpay", icon: "https://picsum.photos/seed/ppb/32/32" },
   { id: "dt_paytm", name: "Paytm", type: 9, engine: "dtpay", icon: "https://picsum.photos/seed/paytm/32/32" },
   { id: "dt_mobikwik", name: "MobiKwik", type: 2, engine: "dtpay", icon: "https://picsum.photos/seed/mobi/32/32" },
   { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://picsum.photos/seed/fc/32/32" },
   { id: "dt_amazon", name: "Amazon Pay", type: 33, engine: "dtpay", icon: "https://picsum.photos/seed/amz/32/32" },
   // Legacy Engine (RSWallet Pool)
+  { id: "leg_phonepe_biz", name: "PhonePeBusiness", type: 14, engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
   { id: "leg_navi", name: "Navi", type: 13, engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
   { id: "leg_paytm_biz", name: "PaytmBusiness", type: 16, engine: "legacy", icon: "https://picsum.photos/seed/paytmb/32/32" },
   { id: "leg_supermoney", name: "SuperMoney", type: 17, engine: "legacy", icon: "https://picsum.photos/seed/sm/32/32" },
@@ -167,7 +167,7 @@ export default function AutomationDashboard() {
             <div>
               <h1 className="text-3xl font-headline font-black tracking-tighter uppercase">Hybrid Vantage Engine</h1>
               <div className="flex items-center gap-3 mt-1">
-                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[8px] tracking-widest px-3">ULTRA_STEALTH_v18.0_ACTIVE</Badge>
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[8px] tracking-widest px-3">ULTRA_STEALTH_v19.0_ACTIVE</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase">
                   <Activity className="w-3 h-3 text-emerald-500" /> SYSTEM: OPTIMIZED
                 </div>

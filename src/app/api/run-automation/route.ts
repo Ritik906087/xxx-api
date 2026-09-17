@@ -3,10 +3,10 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v18.0 - Strictly Aligned DTPay v1.1.17/21
- * Fixed History Logic: Implemented strict provider matching for DTPay Ledger scans.
- * PhonePe (1, 14) now strictly uses DTPay Engine as requested.
- * RSWallet: Pooled Provisioning Engine Intact for other legacy channels.
+ * @fileOverview Hybrid Engine v19.0 - Strictly Aligned DTPay v1.1.17/21
+ * Fix: Implemented strict walletPhone + Provider filtering to prevent wrong history leakage.
+ * Routing: PhonePe Business (14) shifted back to Legacy (RSWallet) per user request.
+ * RSWallet: Pooled Provisioning Engine Intact.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -160,8 +160,9 @@ export async function POST(request: Request) {
       let type = parseInt(body.channelType);
       const engine = body.engine || "dtpay";
       
-      // Force PhonePe (1, 14) to use DTPay Engine strictly
-      const isDtForced = engine === "dtpay" || [1, 14, 2, 3, 9, 33].includes(type);
+      // Strict Engine Mapping: PhonePe Business (14) forced to Legacy (RSWallet)
+      // PhonePe Fast (1) stays on DTPay
+      const isDtForced = (engine === "dtpay" || [1, 2, 3, 9, 33].includes(type)) && type !== 14;
 
       if (isDtForced) {
         if (type === 33) type = 18; 
@@ -268,6 +269,7 @@ export async function POST(request: Request) {
       let type = parseInt(body.channelType);
       if (type === 33) type = 18; 
       const phone = body.phone;
+      const cleanTargetPhone = String(phone).replace(/\D/g, '').slice(-10);
       
       const listUrl = `${DT_BASE_URL}/upi/list?account=${phone}&ctType=${type}`;
       const listRes = await fetch(listUrl, {
@@ -278,7 +280,6 @@ export async function POST(request: Request) {
       logs.push({ "DTPay_Registry_Lookup": listRes });
 
       if (listRes?.code === 0 && listRes.data?.length > 0) {
-        // Map channel types to provider names for strict matching
         const providerMap: Record<number, string> = {
           1: "PHONEPE",
           2: "MOBIKWIK",
@@ -290,13 +291,13 @@ export async function POST(request: Request) {
         };
         const targetProvider = providerMap[type] || "";
 
-        // STRICT FILTERING: Match by provider name associated with selected ctType
+        // CRITICAL: Strict match by Provider AND WalletPhone to prevent leakage
         const upiRecord = listRes.data.find((item: any) => {
           const providerStr = String(item.provider || "").toUpperCase();
           const targetStr = String(targetProvider).toUpperCase();
+          const itemPhone = String(item.walletPhone || "").replace(/\D/g, '').slice(-10);
           
-          // Must match the selected provider string or the exact ctType
-          return providerStr.includes(targetStr) || item.ctType === type;
+          return providerStr.includes(targetStr) && itemPhone === cleanTargetPhone;
         });
 
         if (upiRecord?.runnerUpiId) {
@@ -320,7 +321,7 @@ export async function POST(request: Request) {
           }
         }
       }
-      return NextResponse.json({ code: 400, message: "No ledger entries for this provider/phone.", logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: "No ledger entries for this specific phone/provider.", logs }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
