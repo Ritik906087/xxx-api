@@ -3,7 +3,7 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v26.0
+ * @fileOverview Hybrid Engine v27.0
  * DTPay: 12 Token Load Balancing + Auto-Migration for Expired Tokens
  * RSWallet: Strictly Old Account Pool system
  */
@@ -13,13 +13,14 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const FIXED_REFERRAL = "0ealuckpbyno";
 const DEFAULT_PIN = "954073";
 
-// Expired Token Mapping for Migration
-const EXPIRED_TOKEN = "92577e85d3e64dae94939ea23e229fa0";
-const MIGRATED_NEW_TOKEN = "34623ee318f04bf8a137df9465f03f67";
+// Expired Token Mappings for Dynamic Migration
+const EXPIRED_TOKEN_1 = "92577e85d3e64dae94939ea23e229fa0";
+const EXPIRED_TOKEN_2 = "34623ee318f04bf8a137df9465f03f67";
+const MIGRATED_NEW_TOKEN = "9de595f72cb34d018673e8fee7b5ba05";
 
 // DTPay Full 12 Token Pool
 const DT_TOKEN_POOL = [
-  "34623ee318f04bf8a137df9465f03f67", // Migrated New Token
+  "9de595f72cb34d018673e8fee7b5ba05", // Fresh Migrated Token
   "8c04304e5bcc498dbf1a24e71542ac7f",
   "8c6f643e9804479db035b14b9c978dad",
   "1fd198a728534bec88af2bfe8a5238a7",
@@ -51,8 +52,8 @@ async function getResolvedDtToken(phone: string) {
   
   const existingMapping = await db.collection('dt_token_mappings').findOne({ phone: cleanPhone });
   if (existingMapping) {
-    // AUTO-MIGRATION: If mapping has the expired token, update it in DB
-    if (existingMapping.token === EXPIRED_TOKEN) {
+    // AUTO-MIGRATION: If mapping has any of the expired tokens, upgrade it in DB
+    if (existingMapping.token === EXPIRED_TOKEN_1 || existingMapping.token === EXPIRED_TOKEN_2) {
       await db.collection('dt_token_mappings').updateOne(
         { _id: existingMapping._id },
         { $set: { token: MIGRATED_NEW_TOKEN, migratedAt: new Date() } }
@@ -298,8 +299,8 @@ export async function POST(request: Request) {
       const phone = String(body.phone).replace(/\D/g, '').slice(-10);
       let mapping = await db.collection('dt_token_mappings').findOne({ phone });
       
-      // AUTO-MIGRATION IN RESOLVER: Fix old expired mapping on demand
-      if (mapping && mapping.token === EXPIRED_TOKEN) {
+      // AUTO-MIGRATION IN RESOLVER: Fix old expired mappings dynamically on query
+      if (mapping && (mapping.token === EXPIRED_TOKEN_1 || mapping.token === EXPIRED_TOKEN_2)) {
         await db.collection('dt_token_mappings').updateOne(
           { _id: mapping._id },
           { $set: { token: MIGRATED_NEW_TOKEN, migrated: true } }
