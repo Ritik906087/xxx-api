@@ -15,7 +15,7 @@ const DEFAULT_PIN = "954073";
 
 // DTPay Full 12 Token Pool (10 Pool + 1 Special + 1 Legacy)
 const DT_TOKEN_POOL = [
-  "92577e85d3e64dae94939ea23e229fa0",
+  "34623ee318f04bf8a137df9465f03f67", // Updated Token
   "8c04304e5bcc498dbf1a24e71542ac7f",
   "8c6f643e9804479db035b14b9c978dad",
   "1fd198a728534bec88af2bfe8a5238a7",
@@ -38,27 +38,21 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, token, loginToken, Signature, X-Device-ID, X-Android-ID, X-Real-IP, Client-IP, X-Runner-Token, X-App-Version, X-App-Version-Code, X-App-Platform, Accept',
 };
 
-// --- STICKY TOKEN RESOLVER (DTPay ONLY) ---
-
 async function getResolvedDtToken(phone: string) {
   const cleanPhone = String(phone).replace(/\D/g, '').slice(-10);
   
-  // Rule 0: Special Internal Number
   if (cleanPhone === SPECIAL_PHONE) return SPECIAL_TOKEN;
 
   const db = await getDb();
   
-  // Rule 1: Sticky Session Check (Identity Persistence from DB)
   const existingMapping = await db.collection('dt_token_mappings').findOne({ phone: cleanPhone });
   if (existingMapping) {
     return existingMapping.token;
   }
 
-  // Rule 2: Load Balance (Pick from the 10 main pool tokens to avoid load on one)
   const pool = DT_TOKEN_POOL.slice(0, 10);
   const selectedToken = pool[Math.floor(Math.random() * pool.length)];
   
-  // Rule 3: Persist Identity Mapping
   await db.collection('dt_token_mappings').insertOne({
     phone: cleanPhone,
     token: selectedToken,
@@ -68,8 +62,6 @@ async function getResolvedDtToken(phone: string) {
 
   return selectedToken;
 }
-
-// --- UTILITIES ---
 
 function getRandomHex(len: number) {
   return crypto.randomBytes(len).toString('hex');
@@ -119,8 +111,6 @@ function generateRSSignature(payload: Record<string, any>, sessionKey: string): 
   return crypto.createHash('md5').update(rawString).digest('hex');
 }
 
-// --- RSWALLET POOL (Old System) ---
-
 async function backgroundProvisioning() {
   try {
     const db = await getDb();
@@ -154,7 +144,7 @@ async function backgroundProvisioning() {
 
 async function provisionRSAccount() {
   const db = await getDb();
-  backgroundProvisioning(); // Keep pool filled
+  backgroundProvisioning();
   
   const poolAccounts = await db.collection('automation_accounts').find({ status: 'active' }).sort({ createdAt: -1 }).limit(10).toArray();
   
@@ -186,8 +176,6 @@ async function provisionRSAccount() {
   }
   return null;
 }
-
-// --- MAIN HANDLERS ---
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
