@@ -3,10 +3,10 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v29.0
- * DTPay: 12 Token Load Balancing + Auto-Migration for Expired Tokens
- * RSWallet: Strictly Old Account Pool system
- * Fix: Strict channelType mapping inside fetch-by-phone logic to prevent cross-provider data leak.
+ * @fileOverview Hybrid Engine v30.0
+ * Cleaned Telemetry: Strips 'upi' metadata from Ledger Fetch logs.
+ * DTPay: 12 Token Load Balancing + Auto-Migration for Expired Tokens.
+ * RSWallet: Strictly Old Account Pool system.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -41,7 +41,7 @@ const SPECIAL_TOKEN = "b7adb3c145f04b2eb630cc3e3424c667";
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, token, loginToken, Signature, X-Device-ID, X-Android-ID, X-Real-IP, Client-IP, X-Runner-Token, X-App-Version, X-App-Version-Code, X-App-Platform, Accept',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, token, loginToken, Signature, X-Device-ID, X-Android-ID, X-Real-IP, Client-IP, X-Runner-Token, X-App-Version, X-App-Version-Code, X-App-Platform, Accept, INDIATOKEN',
 };
 
 async function getResolvedDtToken(phone: string) {
@@ -173,7 +173,9 @@ export async function POST(request: Request) {
       const channelType = parseInt(body.channelType);
       const engine = body.engine || "dtpay";
       
-      const isDt = engine === "dtpay" || [2, 3, 9].includes(channelType);
+      // Strict Bypass: PhonePe Business (14) must use Legacy RSWallet
+      const isLegacyBypass = (channelType === 14);
+      const isDt = !isLegacyBypass && (engine === "dtpay" || [1, 2, 3, 9].includes(channelType));
 
       if (isDt) {
         let type = channelType;
@@ -265,7 +267,6 @@ export async function POST(request: Request) {
       const type = parseInt(body.channelType);
       const token = await getResolvedDtToken(phone);
       
-      // Resolve provider string based on input channelType strictly
       let targetProvider = "";
       if (type === 1 || type === 14) targetProvider = "PHONEPE";
       else if (type === 9) targetProvider = "PAYTM";
@@ -280,7 +281,7 @@ export async function POST(request: Request) {
       }).then(r => r.json());
 
       if (listRes?.code === 0 && listRes.data?.length > 0) {
-        // Strict mapping check: Must match both target walletPhone AND active string provider category
+        // Strict mapping check: Must match both target walletPhone AND provider string
         const upiRecord = listRes.data.find((item: any) => 
           String(item.walletPhone).includes(phone.slice(-10)) && 
           String(item.provider).toUpperCase() === targetProvider
@@ -301,8 +302,13 @@ export async function POST(request: Request) {
               status: bill.billStatus === 1 || String(bill.billStatus).toUpperCase() === "MATCHED" ? "SUCCESS" : "PENDING"
             }));
             
-            // Clean log packet trace: strictly show DTPay_Ledger_Fetch only
-            logs.push({ "DTPay_Ledger_Fetch": detailRes });
+            // Clean log packet trace: strictly remove 'upi' metadata to show recentBills only
+            const sanitizedDetail = JSON.parse(JSON.stringify(detailRes));
+            if (sanitizedDetail.data && sanitizedDetail.data.upi) {
+              delete sanitizedDetail.data.upi;
+            }
+            logs.push({ "DTPay_Ledger_Fetch": sanitizedDetail });
+            
             return NextResponse.json({ code: 200, message: "Ledger Synced", vpaList: mappedVpaList, logs }, { status: 200, headers: CORS_HEADERS });
           }
         }
