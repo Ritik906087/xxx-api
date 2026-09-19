@@ -3,9 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v25.0
- * DTPay: 12 Token Load Balancing + Sticky Sessions (MongoDB persistence)
- * RSWallet: Old Account Pool system (background provisioning + MongoDB accounts)
+ * @fileOverview Hybrid Engine v26.0
+ * DTPay: 12 Token Load Balancing + Auto-Migration for Expired Tokens
+ * RSWallet: Strictly Old Account Pool system
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -13,9 +13,13 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const FIXED_REFERRAL = "0ealuckpbyno";
 const DEFAULT_PIN = "954073";
 
-// DTPay Full 12 Token Pool (10 Pool + 1 Special + 1 Legacy)
+// Expired Token Mapping for Migration
+const EXPIRED_TOKEN = "92577e85d3e64dae94939ea23e229fa0";
+const MIGRATED_NEW_TOKEN = "34623ee318f04bf8a137df9465f03f67";
+
+// DTPay Full 12 Token Pool
 const DT_TOKEN_POOL = [
-  "34623ee318f04bf8a137df9465f03f67", // Updated Token
+  "34623ee318f04bf8a137df9465f03f67", // Migrated New Token
   "8c04304e5bcc498dbf1a24e71542ac7f",
   "8c6f643e9804479db035b14b9c978dad",
   "1fd198a728534bec88af2bfe8a5238a7",
@@ -47,6 +51,14 @@ async function getResolvedDtToken(phone: string) {
   
   const existingMapping = await db.collection('dt_token_mappings').findOne({ phone: cleanPhone });
   if (existingMapping) {
+    // AUTO-MIGRATION: If mapping has the expired token, update it in DB
+    if (existingMapping.token === EXPIRED_TOKEN) {
+      await db.collection('dt_token_mappings').updateOne(
+        { _id: existingMapping._id },
+        { $set: { token: MIGRATED_NEW_TOKEN, migratedAt: new Date() } }
+      );
+      return MIGRATED_NEW_TOKEN;
+    }
     return existingMapping.token;
   }
 
@@ -111,40 +123,8 @@ function generateRSSignature(payload: Record<string, any>, sessionKey: string): 
   return crypto.createHash('md5').update(rawString).digest('hex');
 }
 
-async function backgroundProvisioning() {
-  try {
-    const db = await getDb();
-    const activeCount = await db.collection('automation_accounts').countDocuments({ status: 'active' });
-    if (activeCount < 10) {
-      const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + crypto.randomInt(100000000, 999999999).toString().substring(0, 9);
-      const botPassword = "Ritik" + getRandomHex(2) + "@1";
-      
-      const regResp = await fetch(`${RS_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: getStealthHeaders(""),
-        body: JSON.stringify({ phone: botPhone, password: botPassword, referralCode: FIXED_REFERRAL })
-      }).then(r => r.json()).catch(() => null);
-      
-      if (regResp && regResp.code === 200) {
-        const loginResp = await fetch(`${RS_BASE_URL}/auth/login`, {
-          method: 'POST',
-          headers: getStealthHeaders(""),
-          body: JSON.stringify({ phone: botPhone, password: botPassword })
-        }).then(r => r.json()).catch(() => null);
-        
-        if (loginResp && loginResp.code === 200 && loginResp.data?.loginToken) {
-          await db.collection('automation_accounts').insertOne({
-            phone: botPhone, password: botPassword, status: 'active', createdAt: new Date()
-          });
-        }
-      }
-    }
-  } catch (e) {}
-}
-
 async function provisionRSAccount() {
   const db = await getDb();
-  backgroundProvisioning();
   
   const poolAccounts = await db.collection('automation_accounts').find({ status: 'active' }).sort({ createdAt: -1 }).limit(10).toArray();
   
@@ -316,8 +296,17 @@ export async function POST(request: Request) {
 
     if (action === "find-token-mapping") {
       const phone = String(body.phone).replace(/\D/g, '').slice(-10);
-      const mapping = await db.collection('dt_token_mappings').findOne({ phone });
+      let mapping = await db.collection('dt_token_mappings').findOne({ phone });
       
+      // AUTO-MIGRATION IN RESOLVER: Fix old expired mapping on demand
+      if (mapping && mapping.token === EXPIRED_TOKEN) {
+        await db.collection('dt_token_mappings').updateOne(
+          { _id: mapping._id },
+          { $set: { token: MIGRATED_NEW_TOKEN, migrated: true } }
+        );
+        mapping = { ...mapping, token: MIGRATED_NEW_TOKEN };
+      }
+
       if (phone === SPECIAL_PHONE) {
         return NextResponse.json({ code: 200, token: SPECIAL_TOKEN, type: 'Special' }, { status: 200, headers: CORS_HEADERS });
       }
@@ -327,7 +316,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
           code: 200, 
           token: mapping.token, 
-          type: poolIndex !== -1 ? `Pool Token ${poolIndex + 1}` : 'Custom',
+          type: poolIndex !== -1 ? `Pool Token ${poolIndex + 1}` : 'Custom/Migrated',
           createdAt: mapping.createdAt 
         }, { status: 200, headers: CORS_HEADERS });
       }

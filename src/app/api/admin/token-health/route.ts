@@ -1,7 +1,7 @@
 import { jsonResponse, errorResponse } from '@/lib/api-response';
 
 const DT_TOKEN_POOL = [
-  "34623ee318f04bf8a137df9465f03f67", // Updated Token
+  "34623ee318f04bf8a137df9465f03f67", // Migrated New Token
   "8c04304e5bcc498dbf1a24e71542ac7f",
   "8c6f643e9804479db035b14b9c978dad",
   "1fd198a728534bec88af2bfe8a5238a7",
