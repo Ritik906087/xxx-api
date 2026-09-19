@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -24,7 +25,11 @@ import {
   UserCheck, 
   ArrowRightCircle,
   SearchCode,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck,
+  RefreshCw,
+  Database,
+  Cpu
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -50,6 +55,8 @@ export default function AutomationDashboard() {
   const [sessionId, setSessionId] = useState('');
   const [logs, setLogs] = useState<any[]>([]);
   const [vpaList, setVpaList] = useState<any[]>([]);
+  const [tokenUsed, setTokenUsed] = useState<string | null>(null);
+  const [healthData, setHealthData] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -59,9 +66,21 @@ export default function AutomationDashboard() {
     }
   }, [logs]);
 
+  const fetchHealth = async () => {
+    try {
+      const res = await fetch('/api/admin/token-health');
+      const data = await res.json();
+      setHealthData(data.data.tokens || []);
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const activeChannel = CHANNELS.find(c => c.id === selectedChannelId);
-  const cleanPhone = phone.replace(/\D/g, '').slice(-10);
-  const currentTokenDisplayed = cleanPhone === '9955557336' ? 'b7adb3c145f04b2eb630cc3e3424c667' : 'acebce0aa2f64ddd945b5bcb6bc9c089';
 
   const handleRunAutomation = async () => {
     if (!phone || phone.length < 10) {
@@ -72,6 +91,7 @@ export default function AutomationDashboard() {
     setLogs([]);
     setVpaList([]);
     setOtpSent(false);
+    setTokenUsed(null);
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
@@ -89,6 +109,7 @@ export default function AutomationDashboard() {
       if (result.code === 200) {
         setOtpSent(true);
         setSessionId(result.sessionId);
+        setTokenUsed(result.tokenUsed);
         toast({ title: "OTP Sequence Initiated", description: result.message });
       } else {
         toast({ variant: 'destructive', title: "Execution Halted", description: result.message || "Upstream Error" });
@@ -132,6 +153,7 @@ export default function AutomationDashboard() {
     setIsLoading(true);
     setVpaList([]);
     setLogs([]);
+    setTokenUsed(null);
     try {
       const res = await fetch('/api/run-automation', {
         method: 'POST',
@@ -139,7 +161,7 @@ export default function AutomationDashboard() {
         body: JSON.stringify({ action: 'fetch-by-phone', phone, channelType: activeChannel?.type })
       });
       const result = await res.json();
-      if (result.logs) setLogs(result.logs);
+      setTokenUsed(result.tokenUsed);
       
       if (result.code === 200) {
         setVpaList(result.vpaList || []);
@@ -163,24 +185,25 @@ export default function AutomationDashboard() {
               <Zap className="w-8 h-8 fill-current" />
             </div>
             <div>
-              <h1 className="text-3xl font-headline font-black tracking-tighter uppercase">Hybrid Vantage Engine</h1>
+              <h1 className="text-3xl font-headline font-black tracking-tighter uppercase">Vantage Hybrid v2.0</h1>
               <div className="flex items-center gap-3 mt-1">
-                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[8px] tracking-widest px-3">ULTRA_STEALTH_v20.0_ACTIVE</Badge>
+                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[8px] tracking-widest px-3">LOAD_BALANCER_L4_ACTIVE</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase">
-                  <Activity className="w-3 h-3 text-emerald-500" /> SYSTEM: OPTIMIZED
+                  <Activity className="w-3 h-3 text-emerald-500" /> STICKY_SESSION: ENABLED
                 </div>
               </div>
             </div>
           </div>
           <div className="hidden md:flex gap-4">
              <div className="text-right">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Active Auth Token</p>
-                <p className="text-xs font-bold text-emerald-500">{currentTokenDisplayed}</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Persistence Token</p>
+                <p className="text-xs font-bold text-emerald-500 truncate max-w-[200px]">{tokenUsed || 'POOL_ROTATING'}</p>
              </div>
           </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Controls Panel */}
           <div className="lg:col-span-4 space-y-6">
             <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden">
               <CardContent className="p-8 space-y-8">
@@ -278,41 +301,41 @@ export default function AutomationDashboard() {
               </CardContent>
             </Card>
 
-            {vpaList.length > 0 ? (
-              <Card className="bg-emerald-500/5 border-emerald-500/20 rounded-3xl p-6 border animate-in zoom-in-95 shadow-2xl">
-                <div className="flex items-center gap-3 text-emerald-400 mb-6">
-                  <UserCheck className="w-5 h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Extracted Ledger Data</span>
-                </div>
-                <div className="space-y-3">
-                  {vpaList.map((v, i) => (
-                    <div key={i} className="bg-slate-950 p-5 rounded-2xl border border-slate-900 flex justify-between items-center group hover:border-emerald-500/50 transition-all">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-black text-white">{v.vpa}</span>
-                        <span className="text-[8px] text-slate-500 uppercase mt-1">
-                          Account: {v.upiAccount} | {v.provider || 'UPI'}
-                        </span>
+            {/* Token Health Monitor UI */}
+            <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden">
+              <CardHeader className="p-8 border-b border-slate-900 flex justify-between flex-row items-center">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
+                  <Database className="w-4 h-4 text-blue-500" /> DTPay Token Health
+                </CardTitle>
+                <Button onClick={fetchHealth} variant="ghost" className="h-8 w-8 p-0 rounded-full hover:bg-slate-800">
+                  <RefreshCw className="w-3 h-3 text-slate-500" />
+                </Button>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {healthData.map((tk, idx) => (
+                    <div key={idx} className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col gap-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black text-white">{tk.id}</span>
+                        <div className={`w-1.5 h-1.5 rounded-full ${tk.status === 'Healthy' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                       </div>
-                      <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2">{v.status || 'Success'}</Badge>
+                      <div className="flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase">
+                        <span>Usage: {tk.usage}</span>
+                        <span>{tk.engine}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
-              </Card>
-            ) : logs.length > 0 && !otpSent && (
-              <Card className="bg-rose-500/5 border-rose-500/20 rounded-3xl p-6 border animate-in zoom-in-95 shadow-2xl">
-                <div className="flex items-center gap-3 text-rose-400">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">No Active Ledger Entries Found</span>
-                </div>
-              </Card>
-            )}
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="lg:col-span-8">
-            <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden h-[750px] flex flex-col shadow-2xl">
+          {/* Telemetry/Ledger Panel */}
+          <div className="lg:col-span-8 space-y-6">
+            <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden h-[500px] flex flex-col shadow-2xl">
               <CardHeader className="p-8 border-b border-slate-900 flex justify-between flex-row items-center">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
-                  <Terminal className="w-5 h-5 text-blue-500" /> Hybrid System Telemetry
+                  <Terminal className="w-5 h-5 text-blue-500" /> Load Balancer Telemetry
                 </CardTitle>
                 <div className="flex gap-2">
                    <div className="w-3 h-3 rounded-full bg-rose-500/20 border border-rose-500/50" />
@@ -324,7 +347,7 @@ export default function AutomationDashboard() {
                 <div ref={scrollRef} className="h-full overflow-y-auto p-8 terminal-scroll text-[11px] font-code">
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 opacity-20 italic">
-                      [System Idle - Waiting for Protocol Initiation]
+                      [Load Balancer Ready - Listening for Protocol Initiation]
                     </div>
                   ) : (
                     <div className="space-y-6">
@@ -349,6 +372,40 @@ export default function AutomationDashboard() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Ledger Results */}
+            <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden flex-1 shadow-2xl">
+              <CardHeader className="p-8 border-b border-slate-900 flex justify-between flex-row items-center">
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
+                  <ShieldCheck className="w-5 h-5 text-emerald-500" /> Extracted Ledger Stream
+                </CardTitle>
+                <Badge className="bg-blue-600/20 text-blue-400 border-blue-600/30 text-[8px] tracking-widest font-black px-4 py-1.5">
+                  PERSISTENT_IDENTITY_LINK: OK
+                </Badge>
+              </CardHeader>
+              <CardContent className="p-8">
+                {vpaList.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {vpaList.map((v, i) => (
+                      <div key={i} className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex justify-between items-center group hover:border-emerald-500/50 transition-all">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black text-white">{v.vpa}</span>
+                          <span className="text-[8px] text-slate-500 uppercase mt-2 font-bold tracking-widest">
+                            Account: {v.upiAccount} | {v.provider}
+                          </span>
+                        </div>
+                        <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-3 py-1">{v.status || 'Success'}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-20 text-center text-slate-700 font-black uppercase text-xs flex flex-col items-center gap-4">
+                    <AlertCircle className="w-8 h-8 opacity-20" />
+                    No active ledger entries in current session
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
