@@ -1,11 +1,10 @@
-
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v21.0 - Multi-Token Load Balancing & Persistence
- * Implements sticky token routing for DTPay and 24/7 RSWallet Pooling.
+ * @fileOverview Hybrid Engine v22.0 - Multi-Token Load Balancing & Persistent Identity
+ * Handles 12 tokens with sticky session routing for 100% data consistency.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -13,7 +12,7 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const FIXED_REFERRAL = "0ealuckpbyno";
 const DEFAULT_PIN = "954073";
 
-// DTPay Multi-Token Pool (10 Tokens)
+// DTPay Multi-Token Pool (11 Distributed + 1 Special)
 const DT_TOKEN_POOL = [
   "92577e85d3e64dae94939ea23e229fa0",
   "8c04304e5bcc498dbf1a24e71542ac7f",
@@ -24,7 +23,8 @@ const DT_TOKEN_POOL = [
   "282ed000eaee4a0bbb36aad00a406126",
   "3a03a6378fba45219e240ecc0b05b1ad",
   "5de8234504e643cdba794b17017e363a",
-  "11e16fb100e2411aacd3146c118eb7df"
+  "11e16fb100e2411aacd3146c118eb7df",
+  "acebce0aa2f64ddd945b5bcb6bc9c089" // Added legacy to pool for load distribution
 ];
 
 const SPECIAL_PHONE = "9955557336";
@@ -36,7 +36,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, token, loginToken, Signature, X-Device-ID, X-Android-ID, X-Real-IP, Client-IP, X-Runner-Token, X-App-Version, X-App-Version-Code, X-App-Platform, Accept',
 };
 
-// --- CORE TOKEN RESOLVER ---
+// --- STICKY TOKEN RESOLVER ---
 
 async function getResolvedDtToken(phone: string) {
   const cleanPhone = String(phone).replace(/\D/g, '').slice(-10);
@@ -46,10 +46,9 @@ async function getResolvedDtToken(phone: string) {
 
   const db = await getDb();
   
-  // Rule 1: Sticky Session Check (Persistence)
+  // Rule 1: Sticky Session Check (Identity Persistence)
   const existingMapping = await db.collection('dt_token_mappings').findOne({ phone: cleanPhone });
   if (existingMapping) {
-    // Update last used timestamp
     await db.collection('dt_token_mappings').updateOne(
       { phone: cleanPhone },
       { $set: { lastUsed: new Date() } }
@@ -60,7 +59,7 @@ async function getResolvedDtToken(phone: string) {
   // Rule 2: Load Balance (Pick Randomly from Pool)
   const selectedToken = DT_TOKEN_POOL[Math.floor(Math.random() * DT_TOKEN_POOL.length)];
   
-  // Rule 3: Save Mapping
+  // Rule 3: Persist Identity Mapping
   await db.collection('dt_token_mappings').insertOne({
     phone: cleanPhone,
     token: selectedToken,
@@ -121,13 +120,13 @@ function generateRSSignature(payload: Record<string, any>, sessionKey: string): 
   return crypto.createHash('md5').update(rawString).digest('hex');
 }
 
-// --- RSWALLET POOL & PROVISIONING ---
+// --- RSWALLET POOL ---
 
 async function backgroundProvisioning() {
   try {
     const db = await getDb();
     const activeCount = await db.collection('automation_accounts').countDocuments({ status: 'active' });
-    if (activeCount < 15) {
+    if (activeCount < 10) {
       const botPhone = ["6", "7", "8", "9"][Math.floor(Math.random() * 4)] + crypto.randomInt(100000000, 999999999).toString().substring(0, 9);
       const botPassword = "Ritik" + getRandomHex(2) + "@1";
       

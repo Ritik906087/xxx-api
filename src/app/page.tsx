@@ -27,7 +27,7 @@ import {
   ShieldCheck,
   RefreshCw,
   Database,
-  Check
+  ShieldAlert
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -71,7 +71,9 @@ export default function AutomationDashboard() {
       if (data && data.data) {
         setHealthData(data.data.tokens || []);
       }
-    } catch (e) {}
+    } catch (e) {
+      toast({ variant: "destructive", title: "Health Registry Unavailable" });
+    }
   };
 
   const handleCheckIndividualToken = async (tokenString: string) => {
@@ -90,11 +92,11 @@ export default function AutomationDashboard() {
       }));
 
       toast({
-        title: "Live Token Tested",
+        title: "Live Token Test Complete",
         description: `Token returned status: ${liveStatus}`
       });
     } catch (err) {
-      toast({ variant: "destructive", title: "Testing Fault" });
+      toast({ variant: "destructive", title: "Verification Fault" });
     } finally {
       setCheckingTokenId(null);
     }
@@ -230,7 +232,7 @@ export default function AutomationDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Controls Panel */}
           <div className="lg:col-span-5 space-y-6">
-            <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden">
+            <Card className="bg-slate-900/50 border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden">
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-3">
                   <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Select Channel</label>
@@ -342,7 +344,7 @@ export default function AutomationDashboard() {
                     <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between transition-all hover:border-slate-700">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[10px] font-black text-slate-300 tracking-wider font-mono">{tk.shortId}</span>
-                        <span className="text-[8px] font-bold text-slate-500 uppercase">Usage Mappings: {tk.usage}</span>
+                        <span className="text-[8px] font-bold text-slate-500 uppercase">Usage: {tk.usage} Mappings</span>
                       </div>
                       
                       <div className="flex items-center gap-3">
@@ -357,7 +359,7 @@ export default function AutomationDashboard() {
                           size="sm" 
                           onClick={() => handleCheckIndividualToken(tk.id)} 
                           disabled={checkingTokenId !== null}
-                          className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-wider rounded-lg"
+                          className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-wider rounded-lg transition-all active:scale-95"
                         >
                           {checkingTokenId === tk.id ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : "Check"}
                         </Button>
