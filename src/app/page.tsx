@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -22,14 +21,13 @@ import {
   Smartphone, 
   CheckCircle2, 
   KeyRound, 
-  UserCheck, 
   ArrowRightCircle,
   SearchCode,
   AlertCircle,
   ShieldCheck,
   RefreshCw,
   Database,
-  Cpu
+  Check
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -40,7 +38,6 @@ const CHANNELS = [
   { id: "dt_freecharge", name: "Freecharge", type: 3, engine: "dtpay", icon: "https://picsum.photos/seed/fc/32/32" },
   { id: "leg_phonepe_biz", name: "PhonePeBusiness", type: 14, engine: "legacy", icon: "https://picsum.photos/seed/ppb/32/32" },
   { id: "leg_navi", name: "Navi", type: 13, engine: "legacy", icon: "https://download.keyspay.xyz/img/navi/navi_1.webp" },
-  { id: "leg_paytm_biz", name: "PaytmBusiness", type: 16, engine: "legacy", icon: "https://picsum.photos/seed/paytmb/32/32" },
   { id: "leg_supermoney", name: "SuperMoney", type: 17, engine: "legacy", icon: "https://picsum.photos/seed/sm/32/32" },
   { id: "leg_bharatpe_biz", name: "BharatPeBusiness", type: 18, engine: "legacy", icon: "https://picsum.photos/seed/bp/32/32" },
 ];
@@ -57,6 +54,7 @@ export default function AutomationDashboard() {
   const [vpaList, setVpaList] = useState<any[]>([]);
   const [tokenUsed, setTokenUsed] = useState<string | null>(null);
   const [healthData, setHealthData] = useState<any[]>([]);
+  const [checkingTokenId, setCheckingTokenId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -70,14 +68,40 @@ export default function AutomationDashboard() {
     try {
       const res = await fetch('/api/admin/token-health');
       const data = await res.json();
-      setHealthData(data.data.tokens || []);
+      if (data && data.data) {
+        setHealthData(data.data.tokens || []);
+      }
     } catch (e) {}
+  };
+
+  const handleCheckIndividualToken = async (tokenString: string) => {
+    setCheckingTokenId(tokenString);
+    try {
+      const res = await fetch(`/api/admin/token-health?checkToken=${tokenString}`);
+      const data = await res.json();
+      
+      const liveStatus = data?.data?.status || "404 Error";
+      
+      setHealthData(prev => prev.map(tk => {
+        if (tk.id === tokenString) {
+          return { ...tk, status: liveStatus };
+        }
+        return tk;
+      }));
+
+      toast({
+        title: "Live Token Tested",
+        description: `Token returned status: ${liveStatus}`
+      });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Testing Fault" });
+    } finally {
+      setCheckingTokenId(null);
+    }
   };
 
   useEffect(() => {
     fetchHealth();
-    const interval = setInterval(fetchHealth, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   const activeChannel = CHANNELS.find(c => c.id === selectedChannelId);
@@ -162,6 +186,7 @@ export default function AutomationDashboard() {
       });
       const result = await res.json();
       setTokenUsed(result.tokenUsed);
+      if (result.logs) setLogs(result.logs);
       
       if (result.code === 200) {
         setVpaList(result.vpaList || []);
@@ -181,7 +206,7 @@ export default function AutomationDashboard() {
       <div className="max-w-7xl mx-auto space-y-8">
         <header className="flex items-center justify-between border-b border-slate-800 pb-8">
           <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-600/30 rotate-3 transition-transform hover:rotate-0">
+            <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-600/30 rotate-3">
               <Zap className="w-8 h-8 fill-current" />
             </div>
             <div>
@@ -189,28 +214,28 @@ export default function AutomationDashboard() {
               <div className="flex items-center gap-3 mt-1">
                 <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[8px] tracking-widest px-3">LOAD_BALANCER_L4_ACTIVE</Badge>
                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase">
-                  <Activity className="w-3 h-3 text-emerald-500" /> STICKY_SESSION: ENABLED
+                  <Activity className="w-3 h-3 text-emerald-500" /> STICKY_SESSION: ACTIVE
                 </div>
               </div>
             </div>
           </div>
           <div className="hidden md:flex gap-4">
              <div className="text-right">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Persistence Token</p>
-                <p className="text-xs font-bold text-emerald-500 truncate max-w-[200px]">{tokenUsed || 'POOL_ROTATING'}</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Active Request Token</p>
+                <p className="text-xs font-bold text-emerald-500 truncate max-w-[220px]">{tokenUsed || 'POOL_ROTATING_BALANCER'}</p>
              </div>
           </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Controls Panel */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="lg:col-span-5 space-y-6">
             <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden">
               <CardContent className="p-8 space-y-8">
                 <div className="space-y-3">
                   <label className="text-[10px] uppercase font-black text-slate-600 tracking-widest ml-1">Select Channel</label>
                   <Select value={selectedChannelId} onValueChange={setSelectedChannelId}>
-                    <SelectTrigger className="bg-slate-950 border-slate-800 h-14 rounded-2xl font-bold transition-all focus:ring-blue-600">
+                    <SelectTrigger className="bg-slate-950 border-slate-800 h-14 rounded-2xl font-bold focus:ring-blue-600">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800 text-slate-300">
@@ -234,7 +259,7 @@ export default function AutomationDashboard() {
                       value={phone} 
                       onChange={(e) => setPhone(e.target.value)} 
                       placeholder="10-digit number" 
-                      className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl font-black text-lg pl-6 focus:ring-blue-600 transition-all" 
+                      className="bg-slate-950 border-slate-800 text-blue-400 h-16 rounded-2xl font-black text-lg pl-6 focus:ring-blue-600" 
                     />
                     <Smartphone className="absolute right-6 top-5 w-5 h-5 text-slate-700" />
                   </div>
@@ -261,7 +286,7 @@ export default function AutomationDashboard() {
                       <Button 
                         onClick={handleRunAutomation} 
                         disabled={isLoading} 
-                        className="h-16 rounded-2xl bg-blue-600 hover:bg-blue-700 font-black uppercase text-[12px] tracking-widest shadow-xl shadow-blue-600/20 transition-all active:scale-95"
+                        className="h-16 rounded-2xl bg-blue-600 hover:bg-blue-700 font-black uppercase text-[12px] tracking-widest shadow-xl shadow-blue-600/20"
                       >
                         {isLoading ? <Loader2 className="animate-spin" /> : (
                           <div className="flex items-center gap-3">
@@ -276,7 +301,7 @@ export default function AutomationDashboard() {
                           onClick={handleHistoryCheck} 
                           disabled={isLoading} 
                           variant="outline"
-                          className="h-16 rounded-2xl border-slate-800 bg-slate-950 hover:bg-slate-900 font-black uppercase text-[10px] tracking-widest text-emerald-500 transition-all flex gap-3 shadow-lg shadow-emerald-500/5"
+                          className="h-16 rounded-2xl border-slate-800 bg-slate-950 hover:bg-slate-900 font-black uppercase text-[10px] tracking-widest text-emerald-500 flex gap-3 shadow-lg shadow-emerald-500/5"
                         >
                           <SearchCode className="w-4 h-4" />
                           Scan Direct History
@@ -287,7 +312,7 @@ export default function AutomationDashboard() {
                     <Button 
                       onClick={handleVerifyOtp} 
                       disabled={isVerifying} 
-                      className="w-full h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-black uppercase text-xs shadow-xl shadow-emerald-600/20 transition-all active:scale-95 flex gap-3"
+                      className="w-full h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-black uppercase text-xs shadow-xl shadow-emerald-600/20 flex gap-3"
                     >
                       {isVerifying ? <Loader2 className="animate-spin" /> : (
                         <>
@@ -301,27 +326,41 @@ export default function AutomationDashboard() {
               </CardContent>
             </Card>
 
-            {/* Token Health Monitor UI */}
+            {/* Token Health Monitor UI Panel with Individual Check Buttons */}
             <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden">
-              <CardHeader className="p-8 border-b border-slate-900 flex justify-between flex-row items-center">
+              <CardHeader className="p-6 border-b border-slate-900 flex justify-between flex-row items-center">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
-                  <Database className="w-4 h-4 text-blue-500" /> DTPay Token Health
+                  <Database className="w-4 h-4 text-blue-500" /> DTPay Pool Load health
                 </CardTitle>
                 <Button onClick={fetchHealth} variant="ghost" className="h-8 w-8 p-0 rounded-full hover:bg-slate-800">
                   <RefreshCw className="w-3 h-3 text-slate-500" />
                 </Button>
               </CardHeader>
-              <CardContent className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+              <CardContent className="p-4 space-y-3 max-h-[350px] overflow-y-auto terminal-scroll">
+                <div className="space-y-2">
                   {healthData.map((tk, idx) => (
-                    <div key={idx} className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col gap-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black text-white">{tk.id}</span>
-                        <div className={`w-1.5 h-1.5 rounded-full ${tk.status === 'Healthy' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between transition-all hover:border-slate-700">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-black text-slate-300 tracking-wider font-mono">{tk.shortId}</span>
+                        <span className="text-[8px] font-bold text-slate-500 uppercase">Usage Mappings: {tk.usage}</span>
                       </div>
-                      <div className="flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase">
-                        <span>Usage: {tk.usage}</span>
-                        <span>{tk.engine}</span>
+                      
+                      <div className="flex items-center gap-3">
+                        <Badge className={`text-[8px] font-black px-2 py-0.5 ${
+                          tk.status === '200 OK' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                          tk.status === '404 Error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 
+                          'bg-slate-800 text-slate-400'
+                        }`}>
+                          {tk.status}
+                        </Badge>
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleCheckIndividualToken(tk.id)} 
+                          disabled={checkingTokenId !== null}
+                          className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-wider rounded-lg"
+                        >
+                          {checkingTokenId === tk.id ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : "Check"}
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -331,39 +370,31 @@ export default function AutomationDashboard() {
           </div>
 
           {/* Telemetry/Ledger Panel */}
-          <div className="lg:col-span-8 space-y-6">
-            <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden h-[500px] flex flex-col shadow-2xl">
-              <CardHeader className="p-8 border-b border-slate-900 flex justify-between flex-row items-center">
+          <div className="lg:col-span-7 space-y-6">
+            <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden h-[380px] flex flex-col shadow-2xl">
+              <CardHeader className="p-6 border-b border-slate-900 flex justify-between flex-row items-center">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
-                  <Terminal className="w-5 h-5 text-blue-500" /> Load Balancer Telemetry
+                  <Terminal className="w-5 h-5 text-blue-500" /> Active System Telemetry
                 </CardTitle>
-                <div className="flex gap-2">
-                   <div className="w-3 h-3 rounded-full bg-rose-500/20 border border-rose-500/50" />
-                   <div className="w-3 h-3 rounded-full bg-amber-500/20 border border-amber-500/50" />
-                   <div className="w-3 h-3 rounded-full bg-emerald-500/20 border border-emerald-500/50" />
-                </div>
               </CardHeader>
               <CardContent className="flex-1 overflow-hidden">
-                <div ref={scrollRef} className="h-full overflow-y-auto p-8 terminal-scroll text-[11px] font-code">
+                <div ref={scrollRef} className="h-full overflow-y-auto p-6 terminal-scroll text-[11px] font-code">
                   {logs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-800 opacity-20 italic">
-                      [Load Balancer Ready - Listening for Protocol Initiation]
+                      [System Listening - Run Actions or Scan Ledger to Stream Response Packet]
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {logs.map((log, idx) => {
                         const step = Object.keys(log)[0];
                         const data = log[step];
                         return (
-                          <div key={idx} className="border-l border-slate-800 pl-6 relative">
-                            <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] bg-slate-800 rounded-full" />
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="text-blue-400 font-black uppercase tracking-wider">{step}</span>
-                              <Badge variant="outline" className="text-[7px] border-slate-800 text-slate-500">
-                                {new Date().toLocaleTimeString()}
-                              </Badge>
+                          <div key={idx} className="border-l border-slate-800 pl-4 relative">
+                            <div className="absolute -left-[3.5px] top-1 w-[7px] h-[7px] bg-blue-500 rounded-full" />
+                            <div className="flex items-center gap-3 mb-1">
+                              <span className="text-blue-400 font-black uppercase tracking-wider text-[10px]">{step}</span>
                             </div>
-                            <pre className="text-slate-500 bg-slate-950/50 p-5 rounded-2xl border border-slate-900 overflow-x-auto terminal-scroll">
+                            <pre className="text-slate-400 bg-slate-950 p-4 rounded-xl border border-slate-900 overflow-x-auto terminal-scroll text-[10px]">
                               {JSON.stringify(data, null, 2)}
                             </pre>
                           </div>
@@ -377,33 +408,30 @@ export default function AutomationDashboard() {
 
             {/* Ledger Results */}
             <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden flex-1 shadow-2xl">
-              <CardHeader className="p-8 border-b border-slate-900 flex justify-between flex-row items-center">
+              <CardHeader className="p-6 border-b border-slate-900 flex justify-between flex-row items-center">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
-                  <ShieldCheck className="w-5 h-5 text-emerald-500" /> Extracted Ledger Stream
+                  <ShieldCheck className="w-5 h-5 text-emerald-500" /> Filtered Extracted Ledger Stream
                 </CardTitle>
-                <Badge className="bg-blue-600/20 text-blue-400 border-blue-600/30 text-[8px] tracking-widest font-black px-4 py-1.5">
-                  PERSISTENT_IDENTITY_LINK: OK
-                </Badge>
               </CardHeader>
-              <CardContent className="p-8">
+              <CardContent className="p-6">
                 {vpaList.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {vpaList.map((v, i) => (
-                      <div key={i} className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex justify-between items-center group hover:border-emerald-500/50 transition-all">
+                      <div key={i} className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 flex justify-between items-center group hover:border-emerald-500/50 transition-all">
                         <div className="flex flex-col">
-                          <span className="text-xs font-black text-white">{v.vpa}</span>
-                          <span className="text-[8px] text-slate-500 uppercase mt-2 font-bold tracking-widest">
-                            Account: {v.upiAccount} | {v.provider}
+                          <span className="text-xs font-black text-white font-mono">{v.vpa}</span>
+                          <span className="text-[8px] text-slate-500 uppercase mt-1 font-bold tracking-widest">
+                            VPA: {v.upiAccount} | {v.provider}
                           </span>
                         </div>
-                        <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-3 py-1">{v.status || 'Success'}</Badge>
+                        <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5">{v.status || 'Success'}</Badge>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="py-20 text-center text-slate-700 font-black uppercase text-xs flex flex-col items-center gap-4">
-                    <AlertCircle className="w-8 h-8 opacity-20" />
-                    No active ledger entries in current session
+                  <div className="py-12 text-center text-slate-700 font-black uppercase text-xs flex flex-col items-center gap-3">
+                    <AlertCircle className="w-6 h-6 opacity-20" />
+                    No Active Ledger Entries Found
                   </div>
                 )}
               </CardContent>
