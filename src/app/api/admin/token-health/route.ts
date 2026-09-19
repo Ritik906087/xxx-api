@@ -1,7 +1,5 @@
 import { jsonResponse, errorResponse } from '@/lib/api-response';
-import { getDb } from '@/lib/mongodb';
 
-// Full 12 Token Pool as requested
 const DT_TOKEN_POOL = [
   "92577e85d3e64dae94939ea23e229fa0",
   "8c04304e5bcc498dbf1a24e71542ac7f",
@@ -13,8 +11,8 @@ const DT_TOKEN_POOL = [
   "3a03a6378fba45219e240ecc0b05b1ad",
   "5de8234504e643cdba794b17017e363a",
   "11e16fb100e2411aacd3146c118eb7df",
-  "b7adb3c145f04b2eb630cc3e3424c667",
-  "acebce0aa2f64ddd945b5bcb6bc9c089"
+  "b7adb3c145f04b2eb630cc3e3424c667", // Special Token
+  "acebce0aa2f64ddd945b5bcb6bc9c089"  // Legacy Static
 ];
 
 export async function GET(request: Request) {
@@ -22,10 +20,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const checkToken = searchParams.get('checkToken');
 
-    // Live Individual Token Validation Mode
     if (checkToken) {
       try {
-        // Test with a lightweight request to verify status
         const testUrl = `https://dtpay.app/runner-api/runner/api/v1/upi/list?account=9955557336&ctType=1`;
         const testRes = await fetch(testUrl, {
           method: 'GET',
@@ -39,8 +35,6 @@ export async function GET(request: Request) {
         });
 
         const data = await testRes.json().catch(() => null);
-        
-        // Logical check for 200 OK vs 404/Error
         const isHealthy = data && (data.code === 0 || data.ok === true) && testRes.status === 200;
         
         return jsonResponse({ 
@@ -52,31 +46,24 @@ export async function GET(request: Request) {
       }
     }
 
-    // Default Token Pool Status Summary Mode
-    const db = await getDb();
-    const healthData = [];
+    const healthData = DT_TOKEN_POOL.map((token, index) => {
+      let label = `Pool Token ${index + 1}`;
+      if (token === "b7adb3c145f04b2eb630cc3e3424c667") label = "Special (9955557336)";
+      if (token === "acebce0aa2f64ddd945b5bcb6bc9c089") label = "Legacy Static";
 
-    for (const token of DT_TOKEN_POOL) {
-      const usageCount = await db.collection('dt_token_mappings').countDocuments({ token });
-      
-      let engineLabel = "DTPay Pool";
-      if (token === "b7adb3c145f04b2eb630cc3e3424c667") engineLabel = "Special (9955557336)";
-      if (token === "acebce0aa2f64ddd945b5bcb6bc9c089") engineLabel = "Legacy Static";
-
-      healthData.push({
+      return {
         id: token,
         shortId: token.substring(0, 8) + '...',
-        usage: usageCount,
         status: 'Unchecked',
-        engine: engineLabel
-      });
-    }
+        engine: label
+      };
+    });
 
     return jsonResponse({
       tokens: healthData,
       timestamp: new Date().toISOString()
     });
   } catch (e: any) {
-    return errorResponse('Health Registry Fault', 500);
+    return errorResponse('Health Fault', 500);
   }
 }
