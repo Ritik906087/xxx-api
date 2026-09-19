@@ -3,9 +3,10 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v27.0
+ * @fileOverview Hybrid Engine v29.0
  * DTPay: 12 Token Load Balancing + Auto-Migration for Expired Tokens
  * RSWallet: Strictly Old Account Pool system
+ * Fix: Strict channelType mapping inside fetch-by-phone logic to prevent cross-provider data leak.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -52,8 +53,7 @@ async function getResolvedDtToken(phone: string) {
   
   const existingMapping = await db.collection('dt_token_mappings').findOne({ phone: cleanPhone });
   if (existingMapping) {
-    // AUTO-MIGRATION: If mapping has any of the expired tokens, upgrade it in DB
-    if (existingMapping.token === EXPIRED_TOKEN_1 || existingMapping.token === EXPIRED_TOKEN_2) {
+    if (existingMapping.token === EXPIRED_TOKEN_1 || existingMapping.token === EXPIRED_TOKEN_2 || existingMapping.token === "34623ee318f04bf8a137df9465f03f67") {
       await db.collection('dt_token_mappings').updateOne(
         { _id: existingMapping._id },
         { $set: { token: MIGRATED_NEW_TOKEN, migratedAt: new Date() } }
@@ -126,7 +126,6 @@ function generateRSSignature(payload: Record<string, any>, sessionKey: string): 
 
 async function provisionRSAccount() {
   const db = await getDb();
-  
   const poolAccounts = await db.collection('automation_accounts').find({ status: 'active' }).sort({ createdAt: -1 }).limit(10).toArray();
   
   for (const acc of poolAccounts) {
@@ -266,6 +265,14 @@ export async function POST(request: Request) {
       const type = parseInt(body.channelType);
       const token = await getResolvedDtToken(phone);
       
+      // Resolve provider string based on input channelType strictly
+      let targetProvider = "";
+      if (type === 1 || type === 14) targetProvider = "PHONEPE";
+      else if (type === 9) targetProvider = "PAYTM";
+      else if (type === 2) targetProvider = "MOBIKWIK";
+      else if (type === 3) targetProvider = "FREECHARGE";
+      else if (type === 18) targetProvider = "BHARATPE";
+
       const listUrl = `${DT_BASE_URL}/upi/list?account=${phone}&ctType=${type}`;
       const listRes = await fetch(listUrl, {
         method: 'GET',
@@ -273,7 +280,12 @@ export async function POST(request: Request) {
       }).then(r => r.json());
 
       if (listRes?.code === 0 && listRes.data?.length > 0) {
-        const upiRecord = listRes.data.find((item: any) => String(item.walletPhone).includes(phone.slice(-10)));
+        // Strict mapping check: Must match both target walletPhone AND active string provider category
+        const upiRecord = listRes.data.find((item: any) => 
+          String(item.walletPhone).includes(phone.slice(-10)) && 
+          String(item.provider).toUpperCase() === targetProvider
+        );
+
         if (upiRecord?.runnerUpiId) {
           const detailUrl = `${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=5`;
           const detailRes = await fetch(detailUrl, {
@@ -284,23 +296,25 @@ export async function POST(request: Request) {
           if (detailRes?.code === 0 && detailRes.data) {
             const mappedVpaList = (detailRes.data.recentBills || []).map((bill: any) => ({
               vpa: `UTR: ${bill.utr} | Amount: ₹${bill.amount}`,
-              upiAccount: detailRes.data.upi?.upiAccount || phone,
+              upiAccount: detailRes.data.upi?.upiAccount || upiRecord.upiAccount || phone,
               provider: bill.provider || upiRecord.provider,
-              status: bill.billStatus === 1 ? "SUCCESS" : "PENDING"
+              status: bill.billStatus === 1 || String(bill.billStatus).toUpperCase() === "MATCHED" ? "SUCCESS" : "PENDING"
             }));
-            return NextResponse.json({ code: 200, message: "Ledger Synced", vpaList: mappedVpaList, logs: [{ "DTPay_Ledger_Fetch": detailRes }] }, { status: 200, headers: CORS_HEADERS });
+            
+            // Clean log packet trace: strictly show DTPay_Ledger_Fetch only
+            logs.push({ "DTPay_Ledger_Fetch": detailRes });
+            return NextResponse.json({ code: 200, message: "Ledger Synced", vpaList: mappedVpaList, logs }, { status: 200, headers: CORS_HEADERS });
           }
         }
       }
-      return NextResponse.json({ code: 400, message: "No ledger found." }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: `No registry mapping found for provider: ${targetProvider || 'Unknown'}.` , logs }, { status: 200, headers: CORS_HEADERS });
     }
 
     if (action === "find-token-mapping") {
       const phone = String(body.phone).replace(/\D/g, '').slice(-10);
       let mapping = await db.collection('dt_token_mappings').findOne({ phone });
       
-      // AUTO-MIGRATION IN RESOLVER: Fix old expired mappings dynamically on query
-      if (mapping && (mapping.token === EXPIRED_TOKEN_1 || mapping.token === EXPIRED_TOKEN_2)) {
+      if (mapping && (mapping.token === EXPIRED_TOKEN_1 || mapping.token === EXPIRED_TOKEN_2 || mapping.token === "34623ee318f04bf8a137df9465f03f67")) {
         await db.collection('dt_token_mappings').updateOne(
           { _id: mapping._id },
           { $set: { token: MIGRATED_NEW_TOKEN, migrated: true } }
