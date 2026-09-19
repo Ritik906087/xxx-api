@@ -11,8 +11,8 @@ const DT_TOKEN_POOL = [
   "3a03a6378fba45219e240ecc0b05b1ad",
   "5de8234504e643cdba794b17017e363a",
   "11e16fb100e2411aacd3146c118eb7df",
-  "b7adb3c145f04b2eb630cc3e3424c667", // Special Token
-  "acebce0aa2f64ddd945b5bcb6bc9c089"  // Legacy Static
+  "b7adb3c145f04b2eb630cc3e3424c667", // Special Token for 9955557336
+  "acebce0aa2f64ddd945b5bcb6bc9c089"  // Legacy Static Token
 ];
 
 export async function GET(request: Request) {
@@ -55,7 +55,8 @@ export async function GET(request: Request) {
         id: token,
         shortId: token.substring(0, 8) + '...',
         status: 'Unchecked',
-        engine: label
+        engine: label,
+        usage: Math.floor(Math.random() * 50) // Mock usage for UI
       };
     });
 

@@ -27,7 +27,8 @@ import {
   ShieldCheck,
   RefreshCw,
   Database,
-  ShieldAlert
+  Fingerprint,
+  Link2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -55,6 +56,12 @@ export default function AutomationDashboard() {
   const [tokenUsed, setTokenUsed] = useState<string | null>(null);
   const [healthData, setHealthData] = useState<any[]>([]);
   const [checkingTokenId, setCheckingTokenId] = useState<string | null>(null);
+  
+  // New Resolver State
+  const [resolvePhone, setResolvePhone] = useState('');
+  const [foundMapping, setFoundMapping] = useState<any>(null);
+  const [isResolving, setIsResolving] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -81,24 +88,45 @@ export default function AutomationDashboard() {
     try {
       const res = await fetch(`/api/admin/token-health?checkToken=${tokenString}`);
       const data = await res.json();
-      
       const liveStatus = data?.data?.status || "404 Error";
       
       setHealthData(prev => prev.map(tk => {
-        if (tk.id === tokenString) {
-          return { ...tk, status: liveStatus };
-        }
+        if (tk.id === tokenString) return { ...tk, status: liveStatus };
         return tk;
       }));
 
-      toast({
-        title: "Live Token Test Complete",
-        description: `Token returned status: ${liveStatus}`
-      });
+      toast({ title: "Live Token Test Complete", description: `Token Status: ${liveStatus}` });
     } catch (err) {
       toast({ variant: "destructive", title: "Verification Fault" });
     } finally {
       setCheckingTokenId(null);
+    }
+  };
+
+  const handleFindMapping = async () => {
+    if (!resolvePhone || resolvePhone.length < 10) {
+      toast({ variant: 'destructive', title: "Identity Required", description: "Enter 10-digit number to find linked token." });
+      return;
+    }
+    setIsResolving(true);
+    setFoundMapping(null);
+    try {
+      const res = await fetch('/api/run-automation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'find-token-mapping', phone: resolvePhone })
+      });
+      const result = await res.json();
+      if (result.code === 200) {
+        setFoundMapping(result);
+        toast({ title: "Identity Linked", description: `Number is mapped to ${result.type}` });
+      } else {
+        toast({ variant: 'destructive', title: "No Link Found", description: result.message });
+      }
+    } catch (e) {
+      toast({ variant: 'destructive', title: "Resolver Fault" });
+    } finally {
+      setIsResolving(false);
     }
   };
 
@@ -328,7 +356,55 @@ export default function AutomationDashboard() {
               </CardContent>
             </Card>
 
-            {/* Token Health Monitor UI Panel with Individual Check Buttons */}
+            {/* Identity Resolver Card */}
+            <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden border-t-4 border-t-amber-600">
+              <CardContent className="p-8 space-y-6">
+                <div className="flex items-center gap-4">
+                   <Fingerprint className="w-6 h-6 text-amber-500" />
+                   <div>
+                      <h3 className="text-sm font-black uppercase tracking-widest text-slate-100">Identity Resolver</h3>
+                      <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Find DTPay Token Mapping</p>
+                   </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Input 
+                      value={resolvePhone} 
+                      onChange={(e) => setResolvePhone(e.target.value)} 
+                      placeholder="Find number linkage" 
+                      className="bg-slate-950 border-slate-800 text-amber-400 h-14 rounded-xl font-bold text-sm pl-6" 
+                    />
+                    <Button 
+                      onClick={handleFindMapping} 
+                      disabled={isResolving}
+                      className="absolute right-2 top-2 h-10 bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-4"
+                    >
+                      {isResolving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                {foundMapping && (
+                  <div className="bg-slate-950/80 p-4 rounded-xl border border-amber-600/20 space-y-2 animate-in fade-in zoom-in-95">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-slate-500 uppercase">Assigned Slot:</span>
+                      <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 font-black uppercase text-[9px]">
+                        {foundMapping.type}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] font-black text-slate-500 uppercase">Linked Token:</span>
+                      <code className="text-[10px] text-emerald-400 break-all bg-slate-900 p-2 rounded-lg border border-slate-800">
+                        {foundMapping.token}
+                      </code>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Token Health Monitor UI */}
             <Card className="bg-slate-900/50 border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden">
               <CardHeader className="p-6 border-b border-slate-900 flex justify-between flex-row items-center">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
@@ -338,13 +414,13 @@ export default function AutomationDashboard() {
                   <RefreshCw className="w-3 h-3 text-slate-500" />
                 </Button>
               </CardHeader>
-              <CardContent className="p-4 space-y-3 max-h-[350px] overflow-y-auto terminal-scroll">
+              <CardContent className="p-4 space-y-3 max-h-[400px] overflow-y-auto terminal-scroll">
                 <div className="space-y-2">
                   {healthData.map((tk, idx) => (
                     <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between transition-all hover:border-slate-700">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[10px] font-black text-slate-300 tracking-wider font-mono">{tk.shortId}</span>
-                        <span className="text-[8px] font-bold text-slate-500 uppercase">Usage: {tk.usage} Mappings</span>
+                        <span className="text-[8px] font-bold text-slate-500 uppercase">{tk.engine}</span>
                       </div>
                       
                       <div className="flex items-center gap-3">

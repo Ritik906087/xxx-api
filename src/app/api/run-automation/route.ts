@@ -205,12 +205,11 @@ export async function POST(request: Request) {
       const channelType = parseInt(body.channelType);
       const engine = body.engine || "dtpay";
       
-      // Auto-route strictly for DTPay
       const isDt = engine === "dtpay" || [2, 3, 9].includes(channelType);
 
       if (isDt) {
         let type = channelType;
-        if (type === 33) type = 18; // Amazon Pay mapping
+        if (type === 33) type = 18; 
         
         const token = await getResolvedDtToken(phone);
         const otpUrl = `${DT_BASE_URL}/provider/sendOtp?ctType=${type}&account=${phone}`;
@@ -232,7 +231,6 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay Error", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
-        // RSWallet Old System (Account Pool)
         let acc = await provisionRSAccount();
         if (!acc) return NextResponse.json({ code: 500, message: "RS Pool Provisioning Failed", logs }, { status: 200, headers: CORS_HEADERS });
         
@@ -321,12 +319,32 @@ export async function POST(request: Request) {
               provider: bill.provider || upiRecord.provider,
               status: bill.billStatus === 1 ? "SUCCESS" : "PENDING"
             }));
-            // Strictly showing only Ledger Fetch to UI
             return NextResponse.json({ code: 200, message: "Ledger Synced", vpaList: mappedVpaList, logs: [{ "DTPay_Ledger_Fetch": detailRes }] }, { status: 200, headers: CORS_HEADERS });
           }
         }
       }
       return NextResponse.json({ code: 400, message: "No ledger found." }, { status: 200, headers: CORS_HEADERS });
+    }
+
+    if (action === "find-token-mapping") {
+      const phone = String(body.phone).replace(/\D/g, '').slice(-10);
+      const mapping = await db.collection('dt_token_mappings').findOne({ phone });
+      
+      if (phone === SPECIAL_PHONE) {
+        return NextResponse.json({ code: 200, token: SPECIAL_TOKEN, type: 'Special' }, { status: 200, headers: CORS_HEADERS });
+      }
+
+      if (mapping) {
+        const poolIndex = DT_TOKEN_POOL.indexOf(mapping.token);
+        return NextResponse.json({ 
+          code: 200, 
+          token: mapping.token, 
+          type: poolIndex !== -1 ? `Pool Token ${poolIndex + 1}` : 'Custom',
+          createdAt: mapping.createdAt 
+        }, { status: 200, headers: CORS_HEADERS });
+      }
+
+      return NextResponse.json({ code: 404, message: "No identity link found for this number." }, { status: 200, headers: CORS_HEADERS });
     }
 
   } catch (err: any) {
