@@ -12,7 +12,7 @@ const DT_TOKEN_POOL = [
   "eca3ff6cfa134e72b172eb8e2f4dee65",
   "2ff3d739fd8f4e5d809d06cb4de22474",
   "1e467fbaba784d6ba0f30a1b043d400f",
-  "b7adb3c145f04b2eb630cc3e3424c667", // Special Token for 9955557336
+  "e6de0d33814f4349b62ef25d100af9ea", // Updated Special Token
   "acebce0aa2f64ddd945b5bcb6bc9c089"  // Legacy Static Token
 ];
 
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 
     const healthData = DT_TOKEN_POOL.map((token, index) => {
       let label = `Active Node ${index + 1}`;
-      if (token === "b7adb3c145f04b2eb630cc3e3424c667") label = "Special (9955557336)";
+      if (token === "e6de0d33814f4349b62ef25d100af9ea") label = "Special (9955557336)";
       if (token === "acebce0aa2f64ddd945b5bcb6bc9c089") label = "Legacy Node";
       if (token === "9de595f72cb34d018673e8fee7b5ba05") label = "Primary Node";
 

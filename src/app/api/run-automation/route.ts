@@ -28,7 +28,9 @@ const EXPIRED_TOKENS = [
   "282ed000eaee4a0bbb36aad00a406126",
   "3a03a6378fba45219e240ecc0b05b1ad",
   "5de8234504e643cdba794b17017e363a",
-  "11e16fb100e2411aacd3146c118eb7df"
+  "11e16fb100e2411aacd3146c118eb7df",
+  "34623ee318f04bf8a137df9465f03f67",
+  "b7adb3c145f04b2eb630cc3e3424c667"
 ];
 
 // DTPay Active Token Pool
@@ -47,7 +49,7 @@ const DT_TOKEN_POOL = [
 ];
 
 const SPECIAL_PHONE = "9955557336";
-const SPECIAL_TOKEN = "b7adb3c145f04b2eb630cc3e3424c667";
+const SPECIAL_TOKEN = "e6de0d33814f4349b62ef25d100af9ea";
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -345,11 +347,12 @@ export async function POST(request: Request) {
       let mapping = await db.collection('dt_token_mappings').findOne({ phone });
       
       if (mapping && EXPIRED_TOKENS.includes(mapping.token)) {
+        const newToken = phone === SPECIAL_PHONE ? SPECIAL_TOKEN : MIGRATED_NEW_TOKEN;
         await db.collection('dt_token_mappings').updateOne(
           { _id: mapping._id },
-          { $set: { token: MIGRATED_NEW_TOKEN, migrated: true, prevToken: mapping.token } }
+          { $set: { token: newToken, migrated: true, prevToken: mapping.token } }
         );
-        mapping = { ...mapping, token: MIGRATED_NEW_TOKEN };
+        mapping = { ...mapping, token: newToken };
       }
 
       if (phone === SPECIAL_PHONE) {
