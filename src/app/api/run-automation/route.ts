@@ -3,9 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v33.0 - Optimized Routing
+ * @fileOverview Hybrid Engine v33.0 - Optimized Routing & RSWallet Payload Sync
  * Fixed: Engine selection now strictly respected. 
- * RSWallet: Strictly Old Account Pool system.
+ * RSWallet: Strictly Old Account Pool system with precise upiInfos matrix extractor.
  * DTPay: Multi-Token Load Balancing with Auto-Migration.
  */
 
@@ -185,7 +185,6 @@ export async function POST(request: Request) {
       const channelType = parseInt(body.channelType);
       const engine = body.engine || "dtpay";
       
-      // Strict Engine Routing Logic
       const isDt = engine === "dtpay";
 
       if (isDt) {
@@ -267,8 +266,23 @@ export async function POST(request: Request) {
           body: JSON.stringify(checkPayload)
         }).then(r => r.json());
         
+        logs.push({ "RS_Verify_Raw": checkResp });
+
         if (checkResp.code === 200) {
-          return NextResponse.json({ code: 200, message: "Success", logs }, { status: 200, headers: CORS_HEADERS });
+          // Precise mapping for RSWallet upiInfos matrix conversion
+          const extractionList = (checkResp.data?.upiInfos || []).map((item: any) => ({
+            vpa: item.vpa || "UNKNOWN_HANDLE",
+            upiAccount: session.phone,
+            provider: "LEGACY_RS",
+            status: "SUCCESS"
+          }));
+
+          return NextResponse.json({ 
+            code: 200, 
+            message: "Verification Successful", 
+            vpaList: extractionList, 
+            logs 
+          }, { status: 200, headers: CORS_HEADERS });
         }
         return NextResponse.json({ code: 400, message: checkResp.message || "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
       }
