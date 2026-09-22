@@ -2,16 +2,6 @@ import { jsonResponse, errorResponse } from '@/lib/api-response';
 
 const DT_TOKEN_POOL = [
   "9de595f72cb34d018673e8fee7b5ba05", // Active Primary Token
-  "8c04304e5bcc498dbf1a24e71542ac7f",
-  "8c6f643e9804479db035b14b9c978dad",
-  "1fd198a728534bec88af2bfe8a5238a7",
-  "06c121d451774f489dc3d6e709feeb38",
-  "c77dd20bf8f74e77b0d1f26111f19105",
-  "282ed000eaee4a0bbb36aad00a406126",
-  "3a03a6378fba45219e240ecc0b05b1ad",
-  "5de8234504e643cdba794b17017e363a",
-  "11e16fb100e2411aacd3146c118eb7df",
-  // 10 new high performance tokens mapped
   "b3c8acfef00440e78a5dca12844fa0ba",
   "648ade53f9ff434e9c264f8a050440aa",
   "5ca04d9e066a4dc1a1ac31d7bb087f1d",
@@ -58,16 +48,17 @@ export async function GET(request: Request) {
     }
 
     const healthData = DT_TOKEN_POOL.map((token, index) => {
-      let label = `Pool Token ${index + 1}`;
+      let label = `Active Node ${index + 1}`;
       if (token === "b7adb3c145f04b2eb630cc3e3424c667") label = "Special (9955557336)";
-      if (token === "acebce0aa2f64ddd945b5bcb6bc9c089") label = "Legacy Static";
+      if (token === "acebce0aa2f64ddd945b5bcb6bc9c089") label = "Legacy Node";
+      if (token === "9de595f72cb34d018673e8fee7b5ba05") label = "Primary Node";
 
       return {
         id: token,
         shortId: token.substring(0, 8) + '...',
         status: 'Unchecked',
         engine: label,
-        usage: Math.floor(Math.random() * 50)
+        usage: Math.floor(Math.random() * 30)
       };
     });
 

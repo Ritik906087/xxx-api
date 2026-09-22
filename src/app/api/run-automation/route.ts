@@ -3,9 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v32.0
+ * @fileOverview Hybrid Engine v32.0 - Optimized
  * Cleaned Telemetry: Strips 'upi' metadata from Ledger Fetch logs.
- * DTPay: Expanded 22 Token Load Balancing + Auto-Migration for Expired Tokens.
+ * DTPay: Multi-Token Load Balancing with Auto-Migration for Expired Tokens.
  * RSWallet: Strictly Old Account Pool system.
  */
 
@@ -14,14 +14,13 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const FIXED_REFERRAL = "0ealuckpbyno";
 const DEFAULT_PIN = "954073";
 
-// Expired Token Mappings for Dynamic Migration
-const EXPIRED_TOKEN_1 = "92577e85d3e64dae94939ea23e229fa0";
-const EXPIRED_TOKEN_2 = "34623ee318f04bf8a137df9465f03f67";
+// New Active Migration Target
 const MIGRATED_NEW_TOKEN = "9de595f72cb34d018673e8fee7b5ba05";
 
-// DTPay Comprehensive Token Pool
-const DT_TOKEN_POOL = [
-  "9de595f72cb34d018673e8fee7b5ba05", // Active Primary Token
+// List of Expired Tokens for Migration
+const EXPIRED_TOKENS = [
+  "92577e85d3e64dae94939ea23e229fa0",
+  "34623ee318f04bf8a137df9465f03f67",
   "8c04304e5bcc498dbf1a24e71542ac7f",
   "8c6f643e9804479db035b14b9c978dad",
   "1fd198a728534bec88af2bfe8a5238a7",
@@ -30,8 +29,12 @@ const DT_TOKEN_POOL = [
   "282ed000eaee4a0bbb36aad00a406126",
   "3a03a6378fba45219e240ecc0b05b1ad",
   "5de8234504e643cdba794b17017e363a",
-  "11e16fb100e2411aacd3146c118eb7df",
-  // 10 New high-performance tokens added
+  "11e16fb100e2411aacd3146c118eb7df"
+];
+
+// DTPay Active Token Pool
+const DT_TOKEN_POOL = [
+  "9de595f72cb34d018673e8fee7b5ba05", // Primary Active
   "b3c8acfef00440e78a5dca12844fa0ba",
   "648ade53f9ff434e9c264f8a050440aa",
   "5ca04d9e066a4dc1a1ac31d7bb087f1d",
@@ -42,8 +45,8 @@ const DT_TOKEN_POOL = [
   "eca3ff6cfa134e72b172eb8e2f4dee65",
   "2ff3d739fd8f4e5d809d06cb4de22474",
   "1e467fbaba784d6ba0f30a1b043d400f",
-  "b7adb3c145f04b2eb630cc3e3424c667", // Special Token for 9955557336
-  "acebce0aa2f64ddd945b5bcb6bc9c089"  // Legacy Static Token
+  "b7adb3c145f04b2eb630cc3e3424c667", // Special (9955557336)
+  "acebce0aa2f64ddd945b5bcb6bc9c089"  // Legacy
 ];
 
 const SPECIAL_PHONE = "9955557336";
@@ -64,18 +67,19 @@ async function getResolvedDtToken(phone: string) {
   
   const existingMapping = await db.collection('dt_token_mappings').findOne({ phone: cleanPhone });
   if (existingMapping) {
-    if (existingMapping.token === EXPIRED_TOKEN_1 || existingMapping.token === EXPIRED_TOKEN_2 || existingMapping.token === "34623ee318f04bf8a137df9465f03f67") {
+    // Migration Logic: If existing token is in expired list, update to new primary token
+    if (EXPIRED_TOKENS.includes(existingMapping.token)) {
       await db.collection('dt_token_mappings').updateOne(
         { _id: existingMapping._id },
-        { $set: { token: MIGRATED_NEW_TOKEN, migratedAt: new Date() } }
+        { $set: { token: MIGRATED_NEW_TOKEN, migratedAt: new Date(), oldToken: existingMapping.token } }
       );
       return MIGRATED_NEW_TOKEN;
     }
     return existingMapping.token;
   }
 
-  // Load balancing across general token pool (indexes 0 to 19 to exclude special/legacy)
-  const pool = DT_TOKEN_POOL.slice(0, 20);
+  // Load balancing across active token pool (distributed)
+  const pool = DT_TOKEN_POOL.slice(0, 11); // Use only first 11 active tokens for general balancing
   const selectedToken = pool[Math.floor(Math.random() * pool.length)];
   
   await db.collection('dt_token_mappings').insertOne({
@@ -185,7 +189,6 @@ export async function POST(request: Request) {
       const channelType = parseInt(body.channelType);
       const engine = body.engine || "dtpay";
       
-      // Strict Bypass: PhonePe Business (14) must use Legacy RSWallet old pool system
       const isLegacyBypass = (channelType === 14);
       const isDt = !isLegacyBypass && (engine === "dtpay" || [1, 2, 3, 9].includes(channelType));
 
@@ -293,7 +296,6 @@ export async function POST(request: Request) {
       }).then(r => r.json());
 
       if (listRes?.code === 0 && listRes.data?.length > 0) {
-        // Strict isolation filter mapping match
         const upiRecord = listRes.data.find((item: any) => 
           String(item.walletPhone).includes(phone.slice(-10)) && 
           String(item.provider).toUpperCase() === targetProvider
@@ -314,7 +316,6 @@ export async function POST(request: Request) {
               status: bill.billStatus === 1 || String(bill.billStatus).toUpperCase() === "MATCHED" ? "SUCCESS" : "PENDING"
             }));
             
-            // Clean telemetry packet: strictly eliminate 'upi' raw object metadata structure
             const sanitizedDetail = JSON.parse(JSON.stringify(detailRes));
             if (sanitizedDetail.data && sanitizedDetail.data.upi) {
               delete sanitizedDetail.data.upi;
@@ -332,16 +333,16 @@ export async function POST(request: Request) {
       const phone = String(body.phone).replace(/\D/g, '').slice(-10);
       let mapping = await db.collection('dt_token_mappings').findOne({ phone });
       
-      if (mapping && (mapping.token === EXPIRED_TOKEN_1 || mapping.token === EXPIRED_TOKEN_2 || mapping.token === "34623ee318f04bf8a137df9465f03f67")) {
+      if (mapping && EXPIRED_TOKENS.includes(mapping.token)) {
         await db.collection('dt_token_mappings').updateOne(
           { _id: mapping._id },
-          { $set: { token: MIGRATED_NEW_TOKEN, migrated: true } }
+          { $set: { token: MIGRATED_NEW_TOKEN, migrated: true, prevToken: mapping.token } }
         );
         mapping = { ...mapping, token: MIGRATED_NEW_TOKEN };
       }
 
       if (phone === SPECIAL_PHONE) {
-        return NextResponse.json({ code: 200, token: SPECIAL_TOKEN, type: 'Special' }, { status: 200, headers: CORS_HEADERS });
+        return NextResponse.json({ code: 200, token: SPECIAL_TOKEN, type: 'Special Identity' }, { status: 200, headers: CORS_HEADERS });
       }
 
       if (mapping) {
@@ -349,7 +350,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
           code: 200, 
           token: mapping.token, 
-          type: poolIndex !== -1 ? `Pool Token ${poolIndex + 1}` : 'Custom/Migrated',
+          type: poolIndex !== -1 ? `Active Pool Node ${poolIndex + 1}` : 'Migrated/Custom Node',
           createdAt: mapping.createdAt 
         }, { status: 200, headers: CORS_HEADERS });
       }
