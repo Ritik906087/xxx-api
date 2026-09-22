@@ -20,7 +20,6 @@ const MIGRATED_NEW_TOKEN = "9de595f72cb34d018673e8fee7b5ba05";
 // List of Expired Tokens for Migration
 const EXPIRED_TOKENS = [
   "92577e85d3e64dae94939ea23e229fa0",
-  "34623ee318f04bf8a137df9465f03f67",
   "8c04304e5bcc498dbf1a24e71542ac7f",
   "8c6f643e9804479db035b14b9c978dad",
   "1fd198a728534bec88af2bfe8a5238a7",
@@ -44,9 +43,7 @@ const DT_TOKEN_POOL = [
   "2f6c1e99f15a4d95aec594b042528f5e",
   "eca3ff6cfa134e72b172eb8e2f4dee65",
   "2ff3d739fd8f4e5d809d06cb4de22474",
-  "1e467fbaba784d6ba0f30a1b043d400f",
-  "b7adb3c145f04b2eb630cc3e3424c667", // Special (9955557336)
-  "acebce0aa2f64ddd945b5bcb6bc9c089"  // Legacy
+  "1e467fbaba784d6ba0f30a1b043d400f"
 ];
 
 const SPECIAL_PHONE = "9955557336";
@@ -67,7 +64,6 @@ async function getResolvedDtToken(phone: string) {
   
   const existingMapping = await db.collection('dt_token_mappings').findOne({ phone: cleanPhone });
   if (existingMapping) {
-    // Migration Logic: If existing token is in expired list, update to new primary token
     if (EXPIRED_TOKENS.includes(existingMapping.token)) {
       await db.collection('dt_token_mappings').updateOne(
         { _id: existingMapping._id },
@@ -78,8 +74,8 @@ async function getResolvedDtToken(phone: string) {
     return existingMapping.token;
   }
 
-  // Load balancing across active token pool (distributed)
-  const pool = DT_TOKEN_POOL.slice(0, 11); // Use only first 11 active tokens for general balancing
+  // Pure distributed selector mapping algorithm to ensure loads do not hit a single node
+  const pool = DT_TOKEN_POOL;
   const selectedToken = pool[Math.floor(Math.random() * pool.length)];
   
   await db.collection('dt_token_mappings').insertOne({
@@ -322,11 +318,11 @@ export async function POST(request: Request) {
             }
             logs.push({ "DTPay_Ledger_Fetch": sanitizedDetail });
             
-            return NextResponse.json({ code: 200, message: "Ledger Synced", vpaList: mappedVpaList, logs }, { status: 200, headers: CORS_HEADERS });
+            return NextResponse.json({ code: 200, message: "Ledger Synced", vpaList: mappedVpaList, logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });
           }
         }
       }
-      return NextResponse.json({ code: 400, message: `No registry mapping found for provider: ${targetProvider || 'Unknown'}.` , logs }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: `No registry mapping found for provider: ${targetProvider || 'Unknown'}.` , logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });
     }
 
     if (action === "find-token-mapping") {
