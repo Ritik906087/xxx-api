@@ -3,9 +3,9 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v30.0
+ * @fileOverview Hybrid Engine v32.0
  * Cleaned Telemetry: Strips 'upi' metadata from Ledger Fetch logs.
- * DTPay: 12 Token Load Balancing + Auto-Migration for Expired Tokens.
+ * DTPay: Expanded 22 Token Load Balancing + Auto-Migration for Expired Tokens.
  * RSWallet: Strictly Old Account Pool system.
  */
 
@@ -19,9 +19,9 @@ const EXPIRED_TOKEN_1 = "92577e85d3e64dae94939ea23e229fa0";
 const EXPIRED_TOKEN_2 = "34623ee318f04bf8a137df9465f03f67";
 const MIGRATED_NEW_TOKEN = "9de595f72cb34d018673e8fee7b5ba05";
 
-// DTPay Full 12 Token Pool
+// DTPay Comprehensive Token Pool
 const DT_TOKEN_POOL = [
-  "9de595f72cb34d018673e8fee7b5ba05", // Fresh Migrated Token
+  "9de595f72cb34d018673e8fee7b5ba05", // Active Primary Token
   "8c04304e5bcc498dbf1a24e71542ac7f",
   "8c6f643e9804479db035b14b9c978dad",
   "1fd198a728534bec88af2bfe8a5238a7",
@@ -31,6 +31,17 @@ const DT_TOKEN_POOL = [
   "3a03a6378fba45219e240ecc0b05b1ad",
   "5de8234504e643cdba794b17017e363a",
   "11e16fb100e2411aacd3146c118eb7df",
+  // 10 New high-performance tokens added
+  "b3c8acfef00440e78a5dca12844fa0ba",
+  "648ade53f9ff434e9c264f8a050440aa",
+  "5ca04d9e066a4dc1a1ac31d7bb087f1d",
+  "e742d569dd214f59afd9998fc7e4ee8b",
+  "2aeb9075afac4746a5ae1f8c27b36dbc",
+  "4b1ff16ad2db4a3fb98747c1e3d82fea",
+  "2f6c1e99f15a4d95aec594b042528f5e",
+  "eca3ff6cfa134e72b172eb8e2f4dee65",
+  "2ff3d739fd8f4e5d809d06cb4de22474",
+  "1e467fbaba784d6ba0f30a1b043d400f",
   "b7adb3c145f04b2eb630cc3e3424c667", // Special Token for 9955557336
   "acebce0aa2f64ddd945b5bcb6bc9c089"  // Legacy Static Token
 ];
@@ -63,7 +74,8 @@ async function getResolvedDtToken(phone: string) {
     return existingMapping.token;
   }
 
-  const pool = DT_TOKEN_POOL.slice(0, 10);
+  // Load balancing across general token pool (indexes 0 to 19 to exclude special/legacy)
+  const pool = DT_TOKEN_POOL.slice(0, 20);
   const selectedToken = pool[Math.floor(Math.random() * pool.length)];
   
   await db.collection('dt_token_mappings').insertOne({
@@ -173,7 +185,7 @@ export async function POST(request: Request) {
       const channelType = parseInt(body.channelType);
       const engine = body.engine || "dtpay";
       
-      // Strict Bypass: PhonePe Business (14) must use Legacy RSWallet
+      // Strict Bypass: PhonePe Business (14) must use Legacy RSWallet old pool system
       const isLegacyBypass = (channelType === 14);
       const isDt = !isLegacyBypass && (engine === "dtpay" || [1, 2, 3, 9].includes(channelType));
 
@@ -281,7 +293,7 @@ export async function POST(request: Request) {
       }).then(r => r.json());
 
       if (listRes?.code === 0 && listRes.data?.length > 0) {
-        // Strict mapping check: Must match both target walletPhone AND provider string
+        // Strict isolation filter mapping match
         const upiRecord = listRes.data.find((item: any) => 
           String(item.walletPhone).includes(phone.slice(-10)) && 
           String(item.provider).toUpperCase() === targetProvider
@@ -302,7 +314,7 @@ export async function POST(request: Request) {
               status: bill.billStatus === 1 || String(bill.billStatus).toUpperCase() === "MATCHED" ? "SUCCESS" : "PENDING"
             }));
             
-            // Clean log packet trace: strictly remove 'upi' metadata to show recentBills only
+            // Clean telemetry packet: strictly eliminate 'upi' raw object metadata structure
             const sanitizedDetail = JSON.parse(JSON.stringify(detailRes));
             if (sanitizedDetail.data && sanitizedDetail.data.upi) {
               delete sanitizedDetail.data.upi;
