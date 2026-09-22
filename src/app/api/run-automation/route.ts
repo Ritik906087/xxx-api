@@ -3,10 +3,10 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v32.0 - Optimized
- * Cleaned Telemetry: Strips 'upi' metadata from Ledger Fetch logs.
- * DTPay: Multi-Token Load Balancing with Auto-Migration for Expired Tokens.
+ * @fileOverview Hybrid Engine v33.0 - Optimized Routing
+ * Fixed: Engine selection now strictly respected. 
  * RSWallet: Strictly Old Account Pool system.
+ * DTPay: Multi-Token Load Balancing with Auto-Migration.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -185,8 +185,8 @@ export async function POST(request: Request) {
       const channelType = parseInt(body.channelType);
       const engine = body.engine || "dtpay";
       
-      const isLegacyBypass = (channelType === 14);
-      const isDt = !isLegacyBypass && (engine === "dtpay" || [1, 2, 3, 9].includes(channelType));
+      // Strict Engine Routing Logic
+      const isDt = engine === "dtpay";
 
       if (isDt) {
         let type = channelType;
@@ -212,6 +212,7 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay Error", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
+        // RSWallet Engine (Legacy)
         let acc = await provisionRSAccount();
         if (!acc) return NextResponse.json({ code: 500, message: "RS Pool Provisioning Failed", logs }, { status: 200, headers: CORS_HEADERS });
         
