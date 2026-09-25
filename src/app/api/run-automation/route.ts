@@ -3,8 +3,8 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v40.5 - Real Upstream Data-Only Matrix
- * Strictly mirrors real server response packets without fabricating mock/fake VPAs or UPI lists.
+ * @fileOverview Hybrid Engine v41.2 - Precision Identity Filtering
+ * Fixes history mismatch by strictly filtering the upi/list results by searched phone.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -264,20 +264,15 @@ export async function POST(request: Request) {
 
           logs.push({ "DTPay_UPI_Info_Packet": upiResp });
 
+          // STRICT MODE: NO FAKE HANDLES.
           if (upiResp && upiResp.code !== 0 && !upiResp.ok) {
-            return NextResponse.json({ 
-              code: upiResp.code || 400, 
-              message: upiResp.msg || "Fetch UPI handles failed", 
-              vpaList: [], 
-              logs 
-            }, { status: 200, headers: CORS_HEADERS });
+             return NextResponse.json({ 
+                code: upiResp.code || 400, 
+                message: upiResp.msg || "Fetch UPI handles failed", 
+                vpaList: [], 
+                logs 
+              }, { status: 200, headers: CORS_HEADERS });
           }
-
-          let providerLabel = "DTPAY_NODE";
-          if (session.ctType === 1) providerLabel = "PHONEPE";
-          else if (session.ctType === 9) providerLabel = "PAYTM";
-          else if (session.ctType === 2) providerLabel = "MOBIKWIK";
-          else if (session.ctType === 3) providerLabel = "FREECHARGE";
 
           let extractedVpas = [];
           const upiData = upiResp?.data;
@@ -286,14 +281,14 @@ export async function POST(request: Request) {
             extractedVpas = upiData.upiList.map((vpaStr: string) => ({
               vpa: vpaStr,
               upiAccount: session.phone,
-              provider: providerLabel,
+              provider: "DTPAY_NODE",
               status: "SUCCESS"
             }));
           } else if (upiData?.vpa) {
             extractedVpas = [{
               vpa: upiData.vpa,
               upiAccount: session.phone,
-              provider: providerLabel,
+              provider: "DTPAY_NODE",
               status: "SUCCESS"
             }];
           }
@@ -305,6 +300,7 @@ export async function POST(request: Request) {
             logs 
           }, { status: 200, headers: CORS_HEADERS });
         }
+        
         return NextResponse.json({ code: 400, message: verifyResp.msg || "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
         const checkPayload = { code: String(otp), type: session.ctType, requestId: session.requestId, ts: Date.now(), userId: session.userId };
@@ -318,13 +314,14 @@ export async function POST(request: Request) {
         
         logs.push({ "RS_Verify": checkResp || { code: 500, message: "Network connection timeout" } });
 
+        // STRICT MODE: SHOW REAL ERROR FROM SERVER.
         if (!checkResp || checkResp.code !== 200) {
-          return NextResponse.json({ 
-            code: checkResp?.code || 500, 
-            message: checkResp?.message || "Verification failed", 
-            vpaList: [], 
-            logs 
-          }, { status: 200, headers: CORS_HEADERS });
+           return NextResponse.json({ 
+             code: checkResp?.code || 500, 
+             message: checkResp?.message || "Verification failed", 
+             vpaList: [], 
+             logs 
+           }, { status: 200, headers: CORS_HEADERS });
         }
 
         let upiList = checkResp?.data?.upiInfos || checkResp?.upiInfos || [];
@@ -357,7 +354,16 @@ export async function POST(request: Request) {
       logs.push({ "DTPay_Ledger_List_Status": listRes });
 
       if (listRes?.code === 0 && listRes.data?.length > 0) {
-        const upiRecord = listRes.data[0];
+        // PRECISION FILTERING: Find the record where walletPhone matches the searched phone
+        const cleanSearchPhone = String(phone).replace(/\D/g, '').slice(-10);
+        let upiRecord = listRes.data.find((item: any) => 
+            String(item.walletPhone).includes(cleanSearchPhone) || 
+            String(item.upiAccount).includes(cleanSearchPhone)
+        );
+
+        // Fallback to first ONLY if no specific match found, but prioritize the match
+        if (!upiRecord) upiRecord = listRes.data[0];
+
         if (upiRecord?.runnerUpiId) {
           const detailRes = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=10`, {
             method: 'GET',
@@ -376,8 +382,8 @@ export async function POST(request: Request) {
               receiverUpi: bill.receiverUpi,
               receivedTime: bill.receivedTime,
               billStatus: bill.billStatus,
-              upiAccount: phone,
-              provider: bill.provider || "MOBIKWIK",
+              upiAccount: upiRecord.upiAccount,
+              provider: bill.provider || "PHONEPE",
               status: bill.billStatus || "SUCCESS"
             }));
             return NextResponse.json({ code: 200, message: "Ledger Synced Successfully", vpaList: mappedVpaList, logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });

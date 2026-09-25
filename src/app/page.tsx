@@ -28,9 +28,8 @@ import {
   Database,
   Fingerprint,
   Link2,
-  ArrowUpRight,
   Clock,
-  Coins
+  ArrowUpRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -486,7 +485,7 @@ export default function AutomationDashboard() {
               </CardContent>
             </Card>
 
-            {/* Ledger Results Grid view formatting */}
+            {/* Ledger Results Table View */}
             <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden flex-1 shadow-2xl">
               <CardHeader className="p-6 border-b border-slate-900 flex justify-between flex-row items-center">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
