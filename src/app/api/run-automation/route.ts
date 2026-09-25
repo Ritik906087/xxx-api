@@ -388,12 +388,20 @@ export async function POST(request: Request) {
         
         logs.push({ "RS_Verify": checkResp || { code: 200, message: "success" } });
 
+        // DYNAMIC FALLBACK HANDLE ROUTER FOR RSWALLET: Trace by exact ctType source configuration
+        let determinedSuffix = "rswallet";
+        if (session.ctType === 17) determinedSuffix = "superaxis";      // SuperMoney
+        else if (session.ctType === 13) determinedSuffix = "naviaxis";   // Navi
+        else if (session.ctType === 1 || session.ctType === 14) determinedSuffix = "ybl"; // PhonePe / PhonePeBiz
+        else if (session.ctType === 16) determinedSuffix = "paytm";     // PaytmBusiness
+        else if (session.ctType === 18) determinedSuffix = "baratpe";   // BharatPe
+
         const upiList = checkResp?.data?.upiInfos || [
-          { status: "ACTIVE", vpa: `${session.phone}@naviaxis` }
+          { status: "ACTIVE", vpa: `${session.phone}@${determinedSuffix}` }
         ];
         
         const extractionList = upiList.map((item: any) => ({
-          vpa: item.vpa || `${session.phone}@naviaxis`,
+          vpa: item.vpa || `${session.phone}@${determinedSuffix}`,
           upiAccount: session.phone,
           provider: "LEGACY_RS",
           status: item.status || "SUCCESS"
