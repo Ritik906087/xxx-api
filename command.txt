@@ -1,65 +1,54 @@
 ================================================================
-          VANTAGE OMNI-COMMANDS REGISTRY v2.0 (MAX DETAILED)
+          VANTAGE OMNI-COMMANDS REGISTRY v2.1 (COMPLETE)
 ================================================================
 
-KAISE NIKALEIN VARIABLES (SESSION_ID / MAPPED_TOKEN)?
+HOW TO EXTRACT VARIABLES?
 ----------------------------------------------------------------
-1. Jab aap niche diye gaye kisi bhi [ACTION: SEND OTP] command ko run karenge, 
-   toh response packet mein aapko ek unique "sessionId" milega.
-   Example Response: {"code":200,"message":"OTP Sequence Initiated","sessionId":"DT_A3FB","tokenUsed":"9de595..."}
-2. Us "sessionId" value ko copy karke save rakhein aur next verification call me use karein.
-3. Node Token tracking ke liye active mapping search action command (#3) run karein.
+1. Run [ACTION: SEND OTP]. The response contains "sessionId".
+2. Use that "sessionId" in [ACTION: VERIFY OTP].
+3. For DTPay History, use "find-token-mapping" first to see the active link.
 
-1. DTPAY ENGINE (MULTI-TOKEN POOL - 22 ACTIVE NODES BALANCE)
+1. DTPAY ENGINE (MULTI-TOKEN BALANCER)
 ----------------------------------------------------------------
 [ACTION: SEND OTP]
 - PhonePe (Type 1):
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "send-otp", "phone": "TARGET_PHONE", "channelType": 1, "engine": "dtpay"}'
-
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 1, "engine": "dtpay"}'
 - MobiKwik (Type 2):
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "send-otp", "phone": "TARGET_PHONE", "channelType": 2, "engine": "dtpay"}'
-
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 2, "engine": "dtpay"}'
 - Freecharge (Type 3):
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "send-otp", "phone": "TARGET_PHONE", "channelType": 3, "engine": "dtpay"}'
-
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 3, "engine": "dtpay"}'
 - Paytm (Type 9):
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "send-otp", "phone": "TARGET_PHONE", "channelType": 9, "engine": "dtpay"}'
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 9, "engine": "dtpay"}'
 
-[ACTION: VERIFY OTP & MULTI-UPI LIST ARRAY EXTRACTION]
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "verify-otp", "sessionId": "SESSION_ID", "otp": "OTP_CODE"}'
+[ACTION: VERIFY OTP & EXTRACT UPI LIST]
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "verify-otp", "sessionId": "SESSION_ID", "otp": "OTP"}'
 
-[ACTION: FETCH DIRECT LEDGER / TRANSACTION HISTORY]
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "fetch-by-phone", "phone": "TARGET_PHONE", "channelType": 9}'
+[ACTION: FETCH HISTORY/LEDGER]
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "fetch-by-phone", "phone": "TARGET", "channelType": 9}'
 
 
-2. RSWALLET LEGACY ENGINE (POOL SYSTEM - INDEPENDENT ROUTING)
+2. RSWALLET LEGACY ENGINE (TYPE-SOURCED ROUTING)
 ----------------------------------------------------------------
 [ACTION: SEND OTP]
 - Navi (Type 13):
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "send-otp", "phone": "TARGET_PHONE", "channelType": 13, "engine": "legacy"}'
-
-- PhonePeBusiness (Type 14):
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "send-otp", "phone": "TARGET_PHONE", "channelType": 14, "engine": "legacy"}'
-
-- PaytmBusiness (Type 16):
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "send-otp", "phone": "TARGET_PHONE", "channelType": 16, "engine": "legacy"}'
-
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 13, "engine": "legacy"}'
 - SuperMoney (Type 17):
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "send-otp", "phone": "TARGET_PHONE", "channelType": 17, "engine": "legacy"}'
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 17, "engine": "legacy"}'
+- PhonePeBiz (Type 14):
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 14, "engine": "legacy"}'
+- PaytmBusiness (Type 16):
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 16, "engine": "legacy"}'
+- BharatPe (Type 18):
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 18, "engine": "legacy"}'
 
-- BharatPeBusiness (Type 18):
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "send-otp", "phone": "TARGET_PHONE", "channelType": 18, "engine": "legacy"}'
-
-[ACTION: VERIFY OTP & EXTRACT UPIINFOS DATA STREAM]
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "verify-otp", "sessionId": "SESSION_ID", "otp": "OTP_CODE"}'
+[ACTION: VERIFY OTP]
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "verify-otp", "sessionId": "RS_XXXX", "otp": "OTP"}'
 
 
-3. IDENTITY RESOLVER (STICKY MAPPING DATA Nexus)
+3. IDENTITY RESOLVER
 ----------------------------------------------------------------
-[ACTION: FIND PERSISTENT STICKY TOKEN MAPPED TO PHONE]
-curl -X POST http://localhost:9002/api/run-automation -H "Content-Type: application/json" -d '{"action": "find-token-mapping", "phone": "TARGET_PHONE"}'
+curl -X POST http://localhost:9002/api/run-automation -d '{"action": "find-token-mapping", "phone": "TARGET"}'
 
 ================================================================
-NOTE: Replace TARGET_PHONE, SESSION_ID, and OTP_CODE as required.
-Token Pool Status: 22 Active Nodes Mapped Safely including e6de0d33814f4349b62ef25d100af9ea
+Note: DTPay logic remains untouched. RSWallet handles 500/1002 gracefully.
 ================================================================
