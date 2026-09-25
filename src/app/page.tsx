@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/select";
 import { 
   Loader2, 
-  Play, 
   Terminal, 
   Zap, 
   Activity, 
@@ -28,7 +27,10 @@ import {
   RefreshCw,
   Database,
   Fingerprint,
-  Link2
+  Link2,
+  ArrowUpRight,
+  Clock,
+  Coins
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -116,7 +118,7 @@ export default function AutomationDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'find-token-mapping', phone: resolvePhone })
       });
-      const result = await res.url ? await res.json() : null;
+      const result = await res.json();
       if (result && result.code === 200) {
         setFoundMapping(result);
         toast({ title: "Identity Linked", description: `Number is mapped to ${result.type}` });
@@ -449,7 +451,7 @@ export default function AutomationDashboard() {
 
           {/* Telemetry/Ledger Panel */}
           <div className="lg:col-span-7 space-y-6">
-            <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden h-[380px] flex flex-col shadow-2xl">
+            <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden h-[320px] flex flex-col shadow-2xl">
               <CardHeader className="p-6 border-b border-slate-900 flex justify-between flex-row items-center">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
                   <Terminal className="w-5 h-5 text-blue-500" /> Active System Telemetry
@@ -491,33 +493,68 @@ export default function AutomationDashboard() {
                   <ShieldCheck className="w-5 h-5 text-emerald-500" /> Filtered Extracted Ledger Stream
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className="p-6 overflow-x-auto">
                 {vpaList.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {vpaList.map((v, i) => (
-                      <div key={i} className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between items-start group hover:border-emerald-500/50 transition-all gap-3 shadow-md">
-                        <div className="w-full flex justify-between items-center border-b border-slate-800 pb-2">
-                          <span className="text-xs font-black text-white font-mono tracking-wider break-words max-w-[75%]">
-                            {v.vpa}
-                          </span>
-                          <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2.5 py-0.5 border border-emerald-500/20 shrink-0">
-                            {v.status || 'Success'}
-                          </Badge>
-                        </div>
-                        
-                        <div className="w-full flex flex-col gap-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Identity:</span>
-                            <span className="font-mono text-slate-300">{v.upiAccount}</span>
+                  vpaList[0]?.isLedgerRow ? (
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-slate-400 font-black uppercase text-[10px] tracking-wider">
+                          <th className="pb-3 pr-2">Received Time</th>
+                          <th className="pb-3 pr-2">UTR Number</th>
+                          <th className="pb-3 pr-2">Payer UPI</th>
+                          <th className="pb-3 pr-2 text-right">Amount</th>
+                          <th className="pb-3 pl-4 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-900">
+                        {vpaList.map((v, i) => (
+                          <tr key={i} className="hover:bg-slate-900/40 transition-colors group">
+                            <td className="py-4 pr-2 text-slate-400 font-mono text-[11px] whitespace-nowrap flex items-center gap-1.5">
+                              <Clock className="w-3 h-3 text-slate-600" /> {v.receivedTime || 'N/A'}
+                            </td>
+                            <td className="py-4 pr-2 text-blue-400 font-black font-mono tracking-wider">{v.utr || 'N/A'}</td>
+                            <td className="py-4 pr-2 text-slate-300 font-mono truncate max-w-[140px]">{v.payerUpi || 'N/A'}</td>
+                            <td className="py-4 pr-2 text-right text-emerald-400 font-black text-sm whitespace-nowrap">₹{v.amount}</td>
+                            <td className="py-4 pl-4 text-center">
+                              <Badge className={`text-[8px] font-black px-2 py-0.5 border ${
+                                String(v.billStatus).toUpperCase() === 'SUCCESS' || String(v.billStatus).toUpperCase() === 'MATCHED'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              }`}>
+                                {v.billStatus || 'UNMATCHED'}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {vpaList.map((v, i) => (
+                        <div key={i} className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between items-start group hover:border-emerald-500/50 transition-all gap-3 shadow-md">
+                          <div className="w-full flex justify-between items-center border-b border-slate-800 pb-2">
+                            <span className="text-xs font-black text-white font-mono tracking-wider break-words max-w-[75%]">
+                              {v.vpa}
+                            </span>
+                            <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2.5 py-0.5 border border-emerald-500/20 shrink-0">
+                              {v.status || 'Success'}
+                            </Badge>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Source Node:</span>
-                            <span className="text-blue-400 font-black">{v.provider}</span>
+                          
+                          <div className="w-full flex flex-col gap-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Identity:</span>
+                              <span className="font-mono text-slate-300">{v.upiAccount}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Source Node:</span>
+                              <span className="text-blue-400 font-black">{v.provider}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )
                 ) : (
                   <div className="py-12 text-center text-slate-700 font-black uppercase text-xs flex flex-col items-center gap-3">
                     <AlertCircle className="w-6 h-6 opacity-20" />

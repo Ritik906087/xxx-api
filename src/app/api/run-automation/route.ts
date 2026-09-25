@@ -3,7 +3,7 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v40.3 - Real Upstream Data-Only Matrix
+ * @fileOverview Hybrid Engine v40.5 - Real Upstream Data-Only Matrix
  * Strictly mirrors real server response packets without fabricating mock/fake VPAs or UPI lists.
  */
 
@@ -288,7 +288,7 @@ export async function POST(request: Request) {
               upiAccount: session.phone,
               provider: providerLabel,
               status: "SUCCESS"
-          }));
+            }));
           } else if (upiData?.vpa) {
             extractedVpas = [{
               vpa: upiData.vpa,
@@ -300,7 +300,7 @@ export async function POST(request: Request) {
 
           return NextResponse.json({ 
             code: 200, 
-            message: extractedVpas.length > 0 ? "Verification Successful" : "No active UPI handles inside packet data structure", 
+            message: extractedVpas.length > 0 ? "Verification Successful" : "No active UPI handles returned by server", 
             vpaList: extractedVpas,
             logs 
           }, { status: 200, headers: CORS_HEADERS });
@@ -321,7 +321,7 @@ export async function POST(request: Request) {
         if (!checkResp || checkResp.code !== 200) {
           return NextResponse.json({ 
             code: checkResp?.code || 500, 
-            message: checkResp?.message || "Verification endpoint rejected code credentials", 
+            message: checkResp?.message || "Verification failed", 
             vpaList: [], 
             logs 
           }, { status: 200, headers: CORS_HEADERS });
@@ -354,26 +354,37 @@ export async function POST(request: Request) {
         headers: getStealthHeaders(token, true)
       }).then(r => r.json());
 
+      logs.push({ "DTPay_Ledger_List_Status": listRes });
+
       if (listRes?.code === 0 && listRes.data?.length > 0) {
         const upiRecord = listRes.data[0];
         if (upiRecord?.runnerUpiId) {
-          const detailRes = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=5`, {
+          const detailRes = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=10`, {
             method: 'GET',
             headers: getStealthHeaders(token, true)
           }).then(r => r.json());
 
-          if (detailRes?.code === 0) {
+          logs.push({ "DTPay_Ledger_Fetch": detailRes });
+
+          if (detailRes?.code === 0 && detailRes.data?.recentBills) {
             const mappedVpaList = (detailRes.data.recentBills || []).map((bill: any) => ({
-              vpa: `UTR: ${bill.utr} | Amount: ₹${bill.amount}`,
+              isLedgerRow: true,
+              billId: bill.billId,
+              utr: bill.utr,
+              amount: bill.amount,
+              payerUpi: bill.payerUpi,
+              receiverUpi: bill.receiverUpi,
+              receivedTime: bill.receivedTime,
+              billStatus: bill.billStatus,
               upiAccount: phone,
-              provider: "DTPAY_HISTORY",
-              status: "SUCCESS"
+              provider: bill.provider || "MOBIKWIK",
+              status: bill.billStatus || "SUCCESS"
             }));
-            return NextResponse.json({ code: 200, message: "Ledger Synced", vpaList: mappedVpaList, logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });
+            return NextResponse.json({ code: 200, message: "Ledger Synced Successfully", vpaList: mappedVpaList, logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });
           }
         }
       }
-      return NextResponse.json({ code: 400, message: listRes?.msg || "No real history stream found", logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: listRes?.msg || "No real history stream returned by server", vpaList: [], logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });
     }
 
     if (action === "find-token-mapping") {
