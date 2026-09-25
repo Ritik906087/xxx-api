@@ -3,16 +3,14 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v40.3 - Advanced Multi-UPI List Extraction & Mappings
- * Strictly isolates RSWallet systems and expands DTPay upiList array parsing.
- * Handles SuperMoney, Navi, and Business channels with dynamic suffix routing.
+ * @fileOverview Hybrid Engine v40.3 - Real Upstream Data-Only Matrix
+ * Strictly mirrors real server response packets without fabricating mock/fake VPAs or UPI lists.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
 const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const DEFAULT_PIN = "954073";
 
-// DTPay Active Token Pool (Expanded)
 const DT_TOKEN_POOL = [
   "9de595f72cb34d018673e8fee7b5ba05", 
   "b3c8acfef00440e78a5dca12844fa0ba",
@@ -159,14 +157,11 @@ async function provisionRSAccount() {
           });
           
           return { userId: parseInt(userId), loginToken, sessionKey, phone: acc.phone };
-        } else {
-          await db.collection('automation_accounts').updateOne({ _id: acc._id }, { $set: { status: 'expired' } });
         }
       } catch (e) {}
     }
   }
 
-  // Fallback bot account context
   return { userId: 60065972, loginToken: SPECIAL_TOKEN, sessionKey: "8c6f643e9804479db035b14b9c978dad", phone: "8809863570" };
 }
 
@@ -188,7 +183,6 @@ export async function POST(request: Request) {
       const isDt = engine === "dtpay";
 
       if (isDt) {
-        // DTPay OTP Send Logic
         const token = await getResolvedDtToken(phone);
         const otpUrl = `${DT_BASE_URL}/provider/sendOtp?ctType=${channelType}&account=${phone}`;
         
@@ -209,7 +203,6 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ code: 400, message: otpResp.msg || "DTPay Error", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
-        // RSWallet OTP Send Logic
         let acc = await provisionRSAccount();
         const ts = Date.now();
         const otpPayload = { mobile: phone, type: channelType, accountType: "1", ts, userId: acc.userId };
@@ -247,7 +240,6 @@ export async function POST(request: Request) {
       if (!session) return NextResponse.json({ code: 400, message: "Invalid Session" }, { status: 200, headers: CORS_HEADERS });
 
       if (session.engine === 'DTPay') {
-        // DTPay Verification Pipeline (Untouched)
         const verifyUrl = `${DT_BASE_URL}/provider/verifyOtp?ctType=${session.ctType}&account=${session.phone}&otp=${otp}`;
         const verifyResp = await fetch(verifyUrl, {
           method: 'POST',
@@ -270,7 +262,16 @@ export async function POST(request: Request) {
             body: JSON.stringify({})
           }).then(r => r.json()).catch(() => null);
 
-          logs.push({ "DTPay_Ledger_Fetch": upiResp });
+          logs.push({ "DTPay_UPI_Info_Packet": upiResp });
+
+          if (upiResp && upiResp.code !== 0 && !upiResp.ok) {
+            return NextResponse.json({ 
+              code: upiResp.code || 400, 
+              message: upiResp.msg || "Fetch UPI handles failed", 
+              vpaList: [], 
+              logs 
+            }, { status: 200, headers: CORS_HEADERS });
+          }
 
           let providerLabel = "DTPAY_NODE";
           if (session.ctType === 1) providerLabel = "PHONEPE";
@@ -287,11 +288,10 @@ export async function POST(request: Request) {
               upiAccount: session.phone,
               provider: providerLabel,
               status: "SUCCESS"
-            }));
-          } else {
-            const suffix = session.ctType === 2 ? "mbkns" : session.ctType === 9 ? "paytm" : "ybl";
+          }));
+          } else if (upiData?.vpa) {
             extractedVpas = [{
-              vpa: upiData?.vpa || `${session.phone}@${suffix}`,
+              vpa: upiData.vpa,
               upiAccount: session.phone,
               provider: providerLabel,
               status: "SUCCESS"
@@ -300,14 +300,13 @@ export async function POST(request: Request) {
 
           return NextResponse.json({ 
             code: 200, 
-            message: "Verification Successful", 
+            message: extractedVpas.length > 0 ? "Verification Successful" : "No active UPI handles inside packet data structure", 
             vpaList: extractedVpas,
             logs 
           }, { status: 200, headers: CORS_HEADERS });
         }
         return NextResponse.json({ code: 400, message: verifyResp.msg || "Invalid OTP", logs }, { status: 200, headers: CORS_HEADERS });
       } else {
-        // RSWallet Verification Pipeline
         const checkPayload = { code: String(otp), type: session.ctType, requestId: session.requestId, ts: Date.now(), userId: session.userId };
         const sig = generateRSSignature(checkPayload, session.sessionKey);
         
@@ -317,42 +316,28 @@ export async function POST(request: Request) {
           body: JSON.stringify(checkPayload)
         }).then(r => r.json()).catch(() => null);
         
-        logs.push({ "RS_Verify": checkResp || { code: 500, message: "Network Error" } });
+        logs.push({ "RS_Verify": checkResp || { code: 500, message: "Network connection timeout" } });
 
-        // CRITICAL: If the API says "No UPI available", return it as an error to the UI
-        if (checkResp && checkResp.code !== 200 && checkResp.message === "No UPI available") {
+        if (!checkResp || checkResp.code !== 200) {
           return NextResponse.json({ 
-            code: 400, 
-            message: "No UPI linked to this account", 
+            code: checkResp?.code || 500, 
+            message: checkResp?.message || "Verification endpoint rejected code credentials", 
             vpaList: [], 
             logs 
           }, { status: 200, headers: CORS_HEADERS });
         }
 
-        // DYNAMIC SUFFIX MAPPING
-        let determinedSuffix = "rswallet";
-        if (session.ctType === 17) determinedSuffix = "superaxis";      
-        else if (session.ctType === 13) determinedSuffix = "naviaxis";   
-        else if (session.ctType === 1 || session.ctType === 14) determinedSuffix = "ybl"; 
-        else if (session.ctType === 16) determinedSuffix = "paytm";     
-        else if (session.ctType === 18) determinedSuffix = "baratpe";   
-
-        // Fallback Logic: Only use mock if session expired but we want to simulate
-        let upiList = checkResp?.data?.upiInfos || [];
-        if (upiList.length === 0 && (checkResp?.code === 1002 || !checkResp)) {
-           upiList = [{ status: "ACTIVE", vpa: `${session.phone}@${determinedSuffix}` }];
-        }
-        
+        let upiList = checkResp?.data?.upiInfos || checkResp?.upiInfos || [];
         const extractionList = upiList.map((item: any) => ({
-          vpa: item.vpa || `${session.phone}@${determinedSuffix}`,
+          vpa: item.vpa,
           upiAccount: session.phone,
           provider: "LEGACY_RS",
           status: item.status || "SUCCESS"
-        }));
+        })).filter((item: any) => !!item.vpa);
 
         return NextResponse.json({ 
           code: 200, 
-          message: extractionList.length > 0 ? "Verification Completed" : "No handles found", 
+          message: extractionList.length > 0 ? "Verification Completed" : "No real handles returned by server", 
           vpaList: extractionList, 
           logs 
         }, { status: 200, headers: CORS_HEADERS });
@@ -388,7 +373,7 @@ export async function POST(request: Request) {
           }
         }
       }
-      return NextResponse.json({ code: 400, message: "No history found", logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });
+      return NextResponse.json({ code: 400, message: listRes?.msg || "No real history stream found", logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });
     }
 
     if (action === "find-token-mapping") {
