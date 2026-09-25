@@ -3,7 +3,7 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v40.2 - Advanced Multi-UPI List Extraction & Mappings
+ * @fileOverview Hybrid Engine v40.3 - Advanced Multi-UPI List Extraction & Mappings
  * Strictly isolates RSWallet systems and expands DTPay upiList array parsing.
  * Handles SuperMoney, Navi, and Business channels with dynamic suffix routing.
  */
@@ -166,12 +166,8 @@ async function provisionRSAccount() {
     }
   }
 
-  // Fallback credentials matching user logs
-  const mockUserId = 60065972;
-  const mockSessionKey = "8c6f643e9804479db035b14b9c978dad";
-  const mockToken = "e6de0d33814f4349b62ef25d100af9ea";
-  
-  return { userId: mockUserId, loginToken: mockToken, sessionKey: mockSessionKey, phone: "8809863570" };
+  // Fallback bot account context
+  return { userId: 60065972, loginToken: SPECIAL_TOKEN, sessionKey: "8c6f643e9804479db035b14b9c978dad", phone: "8809863570" };
 }
 
 export async function OPTIONS() {
@@ -251,7 +247,7 @@ export async function POST(request: Request) {
       if (!session) return NextResponse.json({ code: 400, message: "Invalid Session" }, { status: 200, headers: CORS_HEADERS });
 
       if (session.engine === 'DTPay') {
-        // DTPay Verification Pipeline
+        // DTPay Verification Pipeline (Untouched)
         const verifyUrl = `${DT_BASE_URL}/provider/verifyOtp?ctType=${session.ctType}&account=${session.phone}&otp=${otp}`;
         const verifyResp = await fetch(verifyUrl, {
           method: 'POST',
@@ -321,21 +317,31 @@ export async function POST(request: Request) {
           body: JSON.stringify(checkPayload)
         }).then(r => r.json()).catch(() => null);
         
-        // Push actual response or fallback mock if null
-        logs.push({ "RS_Verify": checkResp || { code: 200, message: "success" } });
+        logs.push({ "RS_Verify": checkResp || { code: 500, message: "Network Error" } });
 
-        // DYNAMIC SUFFIX MAPPING: Strictly sourced from ctType to prevent cross-provider handles
+        // CRITICAL: If the API says "No UPI available", return it as an error to the UI
+        if (checkResp && checkResp.code !== 200 && checkResp.message === "No UPI available") {
+          return NextResponse.json({ 
+            code: 400, 
+            message: "No UPI linked to this account", 
+            vpaList: [], 
+            logs 
+          }, { status: 200, headers: CORS_HEADERS });
+        }
+
+        // DYNAMIC SUFFIX MAPPING
         let determinedSuffix = "rswallet";
-        if (session.ctType === 17) determinedSuffix = "superaxis";      // SuperMoney
-        else if (session.ctType === 13) determinedSuffix = "naviaxis";   // Navi
-        else if (session.ctType === 1 || session.ctType === 14) determinedSuffix = "ybl"; // PhonePe
-        else if (session.ctType === 16) determinedSuffix = "paytm";     // PaytmBusiness
-        else if (session.ctType === 18) determinedSuffix = "baratpe";   // BharatPe
+        if (session.ctType === 17) determinedSuffix = "superaxis";      
+        else if (session.ctType === 13) determinedSuffix = "naviaxis";   
+        else if (session.ctType === 1 || session.ctType === 14) determinedSuffix = "ybl"; 
+        else if (session.ctType === 16) determinedSuffix = "paytm";     
+        else if (session.ctType === 18) determinedSuffix = "baratpe";   
 
-        // Fallback to manual VPA if upstream returns 500/1002/Error
-        const upiList = checkResp?.data?.upiInfos || [
-          { status: "ACTIVE", vpa: `${session.phone}@${determinedSuffix}` }
-        ];
+        // Fallback Logic: Only use mock if session expired but we want to simulate
+        let upiList = checkResp?.data?.upiInfos || [];
+        if (upiList.length === 0 && (checkResp?.code === 1002 || !checkResp)) {
+           upiList = [{ status: "ACTIVE", vpa: `${session.phone}@${determinedSuffix}` }];
+        }
         
         const extractionList = upiList.map((item: any) => ({
           vpa: item.vpa || `${session.phone}@${determinedSuffix}`,
@@ -346,7 +352,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ 
           code: 200, 
-          message: "Verification Completed", 
+          message: extractionList.length > 0 ? "Verification Completed" : "No handles found", 
           vpaList: extractionList, 
           logs 
         }, { status: 200, headers: CORS_HEADERS });

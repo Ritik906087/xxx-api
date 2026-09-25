@@ -1,14 +1,14 @@
 ================================================================
-          VANTAGE OMNI-COMMANDS REGISTRY v2.1 (COMPLETE)
+          VANTAGE OMNI-COMMANDS REGISTRY v2.2 (COMPLETE)
 ================================================================
 
 HOW TO EXTRACT VARIABLES?
 ----------------------------------------------------------------
-1. Run [ACTION: SEND OTP]. The response contains "sessionId".
-2. Use that "sessionId" in [ACTION: VERIFY OTP].
-3. For DTPay History, use "find-token-mapping" first to see the active link.
+1. Run [ACTION: SEND OTP]. The JSON response will contain "sessionId" (e.g., DT_A1B2 or RS_C3D4).
+2. Use that exact "sessionId" in the [ACTION: VERIFY OTP] command.
+3. For DTPay History/Resolver, use "find-token-mapping" first to see the active sticky node link.
 
-1. DTPAY ENGINE (MULTI-TOKEN BALANCER)
+1. DTPAY ENGINE (22-TOKEN MULTI-BALANCER)
 ----------------------------------------------------------------
 [ACTION: SEND OTP]
 - PhonePe (Type 1):
@@ -27,14 +27,14 @@ curl -X POST http://localhost:9002/api/run-automation -d '{"action": "verify-otp
 curl -X POST http://localhost:9002/api/run-automation -d '{"action": "fetch-by-phone", "phone": "TARGET", "channelType": 9}'
 
 
-2. RSWALLET LEGACY ENGINE (TYPE-SOURCED ROUTING)
+2. RSWALLET LEGACY ENGINE (DYNAMIC SUFFIX ROUTING)
 ----------------------------------------------------------------
 [ACTION: SEND OTP]
 - Navi (Type 13):
 curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 13, "engine": "legacy"}'
 - SuperMoney (Type 17):
 curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 17, "engine": "legacy"}'
-- PhonePeBiz (Type 14):
+- PhonePeBusiness (Type 14):
 curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 14, "engine": "legacy"}'
 - PaytmBusiness (Type 16):
 curl -X POST http://localhost:9002/api/run-automation -d '{"action": "send-otp", "phone": "TARGET", "channelType": 16, "engine": "legacy"}'
@@ -50,5 +50,5 @@ curl -X POST http://localhost:9002/api/run-automation -d '{"action": "verify-otp
 curl -X POST http://localhost:9002/api/run-automation -d '{"action": "find-token-mapping", "phone": "TARGET"}'
 
 ================================================================
-Note: DTPay logic remains untouched. RSWallet handles 500/1002 gracefully.
+Note: DTPay logic remains untouched. RSWallet handles "No UPI" and "Expired" states gracefully.
 ================================================================
