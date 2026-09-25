@@ -58,7 +58,6 @@ export default function AutomationDashboard() {
   const [healthData, setHealthData] = useState<any[]>([]);
   const [checkingTokenId, setCheckingTokenId] = useState<string | null>(null);
   
-  // New Resolver State
   const [resolvePhone, setResolvePhone] = useState('');
   const [foundMapping, setFoundMapping] = useState<any>(null);
   const [isResolving, setIsResolving] = useState(false);
@@ -80,7 +79,7 @@ export default function AutomationDashboard() {
         setHealthData(data.data.tokens || []);
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Health Registry Unavailable" });
+      console.error(e);
     }
   };
 
@@ -117,12 +116,12 @@ export default function AutomationDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'find-token-mapping', phone: resolvePhone })
       });
-      const result = await res.json();
-      if (result.code === 200) {
+      const result = await res.url ? await res.json() : null;
+      if (result && result.code === 200) {
         setFoundMapping(result);
         toast({ title: "Identity Linked", description: `Number is mapped to ${result.type}` });
       } else {
-        toast({ variant: 'destructive', title: "No Link Found", description: result.message });
+        toast({ variant: 'destructive', title: "No Link Found", description: result?.message || "Error resolving" });
       }
     } catch (e) {
       toast({ variant: 'destructive', title: "Resolver Fault" });
@@ -485,7 +484,7 @@ export default function AutomationDashboard() {
               </CardContent>
             </Card>
 
-            {/* Ledger Results */}
+            {/* Ledger Results Grid view formatting */}
             <Card className="bg-slate-950/50 border-slate-800 rounded-[2rem] overflow-hidden flex-1 shadow-2xl">
               <CardHeader className="p-6 border-b border-slate-900 flex justify-between flex-row items-center">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-4">
@@ -496,14 +495,26 @@ export default function AutomationDashboard() {
                 {vpaList.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {vpaList.map((v, i) => (
-                      <div key={i} className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 flex justify-between items-center group hover:border-emerald-500/50 transition-all">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-black text-white font-mono">{v.vpa}</span>
-                          <span className="text-[8px] text-slate-500 uppercase mt-1 font-bold tracking-widest">
-                            VPA: {v.upiAccount} | {v.provider}
+                      <div key={i} className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between items-start group hover:border-emerald-500/50 transition-all gap-3 shadow-md">
+                        <div className="w-full flex justify-between items-center border-b border-slate-800 pb-2">
+                          <span className="text-xs font-black text-white font-mono tracking-wider break-words max-w-[75%]">
+                            {v.vpa}
                           </span>
+                          <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2.5 py-0.5 border border-emerald-500/20 shrink-0">
+                            {v.status || 'Success'}
+                          </Badge>
                         </div>
-                        <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5">{v.status || 'Success'}</Badge>
+                        
+                        <div className="w-full flex flex-col gap-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Identity:</span>
+                            <span className="font-mono text-slate-300">{v.upiAccount}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Source Node:</span>
+                            <span className="text-blue-400 font-black">{v.provider}</span>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
