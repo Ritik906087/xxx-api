@@ -3,8 +3,8 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v41.2 - Precision Identity Filtering
- * Fixes history mismatch by strictly filtering the upi/list results by searched phone.
+ * @fileOverview Hybrid Engine v41.5 - Absolute Channel Type Filter
+ * Fixes history provider mismatch by strictly filtering the upi/list results by searched phone and chosen channel provider name.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -264,7 +264,6 @@ export async function POST(request: Request) {
 
           logs.push({ "DTPay_UPI_Info_Packet": upiResp });
 
-          // STRICT MODE: NO FAKE HANDLES.
           if (upiResp && upiResp.code !== 0 && !upiResp.ok) {
              return NextResponse.json({ 
                 code: upiResp.code || 400, 
@@ -314,7 +313,6 @@ export async function POST(request: Request) {
         
         logs.push({ "RS_Verify": checkResp || { code: 500, message: "Network connection timeout" } });
 
-        // STRICT MODE: SHOW REAL ERROR FROM SERVER.
         if (!checkResp || checkResp.code !== 200) {
            return NextResponse.json({ 
              code: checkResp?.code || 500, 
@@ -354,15 +352,29 @@ export async function POST(request: Request) {
       logs.push({ "DTPay_Ledger_List_Status": listRes });
 
       if (listRes?.code === 0 && listRes.data?.length > 0) {
-        // PRECISION FILTERING: Find the record where walletPhone matches the searched phone
         const cleanSearchPhone = String(phone).replace(/\D/g, '').slice(-10);
-        let upiRecord = listRes.data.find((item: any) => 
-            String(item.walletPhone).includes(cleanSearchPhone) || 
-            String(item.upiAccount).includes(cleanSearchPhone)
-        );
+        
+        // Map channelType to provider uppercase name string for accurate filtering
+        let selectedProviderStr = "";
+        if (type === 1) selectedProviderStr = "PHONEPE";
+        else if (type === 9) selectedProviderStr = "PAYTM";
+        else if (type === 2) selectedProviderStr = "MOBIKWIK";
+        else if (type === 3) selectedProviderStr = "FREECHARGE";
 
-        // Fallback to first ONLY if no specific match found, but prioritize the match
-        if (!upiRecord) upiRecord = listRes.data[0];
+        // CRITICAL FIX: Filter strictly matching both the phone sequence AND the chosen provider string
+        let upiRecord = listRes.data.find((item: any) => {
+          const matchPhone = String(item.walletPhone).includes(cleanSearchPhone) || String(item.upiAccount).includes(cleanSearchPhone);
+          const matchProvider = selectedProviderStr ? String(item.provider).toUpperCase() === selectedProviderStr : true;
+          return matchPhone && matchProvider;
+        });
+
+        // Safe Fallback if precise provider mapping isn't found
+        if (!upiRecord) {
+          upiRecord = listRes.data.find((item: any) => 
+              String(item.walletPhone).includes(cleanSearchPhone) || 
+              String(item.upiAccount).includes(cleanSearchPhone)
+          );
+        }
 
         if (upiRecord?.runnerUpiId) {
           const detailRes = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=10`, {
@@ -383,7 +395,7 @@ export async function POST(request: Request) {
               receivedTime: bill.receivedTime,
               billStatus: bill.billStatus,
               upiAccount: upiRecord.upiAccount,
-              provider: bill.provider || "PHONEPE",
+              provider: bill.provider || upiRecord.provider || "PHONEPE",
               status: bill.billStatus || "SUCCESS"
             }));
             return NextResponse.json({ code: 200, message: "Ledger Synced Successfully", vpaList: mappedVpaList, logs, tokenUsed: token }, { status: 200, headers: CORS_HEADERS });
