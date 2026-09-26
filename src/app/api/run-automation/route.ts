@@ -3,8 +3,8 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v41.6 - Strict Multi-Validator
- * Updated tokens and refined provider-based history filtering to prevent mismatches.
+ * @fileOverview Hybrid Engine v42.1 - Strict Multi-Validator
+ * Updated DTPay sequence to include Relink-Info and Bind-Upi on every history check.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -29,7 +29,7 @@ const SPECIAL_PHONE = "9955557336";
 const SPECIAL_TOKEN = "e6de0d33814f4349b62ef25d100af9ea";
 
 const EXPIRED_TOKENS = [
-  "9de595f72cb34d018673e8fee7b5ba05", // Added old token here
+  "9de595f72cb34d018673e8fee7b5ba05",
   "92577e85d3e64dae94939ea23e229fa0",
   "8c04304e5bcc498dbf1a24e71542ac7f",
   "8c6f643e9804479db035b14b9c978dad",
@@ -94,8 +94,8 @@ function getStealthHeaders(token: string, isDt = false) {
       "X-Real-IP": ip,
       "Client-IP": ip,
       "X-Runner-Token": token,
-      "X-App-Version": "1.1.13",
-      "X-App-Version-Code": "17",
+      "X-App-Version": "1.1.17",
+      "X-App-Version-Code": "21",
       "X-App-Platform": "android",
       "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36"
     };
@@ -229,7 +229,7 @@ export async function POST(request: Request) {
           phone, 
           engine: 'Legacy', 
           createdAt: new Date() 
-        });
+          });
         
         return NextResponse.json({ code: 200, message: "OTP Sent via RS", sessionId, logs }, { status: 200, headers: CORS_HEADERS });
       }
@@ -355,14 +355,12 @@ export async function POST(request: Request) {
       if (listRes?.code === 0 && listRes.data?.length > 0) {
         const cleanSearchPhone = String(phone).replace(/\D/g, '').slice(-10);
         
-        // Map channelType to provider uppercase name string for accurate filtering
         let selectedProviderStr = "";
         if (type === 1) selectedProviderStr = "PHONEPE";
         else if (type === 9) selectedProviderStr = "PAYTM";
         else if (type === 2) selectedProviderStr = "MOBIKWIK";
         else if (type === 3) selectedProviderStr = "FREECHARGE";
 
-        // CRITICAL FIX: Filter strictly matching both the phone sequence AND the chosen provider string
         let upiRecord = listRes.data.find((item: any) => {
           const matchPhone = String(item.walletPhone).includes(cleanSearchPhone) || String(item.upiAccount).includes(cleanSearchPhone);
           const matchProvider = selectedProviderStr ? String(item.provider).toUpperCase() === selectedProviderStr : true;
@@ -377,6 +375,34 @@ export async function POST(request: Request) {
         }
 
         if (upiRecord?.runnerUpiId) {
+          // USER REQUESTED SEQUENCE START
+          // 1. relink-info
+          const relinkInfoRes = await fetch(`${DT_BASE_URL}/upi/relink-info?runnerUpiId=${upiRecord.runnerUpiId}`, {
+            method: 'GET',
+            headers: getStealthHeaders(token, true)
+          }).then(r => r.json()).catch(() => null);
+          logs.push({ "DTPay_Relink_Info": relinkInfoRes });
+
+          // 2. upiInfo with noAutoBind=true
+          const upiInfoRes = await fetch(`${DT_BASE_URL}/provider/upiInfo?ctType=${type}&account=${phone}&noAutoBind=true`, {
+            method: 'POST',
+            headers: getStealthHeaders(token, true),
+            body: JSON.stringify({})
+          }).then(r => r.json()).catch(() => null);
+          logs.push({ "DTPay_Relink_UPI_Info": upiInfoRes });
+
+          // 3. bindUpi
+          const vpaToBind = upiInfoRes?.data?.vpa || upiRecord.upiAccount;
+          const bindUpiRes = await fetch(`${DT_BASE_URL}/provider/bindUpi?ctType=${type}&account=${phone}&upiAccount=${encodeURIComponent(vpaToBind)}&relinkRunnerUpiId=${upiRecord.runnerUpiId}`, {
+            method: 'POST',
+            headers: {
+              ...getStealthHeaders(token, true),
+              'Content-Type': 'application/x-www-form-urlencoded'
+            }
+          }).then(r => r.json()).catch(() => null);
+          logs.push({ "DTPay_Bind_Upi_Relink": bindUpiRes });
+          // USER REQUESTED SEQUENCE END
+
           const detailRes = await fetch(`${DT_BASE_URL}/upi/detail?runnerUpiId=${upiRecord.runnerUpiId}&limit=10`, {
             method: 'GET',
             headers: getStealthHeaders(token, true)
