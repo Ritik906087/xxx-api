@@ -3,8 +3,8 @@ import { getDb } from '@/lib/mongodb';
 import crypto from 'crypto';
 
 /**
- * @fileOverview Hybrid Engine v41.5 - Absolute Channel Type Filter
- * Fixes history provider mismatch by strictly filtering the upi/list results by searched phone and chosen channel provider name.
+ * @fileOverview Hybrid Engine v41.6 - Strict Multi-Validator
+ * Updated tokens and refined provider-based history filtering to prevent mismatches.
  */
 
 const RS_BASE_URL = "https://api.rswallet-api.com/app";
@@ -12,7 +12,7 @@ const DT_BASE_URL = "https://dtpay.app/runner-api/runner/api/v1";
 const DEFAULT_PIN = "954073";
 
 const DT_TOKEN_POOL = [
-  "9de595f72cb34d018673e8fee7b5ba05", 
+  "0ca74cf0bdb047bd9b1c7308dda13462", // Updated Active Primary
   "b3c8acfef00440e78a5dca12844fa0ba",
   "648ade53f9ff434e9c264f8a050440aa",
   "5ca04d9e066a4dc1a1ac31d7bb087f1d",
@@ -29,6 +29,7 @@ const SPECIAL_PHONE = "9955557336";
 const SPECIAL_TOKEN = "e6de0d33814f4349b62ef25d100af9ea";
 
 const EXPIRED_TOKENS = [
+  "9de595f72cb34d018673e8fee7b5ba05", // Added old token here
   "92577e85d3e64dae94939ea23e229fa0",
   "8c04304e5bcc498dbf1a24e71542ac7f",
   "8c6f643e9804479db035b14b9c978dad",
@@ -38,7 +39,7 @@ const EXPIRED_TOKENS = [
   "b7adb3c145f04b2eb630cc3e3424c667"
 ];
 
-const MIGRATED_NEW_TOKEN = "9de595f72cb34d018673e8fee7b5ba05";
+const MIGRATED_NEW_TOKEN = "0ca74cf0bdb047bd9b1c7308dda13462";
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -264,7 +265,7 @@ export async function POST(request: Request) {
 
           logs.push({ "DTPay_UPI_Info_Packet": upiResp });
 
-          if (upiResp && upiResp.code !== 0 && !upiResp.ok) {
+          if (upiResp && (upiResp.code !== 0 && !upiResp.ok)) {
              return NextResponse.json({ 
                 code: upiResp.code || 400, 
                 message: upiResp.msg || "Fetch UPI handles failed", 
@@ -368,7 +369,6 @@ export async function POST(request: Request) {
           return matchPhone && matchProvider;
         });
 
-        // Safe Fallback if precise provider mapping isn't found
         if (!upiRecord) {
           upiRecord = listRes.data.find((item: any) => 
               String(item.walletPhone).includes(cleanSearchPhone) || 

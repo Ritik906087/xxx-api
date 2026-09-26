@@ -1,7 +1,7 @@
 import { jsonResponse, errorResponse } from '@/lib/api-response';
 
 const DT_TOKEN_POOL = [
-  "9de595f72cb34d018673e8fee7b5ba05", // Active Primary Token
+  "0ca74cf0bdb047bd9b1c7308dda13462", // Updated Active Primary Token
   "b3c8acfef00440e78a5dca12844fa0ba",
   "648ade53f9ff434e9c264f8a050440aa",
   "5ca04d9e066a4dc1a1ac31d7bb087f1d",
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       let label = `Active Node ${index + 1}`;
       if (token === "e6de0d33814f4349b62ef25d100af9ea") label = "Special (9955557336)";
       if (token === "acebce0aa2f64ddd945b5bcb6bc9c089") label = "Legacy Node";
-      if (token === "9de595f72cb34d018673e8fee7b5ba05") label = "Primary Node";
+      if (token === "0ca74cf0bdb047bd9b1c7308dda13462") label = "Primary Node";
 
       return {
         id: token,
